@@ -339,7 +339,6 @@ int readchunk_lzma(struct compstrm *strm)
             case LZMA_STREAM_END:
                 break;
             case LZMA_FORMAT_ERROR:
-                printf("aaa\n");
             case LZMA_OPTIONS_ERROR:
             case LZMA_DATA_ERROR:
             case LZMA_BUF_ERROR:      
