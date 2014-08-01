@@ -14,14 +14,20 @@ int read_be32(int filedesc, uint32_t *buffer_ret)
 {
     char buffer[4];
 
-    if (read(filedesc, buffer, 4) != 4)
-        return EIO;
+    switch (read(filedesc, buffer, 4)) {
+    case 4:
+        break;
+    case -1:
+        return DRPM_ERR_IO;
+    default:
+        return DRPM_ERR_FORMAT;
+    }
 
     *buffer_ret = parse_be32(buffer);
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
-     
+
 int readdelta_rest(int filedesc, struct drpm *delta)
 {
     struct compstrm *stream;
@@ -29,62 +35,59 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     uint32_t sequence_len;
     char *sequence = NULL;
     char md5[MD5_BYTES];
-    int error = EOK;
+    int error = DRPM_ERR_OK;
 
-    if ((error = compstrm_init(&stream, filedesc, &delta->comp)) != EOK)
+    if ((error = compstrm_init(&stream, filedesc, &delta->comp)) != DRPM_ERR_OK)
         return error;
 
-    if ((error = compstrm_read_be32(stream, &delta->version)) != EOK)
+    if ((error = compstrm_read_be32(stream, &delta->version)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (!MAGIC_DLT(delta->version)) {
-        error = EINVAL;
+        error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
 
     delta->version = delta->version % 256 - '0';
 
     if (delta->version < 3 && delta->type == DRPM_TYPE_RPMONLY) {
-        error = EINVAL;
+        error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
 
-    if ((error = compstrm_read_be32(stream, &src_nevr_len)) != EOK)
+    if ((error = compstrm_read_be32(stream, &src_nevr_len)) != DRPM_ERR_OK)
         goto cleanup;
 
     if ((delta->src_nevr = malloc(src_nevr_len + 1)) == NULL) {
-        error = ENOMEM;
+        error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
 
-    if ((error = compstrm_read(stream, src_nevr_len, delta->src_nevr)) != EOK)
+    if ((error = compstrm_read(stream, src_nevr_len, delta->src_nevr)) != DRPM_ERR_OK)
         goto cleanup;
 
     delta->src_nevr[src_nevr_len] = '\0';
 
-    if ((error = compstrm_read_be32(stream, &sequence_len)) != EOK)
+    if ((error = compstrm_read_be32(stream, &sequence_len)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (sequence_len < MD5_BYTES) {
-        error = EINVAL;
+        error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
 
     if ((sequence = malloc(sequence_len)) == NULL ||
         (delta->sequence = malloc(sequence_len * 2 + 1)) == NULL) {
-        error = ENOMEM;
+        error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
 
-    if ((error = compstrm_read(stream, sequence_len, sequence)) != EOK)
+    if ((error = compstrm_read(stream, sequence_len, sequence)) != DRPM_ERR_OK)
         goto cleanup;
 
     dump_hex(delta->sequence, sequence, sequence_len);
 
-    if ((error = compstrm_read(stream, sequence_len - MD5_BYTES, NULL)) != EOK)
-        goto cleanup;
-
-    if ((error = compstrm_read(stream, MD5_BYTES, md5)) != EOK)
+    if ((error = compstrm_read(stream, MD5_BYTES, md5)) != DRPM_ERR_OK)
         goto cleanup;
 
     dump_hex(delta->tgt_md5, md5, MD5_BYTES);
@@ -108,31 +111,34 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     uint32_t version;
     uint32_t tgt_nevr_len;
     uint32_t add_data_size;
+    int error;
+    ssize_t bytes_read;
 
-    if (read_be32(filedesc, &version) != EOK ||
+    if (read_be32(filedesc, &version) != DRPM_ERR_OK ||
         !MAGIC_DLT(version))
-        return EINVAL;
+        return DRPM_ERR_FORMAT;
 
     version = (version & 0x000000FF) - '0';
 
     if (version < 1 || version > 3 ||
-        read_be32(filedesc, &tgt_nevr_len) != EOK)
-        return EINVAL;
+        read_be32(filedesc, &tgt_nevr_len) != DRPM_ERR_OK)
+        return DRPM_ERR_FORMAT;
 
     if ((delta->tgt_nevr = malloc(tgt_nevr_len + 1)) == NULL)
-        return ENOMEM;
+        return DRPM_ERR_MEMORY;
 
-    if (read(filedesc, delta->tgt_nevr, tgt_nevr_len) != tgt_nevr_len)
-        return EINVAL;
+    if ((bytes_read = read(filedesc, delta->tgt_nevr, tgt_nevr_len))
+        != tgt_nevr_len)
+        return bytes_read == -1 ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
 
     delta->tgt_nevr[tgt_nevr_len] = '\0';
 
-    if (read_be32(filedesc, &add_data_size) != EOK)
-        return EINVAL;
+    if ((error = read_be32(filedesc, &add_data_size)) != DRPM_ERR_OK)
+        return error;
 
     lseek(filedesc, add_data_size, SEEK_CUR);
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int readdelta_standard(int filedesc, struct drpm *delta)
@@ -146,33 +152,33 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     off_t file_pos;
 
     if ((file = Fopen(delta->filename, "rb")) == NULL)
-        return EIO;
+        return DRPM_ERR_IO;
 
     Fseek(file, 96, SEEK_SET);
 
     if ((signature = headerRead(file, HEADER_MAGIC_YES))
         == NULL)
-        return EINVAL;
+        return DRPM_ERR_FORMAT;
 
     if ((file_pos = Ftell(file)) % 8)
         Fseek(file, 8 - (file_pos % 8), SEEK_CUR);
 
     if ((header = headerRead(file, HEADER_MAGIC_YES))
         == NULL)
-        return EINVAL;
+        return DRPM_ERR_FORMAT;
 
     if ((name = headerGetAsString(header, RPMTAG_NAME)) == NULL ||
         (version = headerGetAsString(header, RPMTAG_VERSION)) == NULL ||
         (release = headerGetAsString(header, RPMTAG_RELEASE)) == NULL ||
         (delta->tgt_nevr = malloc(strlen(name) + strlen(version) +
                                   strlen(release) + 3)) == NULL)
-        return ENOMEM;
-    
+        return DRPM_ERR_MEMORY;
+
     sprintf(delta->tgt_nevr, "%s-%s-%s", name, version, release);
     lseek(filedesc, Ftell(file), SEEK_SET);
     headerFree(header);
     headerFree(signature);
     Fclose(file);
 
-    return EOK;
+    return DRPM_ERR_OK;
 }

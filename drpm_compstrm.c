@@ -66,17 +66,17 @@ int init_bzip2(struct compstrm *strm)
     strm->stream.bzip2.opaque = NULL;
     strm->stream.bzip2.next_in = NULL;
     strm->stream.bzip2.avail_in = 0;
-    
+
     switch (BZ2_bzDecompressInit(&strm->stream.bzip2, 0, 1)) {
-        case BZ_CONFIG_ERROR:
-            BZ2_bzDecompressEnd(&strm->stream.bzip2);
-            return EINVAL;
-        case BZ_MEM_ERROR:
-            BZ2_bzDecompressEnd(&strm->stream.bzip2);
-            return ENOMEM;
+    case BZ_CONFIG_ERROR:
+        BZ2_bzDecompressEnd(&strm->stream.bzip2);
+        return DRPM_ERR_CONFIG;
+    case BZ_MEM_ERROR:
+        BZ2_bzDecompressEnd(&strm->stream.bzip2);
+        return DRPM_ERR_MEMORY;
     }
-    
-    return EOK;
+
+    return DRPM_ERR_OK;
 }
 
 int init_gzip(struct compstrm *strm)
@@ -88,15 +88,15 @@ int init_gzip(struct compstrm *strm)
     strm->stream.gzip.opaque = NULL;
     strm->stream.gzip.next_in = NULL;
     strm->stream.gzip.avail_in = 0;
-    
+
     switch (inflateInit2(&strm->stream.gzip, 16 + MAX_WBITS)) {
-        case Z_VERSION_ERROR:
-            return EINVAL;
-        case Z_MEM_ERROR:
-            return ENOMEM;
+    case Z_VERSION_ERROR:
+        return DRPM_ERR_CONFIG;
+    case Z_MEM_ERROR:
+        return DRPM_ERR_MEMORY;
     }
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int init_lzma(struct compstrm *strm)
@@ -109,23 +109,23 @@ int init_lzma(struct compstrm *strm)
 
     switch (lzma_auto_decoder(&strm->stream.lzma, UINT64_MAX,
                                 LZMA_CONCATENATED)) {
-        case LZMA_OK:
-            break;
-        case LZMA_MEM_ERROR:
-            lzma_end(&strm->stream.lzma);
-            return ENOMEM;
-        default:
-            lzma_end(&strm->stream.lzma);
-            return EINVAL;
+    case LZMA_OK:
+        break;
+    case LZMA_MEM_ERROR:
+        lzma_end(&strm->stream.lzma);
+        return DRPM_ERR_MEMORY;
+    default:
+        lzma_end(&strm->stream.lzma);
+        return DRPM_ERR_FORMAT;
     }
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int compstrm_destroy(struct compstrm **strm)
 {
     if (strm == NULL || *strm == NULL)
-        return EINVAL;
+        return DRPM_ERR_ARGS;
 
     if ((*strm)->finish != NULL)
         (*strm)->finish(*strm);
@@ -134,7 +134,7 @@ int compstrm_destroy(struct compstrm **strm)
     free(*strm);
     *strm = NULL;
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
@@ -143,16 +143,16 @@ int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
     int error;
 
     if (strm == NULL)
-        return EINVAL;
+        return DRPM_ERR_ARGS;
 
-    if ((error = read_be32(filedesc, &magic)) != EOK)
+    if ((error = read_be32(filedesc, &magic)) != DRPM_ERR_OK)
         return error;
 
     if (lseek(filedesc, -4, SEEK_CUR) == -1)
-        return EIO;
+        return DRPM_ERR_IO;
 
     if ((*strm = malloc(sizeof(struct compstrm))) == NULL)
-        return ENOMEM;
+        return DRPM_ERR_MEMORY;
 
     (*strm)->data = NULL;
     (*strm)->data_len = 0;
@@ -162,7 +162,7 @@ int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
     if (MAGIC_GZIP(magic)) {
         if (comp != NULL)
             *comp = DRPM_COMP_GZIP;
-        return init_gzip(*strm); 
+        return init_gzip(*strm);
     } else if (MAGIC_BZIP2(magic)) {
         if (comp != NULL)
             *comp = DRPM_COMP_BZIP2;
@@ -179,11 +179,11 @@ int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
 
     if (comp != NULL)
         *comp = DRPM_COMP_NONE;
-    
+
     (*strm)->read_chunk = readchunk;
     (*strm)->finish = NULL;
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
@@ -192,14 +192,14 @@ int compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
     char bytes[4];
 
     if (strm == NULL)
-        return EINVAL;
+        return DRPM_ERR_ARGS;
 
-    if ((error = compstrm_read(strm, 4, bytes)) != EOK)
+    if ((error = compstrm_read(strm, 4, bytes)) != DRPM_ERR_OK)
         return error;
 
     *buffer_ret = parse_be32(bytes);
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
@@ -207,10 +207,10 @@ int compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
     int error;
 
     if (strm == NULL)
-        return EINVAL;
+        return DRPM_ERR_ARGS;
 
     while (strm->data_pos + read_len > strm->data_len)
-        if ((error = strm->read_chunk(strm)) != EOK)
+        if ((error = strm->read_chunk(strm)) != DRPM_ERR_OK)
             return error;
 
     if (buffer_ret != NULL)
@@ -218,7 +218,7 @@ int compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
 
     strm->data_pos += read_len;
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int readchunk(struct compstrm *strm)
@@ -228,16 +228,16 @@ int readchunk(struct compstrm *strm)
     char buffer[CHUNK_SIZE];
 
     if ((in_len = read(strm->filedesc, buffer, CHUNK_SIZE)) <= 0)
-        return EIO;
+        return DRPM_ERR_IO;
 
     if ((data_tmp = realloc(strm->data, strm->data_len + in_len)) == NULL)
-        return ENOMEM;
+        return DRPM_ERR_MEMORY;
 
     strm->data = data_tmp;
     memcpy(strm->data + strm->data_len, buffer, in_len);
     strm->data_len += in_len;
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int readchunk_bzip2(struct compstrm *strm)
@@ -249,7 +249,7 @@ int readchunk_bzip2(struct compstrm *strm)
     size_t out_len;
 
     if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) <= 0)
-        return EIO;
+        return DRPM_ERR_IO;
 
     strm->stream.bzip2.next_in = in_buffer;
     strm->stream.bzip2.avail_in = in_len;
@@ -258,24 +258,24 @@ int readchunk_bzip2(struct compstrm *strm)
         strm->stream.bzip2.next_out = out_buffer;
         strm->stream.bzip2.avail_out = CHUNK_SIZE;
         switch (BZ2_bzDecompress(&strm->stream.bzip2)) {
-            case BZ_DATA_ERROR:
-            case BZ_DATA_ERROR_MAGIC:
-                return EINVAL;
-            case BZ_MEM_ERROR:
-                return ENOMEM;
+        case BZ_DATA_ERROR:
+        case BZ_DATA_ERROR_MAGIC:
+            return DRPM_ERR_FORMAT;
+        case BZ_MEM_ERROR:
+            return DRPM_ERR_MEMORY;
         }
         out_len = CHUNK_SIZE - strm->stream.bzip2.avail_out;
         if (out_len == 0)
             continue;
         if ((data_tmp = realloc(strm->data, strm->data_len + out_len))
             == NULL)
-            return ENOMEM;
+            return DRPM_ERR_MEMORY;
         strm->data = data_tmp;
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     } while (!strm->stream.bzip2.avail_out);
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int readchunk_gzip(struct compstrm *strm)
@@ -287,7 +287,7 @@ int readchunk_gzip(struct compstrm *strm)
     size_t out_len;
 
     if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) <= 0)
-        return EIO;
+        return DRPM_ERR_IO;
 
     strm->stream.gzip.next_in = in_buffer;
     strm->stream.gzip.avail_in = in_len;
@@ -296,25 +296,25 @@ int readchunk_gzip(struct compstrm *strm)
         strm->stream.gzip.next_out = out_buffer;
         strm->stream.gzip.avail_out = CHUNK_SIZE;
         switch (inflate(&strm->stream.gzip, Z_SYNC_FLUSH)) {
-            case Z_DATA_ERROR:
-            case Z_NEED_DICT:
-            case Z_STREAM_ERROR:
-                return EINVAL;
-            case Z_MEM_ERROR:
-                return ENOMEM;
+        case Z_DATA_ERROR:
+        case Z_NEED_DICT:
+        case Z_STREAM_ERROR:
+            return DRPM_ERR_FORMAT;
+        case Z_MEM_ERROR:
+            return DRPM_ERR_MEMORY;
         }
         out_len = CHUNK_SIZE - strm->stream.gzip.avail_out;
         if (out_len == 0)
             continue;
         if ((data_tmp = realloc(strm->data, strm->data_len + out_len))
             == NULL)
-            return ENOMEM;
+            return DRPM_ERR_MEMORY;
         strm->data = data_tmp;
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     } while (!strm->stream.gzip.avail_out);
 
-    return EOK;
+    return DRPM_ERR_OK;
 }
 
 int readchunk_lzma(struct compstrm *strm)
@@ -326,7 +326,7 @@ int readchunk_lzma(struct compstrm *strm)
     size_t out_len;
 
     if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) <= 0)
-        return EIO;
+        return DRPM_ERR_IO;
 
     strm->stream.lzma.next_in = in_buffer;
     strm->stream.lzma.avail_in = in_len;
@@ -335,29 +335,29 @@ int readchunk_lzma(struct compstrm *strm)
         strm->stream.lzma.next_out = out_buffer;
         strm->stream.lzma.avail_out = CHUNK_SIZE;
         switch (lzma_code(&strm->stream.lzma, LZMA_RUN)) {
-            case LZMA_OK:
-            case LZMA_STREAM_END:
-                break;
-            case LZMA_FORMAT_ERROR:
-            case LZMA_OPTIONS_ERROR:
-            case LZMA_DATA_ERROR:
-            case LZMA_BUF_ERROR:      
-                return EINVAL;
-            case LZMA_MEM_ERROR:
-                return ENOMEM;
-            default:
-                return EINVAL;
+        case LZMA_OK:
+        case LZMA_STREAM_END:
+            break;
+        case LZMA_FORMAT_ERROR:
+        case LZMA_OPTIONS_ERROR:
+        case LZMA_DATA_ERROR:
+        case LZMA_BUF_ERROR:
+            return DRPM_ERR_FORMAT;
+        case LZMA_MEM_ERROR:
+            return DRPM_ERR_MEMORY;
+        default:
+            return DRPM_ERR_OTHER;
         }
         out_len = CHUNK_SIZE - strm->stream.lzma.avail_out;
         if (out_len == 0)
             continue;
         if ((data_tmp = realloc(strm->data, strm->data_len + out_len))
             == NULL)
-            return ENOMEM;
+            return DRPM_ERR_MEMORY;
         strm->data = data_tmp;
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     } while (!strm->stream.lzma.avail_out);
 
-    return EOK;
+    return DRPM_ERR_OK;
 }

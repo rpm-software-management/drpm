@@ -1,4 +1,4 @@
-CFLAGS=-std=c99 -pedantic -Wall -Wextra -fPIC
+CFLAGS=-std=c99 -pedantic -Wall -Wextra -fPIC -g -O0
 
 all: libdrpm.so
 
