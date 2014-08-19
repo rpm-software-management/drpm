@@ -166,9 +166,6 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     FD_t file;
     Header header;
     Header signature;
-    char *name = NULL;
-    char *version = NULL;
-    char *release = NULL;
     off_t file_pos;
 
     if ((file = Fopen(delta->filename, "rb")) == NULL)
@@ -176,25 +173,18 @@ int readdelta_standard(int filedesc, struct drpm *delta)
 
     Fseek(file, 96, SEEK_SET);
 
-    if ((signature = headerRead(file, HEADER_MAGIC_YES))
-        == NULL)
+    if ((signature = headerRead(file, HEADER_MAGIC_YES)) == NULL)
         return DRPM_ERR_FORMAT;
 
     if ((file_pos = Ftell(file)) % 8)
         Fseek(file, 8 - (file_pos % 8), SEEK_CUR);
 
-    if ((header = headerRead(file, HEADER_MAGIC_YES))
-        == NULL)
+    if ((header = headerRead(file, HEADER_MAGIC_YES)) == NULL)
         return DRPM_ERR_FORMAT;
 
-    if ((name = headerGetAsString(header, RPMTAG_NAME)) == NULL ||
-        (version = headerGetAsString(header, RPMTAG_VERSION)) == NULL ||
-        (release = headerGetAsString(header, RPMTAG_RELEASE)) == NULL ||
-        (delta->tgt_nevr = malloc(strlen(name) + strlen(version) +
-                                  strlen(release) + 3)) == NULL)
+    if ((delta->tgt_nevr = headerGetAsString(header, RPMTAG_NEVR)) == NULL)
         return DRPM_ERR_MEMORY;
 
-    sprintf(delta->tgt_nevr, "%s-%s-%s", name, version, release);
     lseek(filedesc, Ftell(file), SEEK_SET);
     headerFree(header);
     headerFree(signature);
