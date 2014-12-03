@@ -1,6 +1,6 @@
 Name: drpm
 Description: A small library for fetching information from deltarpm packages
 URL: http://fedorahosted.org/drpm
-Version: 0.1.1
+Version: 0.1.2
 Requires: rpm-devel, zlib-devel, bzip2-devel, xz-devel
 Libs: -ldrpm
