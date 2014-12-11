@@ -11,8 +11,6 @@ install:
 	install -m 755 libdrpm.so.0.0.0 $(DESTDIR)$(libdir)/
 	install -m 644 drpm.h $(DESTDIR)$(includedir)/
 	install -m 644 drpm.pc $(DESTDIR)$(libdir)/pkgconfig/
-#	ln -s $(DESTDIR)$(libdir)/libdrpm.so.0.0.0 $(DESTDIR)$(libdir)/libdrpm.so.0
-#	ln -s $(DESTDIR)$(libdir)/libdrpm.so.0 $(DESTDIR)$(libdir)/libdrpm.so
 
 .PHONY: install
 
