@@ -1,6 +1,7 @@
 /*
     Authors:
         Pavel Tobias <ptobias@redhat.com>
+        Matej Chalk <mchalk@redhat.com>
 
     Copyright (C) 2014 Red Hat
 
@@ -148,8 +149,11 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
         return DRPM_ERR_MEMORY;
 
     if ((bytes_read = read(filedesc, delta->tgt_nevr, tgt_nevr_len))
-        != tgt_nevr_len)
-        return bytes_read == -1 ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
+        == -1)
+        return DRPM_ERR_IO;
+
+    if ((unsigned) bytes_read != tgt_nevr_len)
+        return DRPM_ERR_FORMAT;
 
     delta->tgt_nevr[tgt_nevr_len] = '\0';
 
