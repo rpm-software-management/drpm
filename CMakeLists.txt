@@ -13,7 +13,7 @@ set_source_files_properties(${SOURCES} PROPERTIES
 )
 
 set_target_properties(drpm PROPERTIES
-   VERSION 0.0.0
+   VERSION 0.0.1
    SOVERSION 0
    LINK_FLAGS "-lz -lbz2 -llzma -lrpm -lrpmio"
 )
