@@ -40,8 +40,7 @@ make %{?_smp_mflags}
 %postun -p /sbin/ldconfig
 
 %files
-%{_libdir}/libdrpm.so.0
-%{_libdir}/libdrpm.so.0.0.0
+%{_libdir}/libdrpm.so.*
 %license COPYING COPYING.LESSER
 
 %files devel

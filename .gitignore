@@ -1,0 +1,12 @@
+# directories
+build
+doc
+
+# file types
+*~
+*.gch
+*.o
+*.so
+*.so.*
+*.out
+*.x86_64
