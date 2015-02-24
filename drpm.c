@@ -1,6 +1,7 @@
 /*
     Authors:
         Pavel Tobias <ptobias@redhat.com>
+        Matej Chalk <mchalk@redhat.com>
 
     Copyright (C) 2014 Red Hat
 
@@ -113,10 +114,10 @@ int drpm_read(struct drpm **delta_ret, const char *filename)
     uint32_t magic;
     int error = DRPM_ERR_OK;
 
-    *delta_ret = NULL;
-
     if (filename == NULL || delta_ret == NULL)
         return DRPM_ERR_ARGS;
+
+    *delta_ret = NULL;
 
     if ((filedesc = open(filename, O_RDONLY)) == -1)
         return DRPM_ERR_IO;
