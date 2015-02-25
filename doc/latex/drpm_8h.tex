@@ -1,0 +1,304 @@
+\hypertarget{drpm_8h}{\section{drpm.\-h File Reference}
+\label{drpm_8h}\index{drpm.\-h@{drpm.\-h}}
+}
+\subsection*{Macros}
+\begin{Indent}{\bf errors}\par
+\begin{DoxyCompactItemize}
+\item 
+\#define \hyperlink{drpm_8h_a77f9703b5ed83cc31b93af9c84936be9}{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-K}~0
+\item 
+\#define \hyperlink{drpm_8h_af05ae49fa73a2e58c2b96dc136119339}{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-M\-E\-M\-O\-R\-Y}~1
+\item 
+\#define \hyperlink{drpm_8h_ae3a896c18d21c7448bd5ce199b2b67bc}{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-A\-R\-G\-S}~2
+\item 
+\#define \hyperlink{drpm_8h_a4ead6cfc8c294f84b8576cc72fd7dfb1}{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-I\-O}~3
+\item 
+\#define \hyperlink{drpm_8h_a5c1000db0a72782a13efecb89dd1d716}{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-F\-O\-R\-M\-A\-T}~4
+\item 
+\#define \hyperlink{drpm_8h_a949e32a43599925dcc2d515820020541}{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-C\-O\-N\-F\-I\-G}~5
+\item 
+\#define \hyperlink{drpm_8h_ac761f33eda7f8e771974840d6d25ca8d}{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-T\-H\-E\-R}~6
+\end{DoxyCompactItemize}
+\end{Indent}
+\begin{Indent}{\bf delta types}\par
+\begin{DoxyCompactItemize}
+\item 
+\#define \hyperlink{drpm_8h_a222e1c1dab6ed6591c1aaa8c1e0b0b1f}{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-S\-T\-A\-N\-D\-A\-R\-D}~0
+\item 
+\#define \hyperlink{drpm_8h_a3f3d180a8ce59b40c69d490bee1528ec}{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-R\-P\-M\-O\-N\-L\-Y}~1
+\end{DoxyCompactItemize}
+\end{Indent}
+\begin{Indent}{\bf compression types}\par
+\begin{DoxyCompactItemize}
+\item 
+\#define \hyperlink{drpm_8h_acc6df3053a8222637c96858a72846582}{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-N\-O\-N\-E}~0
+\item 
+\#define \hyperlink{drpm_8h_a40fcbf75807c36d51c7bba1e4aa1fb4c}{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-G\-Z\-I\-P}~1
+\item 
+\#define \hyperlink{drpm_8h_a2fcc3c8c1dc2820a48d6c52b4481ee6d}{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-B\-Z\-I\-P2}~2
+\item 
+\#define \hyperlink{drpm_8h_a19b148240946da6a8cce7b6fdd57c8da}{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-L\-Z\-M\-A}~3
+\item 
+\#define \hyperlink{drpm_8h_adbbb283be3869a8cd982c5aad82df7b8}{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-X\-Z}~4
+\end{DoxyCompactItemize}
+\end{Indent}
+\begin{Indent}{\bf info tags}\par
+\begin{DoxyCompactItemize}
+\item 
+\#define \hyperlink{drpm_8h_ae3cbf2c42a194b9101031a2164ad26e3}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-F\-I\-L\-E\-N\-A\-M\-E}~0
+\item 
+\#define \hyperlink{drpm_8h_a1ea8d5981f10cabff502ef245312f789}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-V\-E\-R\-S\-I\-O\-N}~1
+\item 
+\#define \hyperlink{drpm_8h_a12ed83adc7ce21df050b570b40ba4d76}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-Y\-P\-E}~2
+\item 
+\#define \hyperlink{drpm_8h_a4bd0faeee49a1144c2c7986424f86d2a}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-C\-O\-M\-P}~3
+\item 
+\#define \hyperlink{drpm_8h_a9c05542bbf21172f1e33d432ff47934d}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-E\-Q\-U\-E\-N\-C\-E}~4
+\item 
+\#define \hyperlink{drpm_8h_aae5f1312fd08bd6c97f67c58a67524ee}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-R\-C\-N\-E\-V\-R}~5
+\item 
+\#define \hyperlink{drpm_8h_a136d2d4952612d5019e122de92bac84b}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-N\-E\-V\-R}~6
+\item 
+\#define \hyperlink{drpm_8h_a1e4b7e7a53c4168877ffdd3ca388734f}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-S\-I\-Z\-E}~7
+\item 
+\#define \hyperlink{drpm_8h_a14504606d51b8edf916535fc386d4aba}{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-M\-D5}~8
+\end{DoxyCompactItemize}
+\end{Indent}
+\subsection*{Typedefs}
+\begin{DoxyCompactItemize}
+\item 
+typedef struct \hyperlink{structdrpm}{drpm} \hyperlink{drpm_8h_ac309ae0548e150561e99a7485147ecd9}{drpm}
+\end{DoxyCompactItemize}
+\subsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \hyperlink{drpm_8h_a9759ce46c50fd2dce113c6082dcb871f}{drpm\-\_\-destroy} (\hyperlink{structdrpm}{drpm} $\ast$$\ast$delta)
+\begin{DoxyCompactList}\small\item\em Frees memory pointed to by {\ttfamily $\ast$delta} and sets {\ttfamily $\ast$delta} to {\ttfamily N\-U\-L\-L}. \end{DoxyCompactList}\item 
+int \hyperlink{drpm_8h_a165dc49d29332dc7782903c73e855c63}{drpm\-\_\-get\-\_\-uint} (\hyperlink{structdrpm}{drpm} $\ast$delta, int tag, unsigned $\ast$target)
+\begin{DoxyCompactList}\small\item\em Fetches information representable as an unsigned integer. \end{DoxyCompactList}\item 
+int \hyperlink{drpm_8h_ab75600a5356737c4772f7c5b4330066f}{drpm\-\_\-get\-\_\-string} (\hyperlink{structdrpm}{drpm} $\ast$delta, int tag, char $\ast$$\ast$target)
+\begin{DoxyCompactList}\small\item\em Fetches information representable as a string. \end{DoxyCompactList}\item 
+int \hyperlink{drpm_8h_adebf26649abd66d278b504b0fd74531e}{drpm\-\_\-read} (\hyperlink{structdrpm}{drpm} $\ast$$\ast$delta, const char $\ast$filename)
+\begin{DoxyCompactList}\small\item\em Reads information from a deltarpm package {\ttfamily filename} into {\ttfamily $\ast$delta}. \end{DoxyCompactList}\end{DoxyCompactItemize}
+
+
+\subsection{Macro Definition Documentation}
+\hypertarget{drpm_8h_a2fcc3c8c1dc2820a48d6c52b4481ee6d}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-B\-Z\-I\-P2@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-B\-Z\-I\-P2}}
+\index{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-B\-Z\-I\-P2@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-B\-Z\-I\-P2}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-B\-Z\-I\-P2}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-B\-Z\-I\-P2~2}}\label{drpm_8h_a2fcc3c8c1dc2820a48d6c52b4481ee6d}
+bzip2 \hypertarget{drpm_8h_a40fcbf75807c36d51c7bba1e4aa1fb4c}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-G\-Z\-I\-P@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-G\-Z\-I\-P}}
+\index{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-G\-Z\-I\-P@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-G\-Z\-I\-P}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-G\-Z\-I\-P}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-G\-Z\-I\-P~1}}\label{drpm_8h_a40fcbf75807c36d51c7bba1e4aa1fb4c}
+gzip \hypertarget{drpm_8h_a19b148240946da6a8cce7b6fdd57c8da}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-L\-Z\-M\-A@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-L\-Z\-M\-A}}
+\index{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-L\-Z\-M\-A@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-L\-Z\-M\-A}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-L\-Z\-M\-A}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-L\-Z\-M\-A~3}}\label{drpm_8h_a19b148240946da6a8cce7b6fdd57c8da}
+lzma \hypertarget{drpm_8h_acc6df3053a8222637c96858a72846582}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-N\-O\-N\-E@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-N\-O\-N\-E}}
+\index{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-N\-O\-N\-E@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-N\-O\-N\-E}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-N\-O\-N\-E}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-N\-O\-N\-E~0}}\label{drpm_8h_acc6df3053a8222637c96858a72846582}
+no compression \hypertarget{drpm_8h_adbbb283be3869a8cd982c5aad82df7b8}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-X\-Z@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-X\-Z}}
+\index{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-X\-Z@{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-X\-Z}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-X\-Z}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-C\-O\-M\-P\-\_\-\-X\-Z~4}}\label{drpm_8h_adbbb283be3869a8cd982c5aad82df7b8}
+xz \hypertarget{drpm_8h_ae3a896c18d21c7448bd5ce199b2b67bc}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-A\-R\-G\-S@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-A\-R\-G\-S}}
+\index{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-A\-R\-G\-S@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-A\-R\-G\-S}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-A\-R\-G\-S}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-A\-R\-G\-S~2}}\label{drpm_8h_ae3a896c18d21c7448bd5ce199b2b67bc}
+bad arguments \hypertarget{drpm_8h_a949e32a43599925dcc2d515820020541}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-C\-O\-N\-F\-I\-G@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-C\-O\-N\-F\-I\-G}}
+\index{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-C\-O\-N\-F\-I\-G@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-C\-O\-N\-F\-I\-G}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-C\-O\-N\-F\-I\-G}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-C\-O\-N\-F\-I\-G~5}}\label{drpm_8h_a949e32a43599925dcc2d515820020541}
+misconfigured external library \hypertarget{drpm_8h_a5c1000db0a72782a13efecb89dd1d716}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-F\-O\-R\-M\-A\-T@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-F\-O\-R\-M\-A\-T}}
+\index{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-F\-O\-R\-M\-A\-T@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-F\-O\-R\-M\-A\-T}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-F\-O\-R\-M\-A\-T}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-F\-O\-R\-M\-A\-T~4}}\label{drpm_8h_a5c1000db0a72782a13efecb89dd1d716}
+wrong file format \hypertarget{drpm_8h_a4ead6cfc8c294f84b8576cc72fd7dfb1}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-I\-O@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-I\-O}}
+\index{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-I\-O@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-I\-O}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-I\-O}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-I\-O~3}}\label{drpm_8h_a4ead6cfc8c294f84b8576cc72fd7dfb1}
+I/\-O error \hypertarget{drpm_8h_af05ae49fa73a2e58c2b96dc136119339}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-M\-E\-M\-O\-R\-Y@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-M\-E\-M\-O\-R\-Y}}
+\index{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-M\-E\-M\-O\-R\-Y@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-M\-E\-M\-O\-R\-Y}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-M\-E\-M\-O\-R\-Y}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-M\-E\-M\-O\-R\-Y~1}}\label{drpm_8h_af05ae49fa73a2e58c2b96dc136119339}
+memory allocation error \hypertarget{drpm_8h_a77f9703b5ed83cc31b93af9c84936be9}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-K@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-K}}
+\index{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-K@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-K}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-K}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-K~0}}\label{drpm_8h_a77f9703b5ed83cc31b93af9c84936be9}
+no error \hypertarget{drpm_8h_ac761f33eda7f8e771974840d6d25ca8d}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-T\-H\-E\-R@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-T\-H\-E\-R}}
+\index{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-T\-H\-E\-R@{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-T\-H\-E\-R}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-T\-H\-E\-R}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-E\-R\-R\-\_\-\-O\-T\-H\-E\-R~6}}\label{drpm_8h_ac761f33eda7f8e771974840d6d25ca8d}
+unspecified/unknown error \hypertarget{drpm_8h_a4bd0faeee49a1144c2c7986424f86d2a}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-C\-O\-M\-P@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-C\-O\-M\-P}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-C\-O\-M\-P@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-C\-O\-M\-P}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-C\-O\-M\-P}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-C\-O\-M\-P~3}}\label{drpm_8h_a4bd0faeee49a1144c2c7986424f86d2a}
+compression type \hypertarget{drpm_8h_ae3cbf2c42a194b9101031a2164ad26e3}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-F\-I\-L\-E\-N\-A\-M\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-F\-I\-L\-E\-N\-A\-M\-E}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-F\-I\-L\-E\-N\-A\-M\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-F\-I\-L\-E\-N\-A\-M\-E}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-F\-I\-L\-E\-N\-A\-M\-E}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-F\-I\-L\-E\-N\-A\-M\-E~0}}\label{drpm_8h_ae3cbf2c42a194b9101031a2164ad26e3}
+file name \hypertarget{drpm_8h_a9c05542bbf21172f1e33d432ff47934d}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-E\-Q\-U\-E\-N\-C\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-E\-Q\-U\-E\-N\-C\-E}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-E\-Q\-U\-E\-N\-C\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-E\-Q\-U\-E\-N\-C\-E}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-E\-Q\-U\-E\-N\-C\-E}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-E\-Q\-U\-E\-N\-C\-E~4}}\label{drpm_8h_a9c05542bbf21172f1e33d432ff47934d}
+sequence \hypertarget{drpm_8h_aae5f1312fd08bd6c97f67c58a67524ee}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-R\-C\-N\-E\-V\-R@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-R\-C\-N\-E\-V\-R}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-R\-C\-N\-E\-V\-R@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-R\-C\-N\-E\-V\-R}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-R\-C\-N\-E\-V\-R}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-S\-R\-C\-N\-E\-V\-R~5}}\label{drpm_8h_aae5f1312fd08bd6c97f67c58a67524ee}
+source N\-E\-V\-R (name-\/epoch\-:version-\/release) \hypertarget{drpm_8h_a14504606d51b8edf916535fc386d4aba}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-M\-D5@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-M\-D5}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-M\-D5@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-M\-D5}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-M\-D5}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-M\-D5~8}}\label{drpm_8h_a14504606d51b8edf916535fc386d4aba}
+target M\-D5 \hypertarget{drpm_8h_a136d2d4952612d5019e122de92bac84b}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-N\-E\-V\-R@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-N\-E\-V\-R}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-N\-E\-V\-R@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-N\-E\-V\-R}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-N\-E\-V\-R}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-N\-E\-V\-R~6}}\label{drpm_8h_a136d2d4952612d5019e122de92bac84b}
+target N\-E\-V\-R (name-\/epoch\-:version-\/release) \hypertarget{drpm_8h_a1e4b7e7a53c4168877ffdd3ca388734f}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-S\-I\-Z\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-S\-I\-Z\-E}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-S\-I\-Z\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-S\-I\-Z\-E}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-S\-I\-Z\-E}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-G\-T\-S\-I\-Z\-E~7}}\label{drpm_8h_a1e4b7e7a53c4168877ffdd3ca388734f}
+target size \hypertarget{drpm_8h_a12ed83adc7ce21df050b570b40ba4d76}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-Y\-P\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-Y\-P\-E}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-Y\-P\-E@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-Y\-P\-E}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-Y\-P\-E}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-T\-Y\-P\-E~2}}\label{drpm_8h_a12ed83adc7ce21df050b570b40ba4d76}
+delta type \hypertarget{drpm_8h_a1ea8d5981f10cabff502ef245312f789}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-V\-E\-R\-S\-I\-O\-N@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-V\-E\-R\-S\-I\-O\-N}}
+\index{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-V\-E\-R\-S\-I\-O\-N@{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-V\-E\-R\-S\-I\-O\-N}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-V\-E\-R\-S\-I\-O\-N}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-A\-G\-\_\-\-V\-E\-R\-S\-I\-O\-N~1}}\label{drpm_8h_a1ea8d5981f10cabff502ef245312f789}
+version \hypertarget{drpm_8h_a3f3d180a8ce59b40c69d490bee1528ec}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-R\-P\-M\-O\-N\-L\-Y@{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-R\-P\-M\-O\-N\-L\-Y}}
+\index{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-R\-P\-M\-O\-N\-L\-Y@{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-R\-P\-M\-O\-N\-L\-Y}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-R\-P\-M\-O\-N\-L\-Y}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-R\-P\-M\-O\-N\-L\-Y~1}}\label{drpm_8h_a3f3d180a8ce59b40c69d490bee1528ec}
+rpm-\/only deltarpm \hypertarget{drpm_8h_a222e1c1dab6ed6591c1aaa8c1e0b0b1f}{\index{drpm.\-h@{drpm.\-h}!D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-S\-T\-A\-N\-D\-A\-R\-D@{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-S\-T\-A\-N\-D\-A\-R\-D}}
+\index{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-S\-T\-A\-N\-D\-A\-R\-D@{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-S\-T\-A\-N\-D\-A\-R\-D}!drpm.h@{drpm.\-h}}
+\subsubsection[{D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-S\-T\-A\-N\-D\-A\-R\-D}]{\setlength{\rightskip}{0pt plus 5cm}\#define D\-R\-P\-M\-\_\-\-T\-Y\-P\-E\-\_\-\-S\-T\-A\-N\-D\-A\-R\-D~0}}\label{drpm_8h_a222e1c1dab6ed6591c1aaa8c1e0b0b1f}
+standard deltarpm 
+
+\subsection{Typedef Documentation}
+\hypertarget{drpm_8h_ac309ae0548e150561e99a7485147ecd9}{\index{drpm.\-h@{drpm.\-h}!drpm@{drpm}}
+\index{drpm@{drpm}!drpm.h@{drpm.\-h}}
+\subsubsection[{drpm}]{\setlength{\rightskip}{0pt plus 5cm}typedef struct {\bf drpm} {\bf drpm}}}\label{drpm_8h_ac309ae0548e150561e99a7485147ecd9}
+abstract data type of deltarpm structure 
+
+\subsection{Function Documentation}
+\hypertarget{drpm_8h_a9759ce46c50fd2dce113c6082dcb871f}{\index{drpm.\-h@{drpm.\-h}!drpm\-\_\-destroy@{drpm\-\_\-destroy}}
+\index{drpm\-\_\-destroy@{drpm\-\_\-destroy}!drpm.h@{drpm.\-h}}
+\subsubsection[{drpm\-\_\-destroy}]{\setlength{\rightskip}{0pt plus 5cm}int drpm\-\_\-destroy (
+\begin{DoxyParamCaption}
+\item[{{\bf drpm} $\ast$$\ast$}]{delta}
+\end{DoxyParamCaption}
+)}}\label{drpm_8h_a9759ce46c50fd2dce113c6082dcb871f}
+
+
+Frees memory pointed to by {\ttfamily $\ast$delta} and sets {\ttfamily $\ast$delta} to {\ttfamily N\-U\-L\-L}. 
+
+Example of usage\-: 
+\begin{DoxyCode}
+\textcolor{keywordtype}{int} error = \hyperlink{drpm_8h_a9759ce46c50fd2dce113c6082dcb871f}{drpm\_destroy}(&delta);
+\textcolor{keywordflow}{if} (error != \hyperlink{drpm_8h_a77f9703b5ed83cc31b93af9c84936be9}{DRPM\_ERR\_OK})
+   \textcolor{keywordflow}{return} error;
+\end{DoxyCode}
+ 
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\tt out}  & {\em delta} & deltarpm that is to be freed \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+error number 
+\end{DoxyReturn}
+\begin{DoxyWarning}{Warning}
+Must be preceded by call to \hyperlink{drpm_8h_adebf26649abd66d278b504b0fd74531e}{drpm\-\_\-read()}. 
+\end{DoxyWarning}
+\hypertarget{drpm_8h_ab75600a5356737c4772f7c5b4330066f}{\index{drpm.\-h@{drpm.\-h}!drpm\-\_\-get\-\_\-string@{drpm\-\_\-get\-\_\-string}}
+\index{drpm\-\_\-get\-\_\-string@{drpm\-\_\-get\-\_\-string}!drpm.h@{drpm.\-h}}
+\subsubsection[{drpm\-\_\-get\-\_\-string}]{\setlength{\rightskip}{0pt plus 5cm}int drpm\-\_\-get\-\_\-string (
+\begin{DoxyParamCaption}
+\item[{{\bf drpm} $\ast$}]{delta, }
+\item[{int}]{tag, }
+\item[{char $\ast$$\ast$}]{target}
+\end{DoxyParamCaption}
+)}}\label{drpm_8h_ab75600a5356737c4772f7c5b4330066f}
+
+
+Fetches information representable as a string. 
+
+Fetches string-\/type information identified by {\ttfamily tag} from {\ttfamily delta}, copies it to space previously allocated by the function itself and saves the adress to {\ttfamily $\ast$target}.
+
+Example of usage\-: 
+\begin{DoxyCode}
+\textcolor{keywordtype}{char} *tgt\_nevr;
+\textcolor{keywordtype}{int} error = \hyperlink{drpm_8h_ab75600a5356737c4772f7c5b4330066f}{drpm\_get\_string}(delta, \hyperlink{drpm_8h_a136d2d4952612d5019e122de92bac84b}{DRPM\_TAG\_TGTNEVR}, &tgt\_nevr);
+\textcolor{keywordflow}{if} (error != \hyperlink{drpm_8h_a77f9703b5ed83cc31b93af9c84936be9}{DRPM\_ERR\_OK})
+   \textcolor{keywordflow}{return} error;
+printf(\textcolor{stringliteral}{"Target NEVR: %s\(\backslash\)n"}, tgt\_nevr);
+free(tgt\_nevr);
+\end{DoxyCode}
+ 
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\tt in}  & {\em delta} & deltarpm containing required info \\
+\hline
+\mbox{\tt in}  & {\em tag} & symbolic value identifying which info is required \\
+\hline
+\mbox{\tt out}  & {\em target} & tagged info will be copied here \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+error number 
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+{\ttfamily $\ast$target} should be freed manually by the user when no longer needed. 
+\end{DoxyNote}
+\begin{DoxyWarning}{Warning}
+Must be preceded by call to \hyperlink{drpm_8h_adebf26649abd66d278b504b0fd74531e}{drpm\-\_\-read()}. 
+\end{DoxyWarning}
+\hypertarget{drpm_8h_a165dc49d29332dc7782903c73e855c63}{\index{drpm.\-h@{drpm.\-h}!drpm\-\_\-get\-\_\-uint@{drpm\-\_\-get\-\_\-uint}}
+\index{drpm\-\_\-get\-\_\-uint@{drpm\-\_\-get\-\_\-uint}!drpm.h@{drpm.\-h}}
+\subsubsection[{drpm\-\_\-get\-\_\-uint}]{\setlength{\rightskip}{0pt plus 5cm}int drpm\-\_\-get\-\_\-uint (
+\begin{DoxyParamCaption}
+\item[{{\bf drpm} $\ast$}]{delta, }
+\item[{int}]{tag, }
+\item[{unsigned $\ast$}]{target}
+\end{DoxyParamCaption}
+)}}\label{drpm_8h_a165dc49d29332dc7782903c73e855c63}
+
+
+Fetches information representable as an unsigned integer. 
+
+Fetches information identified by {\ttfamily tag} from {\ttfamily delta} and copies it to adress pointed to by {\ttfamily target}.
+
+Example of usage\-: 
+\begin{DoxyCode}
+\textcolor{keywordtype}{unsigned} type;
+\textcolor{keywordtype}{int} error = \hyperlink{drpm_8h_a165dc49d29332dc7782903c73e855c63}{drpm\_get\_uint}(delta, \hyperlink{drpm_8h_a12ed83adc7ce21df050b570b40ba4d76}{DRPM\_TAG\_TYPE}, &type);
+\textcolor{keywordflow}{if} (error != \hyperlink{drpm_8h_a77f9703b5ed83cc31b93af9c84936be9}{DRPM\_ERR\_OK})
+   \textcolor{keywordflow}{return} error;
+printf(\textcolor{stringliteral}{"This is a %s deltarpm\(\backslash\)n"}, comp\_type == \hyperlink{drpm_8h_a222e1c1dab6ed6591c1aaa8c1e0b0b1f}{DRPM\_TYPE\_STANDARD} ? \textcolor{stringliteral}{"standard"} : \textcolor{stringliteral}{"
+      rpm-only"});
+\end{DoxyCode}
+ 
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\tt in}  & {\em delta} & deltarpm containing required info \\
+\hline
+\mbox{\tt in}  & {\em tag} & symbolic value identifying which info is required \\
+\hline
+\mbox{\tt out}  & {\em target} & tagged info will be copied here \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+error number 
+\end{DoxyReturn}
+\begin{DoxyWarning}{Warning}
+Must be preceded by call to \hyperlink{drpm_8h_adebf26649abd66d278b504b0fd74531e}{drpm\-\_\-read()}. 
+\end{DoxyWarning}
+\hypertarget{drpm_8h_adebf26649abd66d278b504b0fd74531e}{\index{drpm.\-h@{drpm.\-h}!drpm\-\_\-read@{drpm\-\_\-read}}
+\index{drpm\-\_\-read@{drpm\-\_\-read}!drpm.h@{drpm.\-h}}
+\subsubsection[{drpm\-\_\-read}]{\setlength{\rightskip}{0pt plus 5cm}int drpm\-\_\-read (
+\begin{DoxyParamCaption}
+\item[{{\bf drpm} $\ast$$\ast$}]{delta, }
+\item[{const char $\ast$}]{filename}
+\end{DoxyParamCaption}
+)}}\label{drpm_8h_adebf26649abd66d278b504b0fd74531e}
+
+
+Reads information from a deltarpm package {\ttfamily filename} into {\ttfamily $\ast$delta}. 
+
+Example of usage\-: 
+\begin{DoxyCode}
+\hyperlink{structdrpm}{drpm} *delta;
+\textcolor{keywordtype}{int} error = \hyperlink{drpm_8h_adebf26649abd66d278b504b0fd74531e}{drpm\_read}(&delta, argv[1]);
+\textcolor{keywordflow}{if} (error != \hyperlink{drpm_8h_a77f9703b5ed83cc31b93af9c84936be9}{DRPM\_ERR\_OK})
+   \textcolor{keywordflow}{return} error;
+\end{DoxyCode}
+ 
+\begin{DoxyParams}[1]{Parameters}
+\mbox{\tt out}  & {\em delta} & deltarpm to be filled with info \\
+\hline
+\mbox{\tt in}  & {\em filename} & name of deltarpm file whose data is to be read \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+error number 
+\end{DoxyReturn}
+\begin{DoxyNote}{Note}
+Memory allocated by calling \hyperlink{drpm_8h_adebf26649abd66d278b504b0fd74531e}{drpm\-\_\-read()} should later be freed by calling \hyperlink{drpm_8h_a9759ce46c50fd2dce113c6082dcb871f}{drpm\-\_\-destroy()}. 
+\end{DoxyNote}
