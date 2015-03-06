@@ -10,7 +10,7 @@ set(CPACK_PACKAGE_CONTACT "Matej Chalk <mchalk@redhat.com>")
 set(CPACK_PACKAGE_VERSION_MAJOR 0)
 set(CPACK_PACKAGE_VERSION_MINOR 1)
 set(CPACK_PACKAGE_VERSION_PATCH 3)
-set(CPACK_SOURCE_IGNORE_FILES ""/build/" "/test/" "/doc/" /pkg/" "\\\\.git" ".*~")
+set(CPACK_SOURCE_IGNORE_FILES "/build/" "/test/" "/doc/" "/pkg/" "\\\\.git" ".*~" ".*\\\\.o")
 set(CPACK_SOURCE_GENERATOR "TBZ2")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
 
@@ -39,9 +39,9 @@ set_target_properties(drpm PROPERTIES
    LINK_FLAGS "-lz -lbz2 -llzma -lrpm -lrpmio"
 )
 
-#enable_testing()
+enable_testing()
 
-#add_subdirectory(test)
+add_subdirectory(test)
 add_subdirectory(doc)
 
 install(TARGETS drpm DESTINATION ${LIB_INSTALL_DIR})
