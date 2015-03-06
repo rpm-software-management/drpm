@@ -1,5 +1,8 @@
 # directories
 build
+tmp
+html
+latex
 
 # file types
 *~

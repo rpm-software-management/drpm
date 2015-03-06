@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "../drpm.h"
+#include "../src/drpm.h"
 
 drpm *delta = NULL;
 char **files;

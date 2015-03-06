@@ -1,5 +1,6 @@
+include_directories(../src)
 
-set(DRPM_TEST_SOURCES drpm_test.c ../drpm.c ../drpm_compstrm.c ../drpm_read.c ../drpm_utils.c)
+set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_compstrm.c ../src/drpm_read.c ../src/drpm_utils.c)
 
 set(DRPM_TEST_FILES drpm_test_file_1.rpm drpm_test_file_2.rpm drpm_test_file_3.rpm drpm_test_file_4.rpm)
 set(DRPM_TEST_ARGS ${DRPM_TEST_FILES} drpm_test_file_5.rpm)
@@ -29,5 +30,5 @@ add_test(
 
 file(
    COPY ${DRPM_TEST_FILES}
-   DESTINATION ${CMAKE_BINARY_DIR}/test
+   DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
 )
