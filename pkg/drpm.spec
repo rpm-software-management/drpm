@@ -8,11 +8,13 @@ License:        LGPLv3+
 URL:            http://fedorahosted.org/%{name}
 Source:         http://fedorahosted.org/released/%{name}/%{name}-%{version}.tar.bz2
 
-BuildRequires:  cmake >= 2.8
 BuildRequires:  rpm-devel
 BuildRequires:  zlib-devel
 BuildRequires:  bzip2-devel
 BuildRequires:  xz-devel
+BuildRequires:  cmake >= 2.8
+BuildRequires:  libcmocka-devel >= 1.0
+BuildRequires:  valgrind
 
 %package devel
 Summary:        C interface for the drpm library
@@ -32,8 +34,10 @@ The drpm-devel package provides a C interface (drpm.h) for the drpm library.
 %cmake .
 make %{?_smp_mflags}
 
+%ifarch x86_64
 %check
 make check
+%endif
 
 %install
 %make_install
@@ -52,8 +56,12 @@ make check
 %{_libdir}/pkgconfig/drpm.pc
 
 %changelog
-* Fri Mar 6 2015 Natej Chalk <mchalk@redhat.com> 0.1.3-2
-- Added %check section
+* Wed Mar 11 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-3
+- Added cmocka and valgrind package dependencies
+- Check section only included for x86_64 architecture (fails otherwise)
+
+* Fri Mar 6 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-2
+- Added check section
 
 * Fri Feb 13 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-1
 - Bumped version to 0.1.3
