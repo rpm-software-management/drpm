@@ -29,12 +29,15 @@
 #include "../src/drpm.h"
 #include "../src/drpm_private.h"
 
+#define MOCK_TESTS 18
+
 int __real_read_be32(int, uint32_t *);
 int __real_readdelta_standard(int, drpm *);
 int __real_readdelta_rest(int, drpm *);
 int __real_compstrm_init(struct compstrm **, int, uint32_t *);
 int __real_compstrm_read_be32(struct compstrm *, uint32_t *);
 int __real_compstrm_read(struct compstrm *, size_t, char *);
+int __real_compstrm_destroy(struct compstrm **);
 
 drpm *delta = NULL;
 char **files;
@@ -123,11 +126,22 @@ int __wrap_compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_re
     }
 }
 
+int __wrap_compstrm_destroy(struct compstrm **strm)
+{
+    switch (test_no) {
+        case 18:
+            __real_compstrm_destroy(strm);
+            return (int)mock();
+        default:
+            return __real_compstrm_destroy(strm);
+    }
+}
+
 static void test_drpm_read_err_mock(void **state)
 {
     (void) state; /* unused */
 
-    LargestIntegralType ret_vals[17] = {
+    LargestIntegralType ret_vals[MOCK_TESTS] = {
         DRPM_ERR_IO,
         DRPM_ERR_FORMAT,
         DRPM_ERR_IO,
@@ -144,10 +158,11 @@ static void test_drpm_read_err_mock(void **state)
         DRPM_ERR_ARGS,
         DRPM_ERR_IO,
         DRPM_ERR_FORMAT,
-        DRPM_ERR_MEMORY
+        DRPM_ERR_MEMORY,
+        DRPM_ERR_ARGS
     };
 
-    for (test_no = 1; test_no <= 17; test_no++) {
+    for (test_no = 1; test_no <= MOCK_TESTS; test_no++) {
         switch (test_no) {
             case 1:
             case 2:
@@ -177,6 +192,9 @@ static void test_drpm_read_err_mock(void **state)
             case 16:
             case 17:
                 will_return(__wrap_compstrm_read, ret_vals[test_no-1]);
+                break;
+            case 18:
+                will_return(__wrap_compstrm_destroy, ret_vals[test_no-1]);
                 break;
         }
         assert_int_equal(ret_vals[test_no-1], drpm_read(&delta, files[1]));

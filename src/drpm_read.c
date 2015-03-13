@@ -121,7 +121,12 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     error = compstrm_read_be32(stream, &delta->tgt_size);
 
 cleanup:
-    compstrm_destroy(&stream);
+
+    if (error == DRPM_ERR_OK)
+        error = compstrm_destroy(&stream);
+    else
+        compstrm_destroy(&stream);
+
     free(sequence);
 
     return error;

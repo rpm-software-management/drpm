@@ -17,7 +17,7 @@ set_source_files_properties(${DRPM_TEST_SOURCES} PROPERTIES
 target_link_libraries(drpm_test z bz2 lzma rpm rpmio cmocka)
 
 set_target_properties(drpm_test PROPERTIES
-   LINK_FLAGS "-Wl,--wrap,read_be32 -Wl,--wrap,readdelta_standard -Wl,--wrap,readdelta_rest -Wl,--wrap,compstrm_init -Wl,--wrap,compstrm_read_be32 -Wl,--wrap,compstrm_read"
+   LINK_FLAGS "-Wl,--wrap,read_be32 -Wl,--wrap,readdelta_standard -Wl,--wrap,readdelta_rest -Wl,--wrap,compstrm_init -Wl,--wrap,compstrm_read_be32 -Wl,--wrap,compstrm_read -Wl,--wrap,compstrm_destroy"
 )
 
 add_test(
