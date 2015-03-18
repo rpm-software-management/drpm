@@ -29,9 +29,10 @@
 #include "../src/drpm.h"
 #include "../src/drpm_private.h"
 
-#define MOCK_TESTS 18
+#define MOCK_TESTS 21
 
 int __real_read_be32(int, uint32_t *);
+int __real_readdelta_rpmonly(int, drpm *);
 int __real_readdelta_standard(int, drpm *);
 int __real_readdelta_rest(int, drpm *);
 int __real_compstrm_init(struct compstrm **, int, uint32_t *);
@@ -48,8 +49,8 @@ void print_help()
     printf("Usage: ./drpm_test ARG1 ARG2 ARG3 ARG4 ARG5\n"
            "Runs unit tests for the drpm package.\n\n"
            "Arguments are paths to files that have the following qualities.\n"
-           "  ARG1   Valid deltarpm file, on which most tests will be conducted.\n"
-           "  ARG2   Another valid deltarpm file.\n"
+           "  ARG1   Valid deltarpm file, standard, V1, bzip2 compression.\n"
+           "  ARG2   Valid deltarpm file, rpm-only, V3, xz compression.\n"
            "  ARG3   A valid rpm file, but not a deltarpm.\n"
            "  ARG4   A file that is neither an rpm nor a deltarpm.\n"
            "  ARG5   A file name that does not exist.\n");
@@ -66,12 +67,24 @@ int __wrap_read_be32(int filedesc, uint32_t *buffer_ret)
     }
 }
 
-int __wrap_readdelta_standard(int filedesc, drpm *delta)
+int __wrap_readdelta_rpmonly(int filedesc, drpm *delta)
 {
     switch (test_no) {
         case 3:
         case 4:
         case 5:
+            return (int)mock();
+        default:
+            return __real_readdelta_rpmonly(filedesc, delta);
+    }
+}
+
+int __wrap_readdelta_standard(int filedesc, drpm *delta)
+{
+    switch (test_no) {
+        case 6:
+        case 7:
+        case 8:
             return (int)mock();
         default:
             return __real_readdelta_standard(filedesc, delta);
@@ -81,8 +94,8 @@ int __wrap_readdelta_standard(int filedesc, drpm *delta)
 int __wrap_readdelta_rest(int filedesc, drpm *delta)
 {
     switch (test_no) {
-        case 6:
-        case 7:
+        case 9:
+        case 10:
             return (int)mock();
         default:
             return __real_readdelta_rest(filedesc, delta);
@@ -92,11 +105,11 @@ int __wrap_readdelta_rest(int filedesc, drpm *delta)
 int __wrap_compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
 {
     switch (test_no) {
-        case 8:
-        case 9:
-        case 10:
         case 11:
         case 12:
+        case 13:
+        case 14:
+        case 15:
             return (int)mock();
         default:
             return __real_compstrm_init(strm, filedesc, comp);
@@ -106,7 +119,7 @@ int __wrap_compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
 int __wrap_compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
 {
     switch (test_no) {
-        case 13:
+        case 16:
             return (int)mock();
         default:
             return __real_compstrm_read_be32(strm, buffer_ret);
@@ -116,10 +129,10 @@ int __wrap_compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
 int __wrap_compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
 {
     switch (test_no) {
-        case 14:
-        case 15:
-        case 16:
         case 17:
+        case 18:
+        case 19:
+        case 20:
             return (int)mock();
         default:
             return __real_compstrm_read(strm, read_len, buffer_ret);
@@ -129,7 +142,7 @@ int __wrap_compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_re
 int __wrap_compstrm_destroy(struct compstrm **strm)
 {
     switch (test_no) {
-        case 18:
+        case 21:
             __real_compstrm_destroy(strm);
             return (int)mock();
         default:
@@ -141,9 +154,13 @@ static void test_drpm_read_err_mock(void **state)
 {
     (void) state; /* unused */
 
+    char *delta_file;
     LargestIntegralType ret_vals[MOCK_TESTS] = {
         DRPM_ERR_IO,
         DRPM_ERR_FORMAT,
+        DRPM_ERR_FORMAT,
+        DRPM_ERR_MEMORY,
+        DRPM_ERR_IO,
         DRPM_ERR_IO,
         DRPM_ERR_FORMAT,
         DRPM_ERR_MEMORY,
@@ -163,6 +180,7 @@ static void test_drpm_read_err_mock(void **state)
     };
 
     for (test_no = 1; test_no <= MOCK_TESTS; test_no++) {
+
         switch (test_no) {
             case 1:
             case 2:
@@ -171,33 +189,51 @@ static void test_drpm_read_err_mock(void **state)
             case 3:
             case 4:
             case 5:
-                will_return(__wrap_readdelta_standard, ret_vals[test_no-1]);
+                will_return(__wrap_readdelta_rpmonly, ret_vals[test_no-1]);
                 break;
             case 6:
             case 7:
-                will_return(__wrap_readdelta_rest, ret_vals[test_no-1]);
-                break;
             case 8:
+                will_return(__wrap_readdelta_standard, ret_vals[test_no-1]);
+                break;
             case 9:
             case 10:
+                will_return(__wrap_readdelta_rest, ret_vals[test_no-1]);
+                break;
             case 11:
             case 12:
-                will_return(__wrap_compstrm_init, ret_vals[test_no-1]);
-                break;
             case 13:
-                will_return(__wrap_compstrm_read_be32, ret_vals[test_no-1]);
-                break;
             case 14:
             case 15:
+                will_return(__wrap_compstrm_init, ret_vals[test_no-1]);
+                break;
             case 16:
+                will_return(__wrap_compstrm_read_be32, ret_vals[test_no-1]);
+                break;
             case 17:
+            case 18:
+            case 19:
+            case 20:
                 will_return(__wrap_compstrm_read, ret_vals[test_no-1]);
                 break;
-            case 18:
+            case 21:
                 will_return(__wrap_compstrm_destroy, ret_vals[test_no-1]);
                 break;
         }
-        assert_int_equal(ret_vals[test_no-1], drpm_read(&delta, files[1]));
+
+        switch (test_no) {
+            case 3:
+            case 4:
+            case 5:
+                delta_file = files[1];
+                break;
+            default:
+                delta_file = files[0];
+                break;
+        }
+
+        assert_int_equal(ret_vals[test_no-1], drpm_read(&delta, delta_file));
+
     }
 }
 
