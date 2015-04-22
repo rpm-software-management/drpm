@@ -1,3 +1,15 @@
+%ifarch x86_64
+%define my_arch x86_64
+%endif
+
+%ifarch i686 i386 i586
+%define my_arch i386
+%endif
+
+%ifarch %{arm}
+%define my_arch armhfp
+%endif
+
 %global _hardened_build 1
 
 Name:           drpm
@@ -31,13 +43,11 @@ The drpm-devel package provides a C interface (drpm.h) for the drpm library.
 %setup -q
 
 %build
-%cmake .
+%cmake -DARCH=%{my_arch} .
 make %{?_smp_mflags}
 
-%ifarch x86_64
 %check
 make check
-%endif
 
 %install
 %make_install
@@ -56,9 +66,11 @@ make check
 %{_libdir}/pkgconfig/drpm.pc
 
 %changelog
+* Wed Apr 22 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-4
+- Passing detected architecture to CMake
+
 * Wed Mar 11 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-3
 - Added cmocka and valgrind package dependencies
-- Check section only included for x86_64 architecture (fails otherwise)
 
 * Fri Mar 6 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-2
 - Added check section

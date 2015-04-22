@@ -2,9 +2,19 @@ include_directories(../src)
 
 set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_compstrm.c ../src/drpm_read.c ../src/drpm_utils.c)
 
-set(DRPM_TEST_FILES drpm_test_file_1.rpm drpm_test_file_2.rpm drpm_test_file_3.rpm drpm_test_file_4.rpm)
-set(DRPM_TEST_ARGS ${DRPM_TEST_FILES} drpm_test_file_5.rpm)
-set(DRPM_VALGRIND_ARGS --error-exitcode=1 --read-var-info=yes --leak-check=full --show-leak-kinds=all)
+if("${ARCH}" STREQUAL "x86_64")
+   set(DRPM_TEST_STD_DELTA_FILE drpm_test_file_1.x86_64.drpm)
+elseif("${ARCH}" STREQUAL "i386")
+   set(DRPM_TEST_STD_DELTA_FILE drpm_test_file_1.i686.drpm)
+elseif("${ARCH}" STREQUAL "armhfp")
+   set(DRPM_TEST_STD_DELTA_FILE drpm_test_file_1.armv7hl.drpm)
+else()
+   set(DRPM_TEST_STD_DELTA_FILE drpm_test_file_1.noarch.drpm)
+endif()
+
+set(DRPM_TEST_FILES ${DRPM_TEST_STD_DELTA_FILE} drpm_test_file_2.drpm drpm_test_file_3.rpm drpm_test_file_4)
+set(DRPM_TEST_ARGS ${DRPM_TEST_FILES} drpm_test_file_5)
+set(DRPM_TEST_VALGRIND_ARGS --error-exitcode=1 --read-var-info=yes --leak-check=full --show-leak-kinds=all)
 
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
@@ -29,7 +39,7 @@ add_test(
 add_test(
    NAME drpm_test_valgrind
    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/test
-   COMMAND valgrind ${DRPM_VALGRIND_ARGS} ./drpm_test ${DRPM_TEST_ARGS}
+   COMMAND valgrind ${DRPM_TEST_VALGRIND_ARGS} ./drpm_test ${DRPM_TEST_ARGS}
 )
 
 file(
