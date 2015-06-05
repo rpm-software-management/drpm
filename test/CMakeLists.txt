@@ -23,7 +23,7 @@ set_target_properties(drpm_test PROPERTIES
 add_test(
    NAME drpm_test
    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/test
-   COMMAND drpm_test ${DRPM_TEST_ARGS}
+   COMMAND ./drpm_test ${DRPM_TEST_ARGS}
 )
 
 add_test(
