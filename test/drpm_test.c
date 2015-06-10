@@ -18,6 +18,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "../src/drpm.h"
+#include "../src/drpm_private.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,8 +29,6 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "../src/drpm.h"
-#include "../src/drpm_private.h"
 
 #define MOCK_TESTS 21
 

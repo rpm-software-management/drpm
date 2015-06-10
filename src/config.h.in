@@ -1,9 +1,8 @@
 /*
     Authors:
-        Pavel Tobias <ptobias@redhat.com>
         Matej Chalk <mchalk@redhat.com>
 
-    Copyright (C) 2014 Red Hat
+    Copyright (C) 2015 Red Hat
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU Lesser General Public License as published by
@@ -19,27 +18,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "drpm.h"
-#include "drpm_private.h"
+#ifndef _CONFIG_H_
+#define _CONFIG_H_
 
-#include <stdlib.h>
+#cmakedefine ARCH_32BIT
 
-void dump_hex(char *dest, char *source, size_t count)
-{
-    char digits[] = "0123456789abcdef";
+#ifdef ARCH_32BIT
+#define _FILE_OFFSET_BITS 64
+#endif
 
-    dest[count * 2] = '\0';
-
-    while (count--) {
-        dest[count * 2] = digits[source[count] >> 4 & 0x0F];
-        dest[count * 2 + 1] = digits[source[count] & 0x0F];
-    }
-}
-
-uint32_t parse_be32(char *buffer)
-{
-    return (0xFF000000 & (buffer[0] << 24)) |
-           (0x00FF0000 & (buffer[1] << 16)) |
-           (0x0000FF00 & (buffer[2] << 8)) |
-           (0x000000FF & buffer[3]);
-}
+#endif

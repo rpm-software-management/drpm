@@ -24,6 +24,10 @@
 #ifndef _DRPM_H_
 #define _DRPM_H_
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 /** @name errors */
 /**@{*/
 #define DRPM_ERR_OK 0         /**< no error */
@@ -132,7 +136,7 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  * 
  * Example of usage:
  * @code
- * drpm *delta;
+ * drpm *delta = NULL;
  * int error = drpm_read(&delta, argv[1]);
  * if (error != DRPM_ERR_OK)
  *    return error;

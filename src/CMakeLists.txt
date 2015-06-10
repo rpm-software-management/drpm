@@ -9,10 +9,16 @@ set(DRPM_SOVERSION ${DRPM_VERSION_MAJOR})
 
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
+if (NOT ${CMAKE_SIZEOF_VOID_P} EQUAL 8)
+   set(ARCH_32BIT 1)
+endif()
+
+configure_file(config.h.in ${CMAKE_BINARY_DIR}/config.h)
+
 add_library(drpm SHARED ${DRPM_SOURCES})
 
 set_source_files_properties(${DRPM_SOURCES} PROPERTIES
-   COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra"
+   COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra -DHAVE_CONFIG_H -I${CMAKE_BINARY_DIR}"
 )
 
 set_target_properties(drpm PROPERTIES

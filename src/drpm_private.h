@@ -1,6 +1,7 @@
 /*
     Authors:
         Pavel Tobias <ptobias@redhat.com>
+        Matej Chalk <mchalk@redhat.com>
 
     Copyright (C) 2014 Red Hat
 
@@ -20,6 +21,10 @@
 
 #ifndef _DRPM_PRIVATE_H_
 #define _DRPM_PRIVATE_H_
+
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
 
 #include <stdint.h>
 #include <stdlib.h>

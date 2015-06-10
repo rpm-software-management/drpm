@@ -1,5 +1,3 @@
-include_directories(../src)
-
 set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_compstrm.c ../src/drpm_read.c ../src/drpm_utils.c)
 
 set(DRPM_TEST_FILES drpm_test_file_1.drpm drpm_test_file_2.drpm drpm_test_file_3.rpm drpm_test_file_4)
@@ -11,10 +9,10 @@ set(CMAKE_BUILD_TYPE RelWithDebInfo)
 add_executable(drpm_test ${DRPM_TEST_SOURCES})
 
 set_source_files_properties(${DRPM_TEST_SOURCES} PROPERTIES
-   COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra"
+   COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra -DHAVE_CONFIG_H -I${CMAKE_BINARY_DIR}"
 )
 
-target_link_libraries(drpm_test z bz2 lzma rpm cmocka)
+target_link_libraries(drpm_test z bz2 lzma rpm rpmio cmocka)
 
 set_target_properties(drpm_test PROPERTIES
    LINK_FLAGS "-Wl,--wrap,read_be32 -Wl,--wrap,readdelta_rpmonly -Wl,--wrap,readdelta_standard -Wl,--wrap,readdelta_rest -Wl,--wrap,compstrm_init -Wl,--wrap,compstrm_read_be32 -Wl,--wrap,compstrm_read -Wl,--wrap,compstrm_destroy"
@@ -22,13 +20,13 @@ set_target_properties(drpm_test PROPERTIES
 
 add_test(
    NAME drpm_test
-   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/test
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
    COMMAND ./drpm_test ${DRPM_TEST_ARGS}
 )
 
 add_test(
    NAME drpm_test_valgrind
-   WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/test
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
    COMMAND valgrind ${DRPM_TEST_VALGRIND_ARGS} ./drpm_test ${DRPM_TEST_ARGS}
 )
 

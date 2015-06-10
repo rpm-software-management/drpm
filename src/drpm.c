@@ -19,14 +19,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "drpm.h"
+#include "drpm_private.h"
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-
-#include "drpm.h"
-#include "drpm_private.h"
 
 #define MAGIC_DRPM 0x6472706D
 #define MAGIC_RPM 0xEDABEEDB

@@ -1,6 +1,7 @@
 /*
     Authors:
         Pavel Tobias <ptobias@redhat.com>
+        Matej Chalk <mchalk@redhat.com>
 
     Copyright (C) 2014 Red Hat
 
@@ -18,6 +19,9 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "drpm.h"
+#include "drpm_private.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -27,9 +31,6 @@
 #include <zlib.h>
 #include <bzlib.h>
 #include <lzma.h>
-
-#include "drpm.h"
-#include "drpm_private.h"
 
 #define CHUNK_SIZE 1024
 #define MAGIC_BZIP2(x) (((x) >> 16) == 0x425A)

@@ -19,19 +19,17 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "drpm.h"
+#include "drpm_private.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <rpm/rpmlib.h>
-#include <netinet/in.h>
-
-#include "drpm.h"
-#include "drpm_private.h"
 
 #define MAGIC_DLT(x) (((x) >> 8) == 0x444C54)
-#define MAGIC_HEADER(buf) (buf[0] == 0x8E && buf[1] == 0xAD && buf[2] == 0xE8)
 
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
@@ -171,165 +169,36 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     return DRPM_ERR_OK;
 }
 
-int readdelta_standard_readstring(FILE* fp, char **ret, off_t offset)
-{
-    char c;
-    off_t size = 0;
-
-    fseek(fp, offset, SEEK_CUR);
-
-    do {
-        if (fread(&c, 1, 1, fp) != 1)
-            return ferror(fp) ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
-        size++;
-    } while (c != '\0');
-
-    if ((*ret = malloc(size)) == NULL)
-        return DRPM_ERR_MEMORY;
-
-    fseek(fp, -size, SEEK_CUR);
-
-    if (fread(*ret, size, 1, fp) != 1)
-        return DRPM_ERR_IO;
-
-    fseek(fp, -(offset+size), SEEK_CUR);
-
-    return DRPM_ERR_OK;
-}
-
 int readdelta_standard(int filedesc, struct drpm *delta)
 {
-    FILE* fp;
-    int error;
-    off_t align_off;
-    off_t name_off, epoch_off, version_off, release_off, nevr_off;
-    name_off = epoch_off = version_off = release_off = nevr_off = -1;
+    FD_t file;
+    Header header;
+    Header signature;
+    off_t remainder;
 
-    struct rpmhdrindex {
-        uint32_t tag;
-        uint32_t type;
-        uint32_t offset;
-        uint32_t count;
-    };
-
-    struct rpmheader {
-        unsigned char magic[3];
-        unsigned char version;
-        char reserved[4];
-        uint32_t nindex;
-        uint32_t hsize;
-        struct rpmhdrindex *indexes;
-    } signature, header;
-
-    if ((fp = fopen(delta->filename, "rb")) == NULL)
+    if ((file = Fopen(delta->filename, "rb")) == NULL)
         return DRPM_ERR_IO;
 
-    fseek(fp, 96, SEEK_SET);
-
-    if (fread(&signature, 16, 1, fp) != 1)
-        return ferror(fp) ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
-    signature.nindex = ntohl(signature.nindex);
-    signature.hsize = ntohl(signature.hsize);
-
-    if (!MAGIC_HEADER(signature.magic))
+    if (Fseek(file, 96, SEEK_SET) == -1)
         return DRPM_ERR_FORMAT;
 
-    fseek(fp, signature.nindex * 16 + signature.hsize, SEEK_CUR);
-
-    if ((align_off = ftell(fp) % 8))
-        fseek(fp, 8 - align_off, SEEK_CUR);
-
-    if (fread(&header, 16, 1, fp) != 1)
-        return ferror(fp) ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
-    header.nindex = ntohl(header.nindex);
-    header.hsize = ntohl(header.hsize);
-
-    if (!MAGIC_HEADER(header.magic))
+    if ((signature = headerRead(file, HEADER_MAGIC_YES)) == NULL)
         return DRPM_ERR_FORMAT;
 
-    header.indexes = malloc(sizeof(struct rpmhdrindex) * header.nindex);
+    if ((remainder = Ftell(file) % 8) != 0)
+        if (Fseek(file, 8 - remainder, SEEK_CUR) == -1)
+            return DRPM_ERR_FORMAT;
 
-    for (uint32_t i = 0; i < header.nindex; i++) {
-        if (fread(&(header.indexes[i].tag), 4, 1, fp) != 1 ||
-            fread(&(header.indexes[i].type), 4, 1, fp) != 1 ||
-            fread(&(header.indexes[i].offset), 4, 1, fp) != 1 ||
-            fread(&(header.indexes[i].count), 4, 1, fp) != 1)
-            return ferror(fp) ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
-        header.indexes[i].tag = htonl(header.indexes[i].tag);
-        header.indexes[i].type = htonl(header.indexes[i].type);
-        header.indexes[i].offset = htonl(header.indexes[i].offset);
-        header.indexes[i].count = htonl(header.indexes[i].count);
-        if (header.indexes[i].type == RPM_STRING_TYPE &&
-            header.indexes[i].count == 1) {
-            switch (header.indexes[i].tag) {
-            case RPMTAG_NAME:
-                name_off = header.indexes[i].offset;
-                break;
-            case RPMTAG_EPOCH:
-                epoch_off = header.indexes[i].offset;
-                break;
-            case RPMTAG_VERSION:
-                version_off = header.indexes[i].offset;
-                break;
-            case RPMTAG_RELEASE:
-                release_off = header.indexes[i].offset;
-                break;
-            case RPMTAG_NEVR:
-                nevr_off = header.indexes[i].offset;
-                break;
-            default:
-                break;
-            }
-        }
-    }
-
-    if (name_off == -1 || version_off == -1 || release_off == -1)
+    if ((header = headerRead(file, HEADER_MAGIC_YES)) == NULL)
         return DRPM_ERR_FORMAT;
 
-    if (nevr_off == -1) {
-        char *name    = NULL;
-        char *epoch   = NULL;
-        char *version = NULL;
-        char *release = NULL;
-        size_t nevr_len;
+    if ((delta->tgt_nevr = headerGetAsString(header, RPMTAG_NEVR)) == NULL)
+        return DRPM_ERR_MEMORY;
 
-        if ((error = readdelta_standard_readstring(fp, &name, name_off)) != DRPM_ERR_OK ||
-            (epoch_off != -1 && (error = readdelta_standard_readstring(fp, &epoch, epoch_off)) != DRPM_ERR_OK) ||
-            (error = readdelta_standard_readstring(fp, &version, version_off)) != DRPM_ERR_OK ||
-            (error = readdelta_standard_readstring(fp, &release, release_off)) != DRPM_ERR_OK)
-            return error;
+    lseek(filedesc, Ftell(file), SEEK_SET);
+    headerFree(header);
+    headerFree(signature);
+    Fclose(file);
 
-        nevr_len = strlen(name) + strlen(version) + strlen(release) + 3;
-        if (epoch_off != -1)
-            nevr_len += strlen(epoch) + 1;
-
-        if ((delta->tgt_nevr = malloc(nevr_len)) == NULL)
-            return DRPM_ERR_MEMORY;
-
-        delta->tgt_nevr[0] = '\0';
-        strcat(delta->tgt_nevr, name);
-        strcat(delta->tgt_nevr, "-");
-        if (epoch_off != -1) {
-            strcat(delta->tgt_nevr, epoch);
-            strcat(delta->tgt_nevr, ":");
-        }
-        strcat(delta->tgt_nevr, version);
-        strcat(delta->tgt_nevr, "-");
-        strcat(delta->tgt_nevr, release);
-
-        free(name);
-        free(epoch);
-        free(version);
-        free(release);
-    } else {
-        if ((error = readdelta_standard_readstring(fp, &(delta->tgt_nevr), nevr_off)) != DRPM_ERR_OK)
-            return error;
-    }
-
-    fseek(fp, header.hsize, SEEK_CUR);
-
-    lseek(filedesc, ftell(fp), SEEK_SET);
-    free(header.indexes);
-    fclose(fp);
     return DRPM_ERR_OK;
 }
