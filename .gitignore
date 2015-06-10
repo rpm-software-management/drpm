@@ -1,5 +1,6 @@
 # directories
 build
+pkg
 tmp
 html
 latex

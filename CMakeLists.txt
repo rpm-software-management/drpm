@@ -11,7 +11,7 @@ set(CPACK_PACKAGE_CONTACT "Matej Chalk <mchalk@redhat.com>")
 set(CPACK_PACKAGE_VERSION_MAJOR 0)
 set(CPACK_PACKAGE_VERSION_MINOR 1)
 set(CPACK_PACKAGE_VERSION_PATCH 3)
-set(CPACK_SOURCE_IGNORE_FILES "/tmp/" "/build/" "/pkg/" "/html/" "/latex/" "\\\\.git" ".*~" ".*\\\\.o")
+set(CPACK_SOURCE_IGNORE_FILES "/tmp/" "/build/" "/pkg/" "/html/" "/latex/" "drpm.spec" "\\\\.git" ".*~" ".*\\\\.o")
 set(CPACK_SOURCE_GENERATOR "TBZ2")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
 
