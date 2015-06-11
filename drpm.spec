@@ -35,7 +35,7 @@ The drpm-devel package provides a C interface (drpm.h) for the drpm library.
 make %{?_smp_mflags}
 
 %check
-make check
+make check %{?_smp_mflags}
 
 %install
 %make_install
