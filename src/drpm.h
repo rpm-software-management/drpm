@@ -70,19 +70,22 @@
 typedef struct drpm drpm; /**< abstract data type of deltarpm structure */
 
 /**
- * @brief Frees memory pointed to by @p *delta and sets @p *delta to @c NULL.
+ * @brief Reads information from a deltarpm package @p filename into @p *delta.
  * 
  * Example of usage:
  * @code
- * int error = drpm_destroy(&delta);
+ * drpm *delta = NULL;
+ * int error = drpm_read(&delta, argv[1]);
  * if (error != DRPM_ERR_OK)
  *    return error;
  * @endcode
- * @param [out] delta deltarpm that is to be freed
+ * @param [out] delta deltarpm to be filled with info
+ * @param [in] filename name of deltarpm file whose data is to be read
  * @return error number
- * @warning Must be preceded by call to drpm_read().
+ * @note Memory allocated by calling drpm_read() should later be freed
+ * by calling drpm_destroy().
  */
-int drpm_destroy(drpm **delta);
+int drpm_read(drpm **delta, const char *filename);
 
 /**
  * @brief Fetches information representable as an unsigned integer.
@@ -132,21 +135,18 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
 int drpm_get_string(drpm *delta, int tag, char **target);
 
 /**
- * @brief Reads information from a deltarpm package @p filename into @p *delta.
+ * @brief Frees memory pointed to by @p *delta and sets @p *delta to @c NULL.
  * 
  * Example of usage:
  * @code
- * drpm *delta = NULL;
- * int error = drpm_read(&delta, argv[1]);
+ * int error = drpm_destroy(&delta);
  * if (error != DRPM_ERR_OK)
  *    return error;
  * @endcode
- * @param [out] delta deltarpm to be filled with info
- * @param [in] filename name of deltarpm file whose data is to be read
+ * @param [out] delta deltarpm that is to be freed
  * @return error number
- * @note Memory allocated by calling drpm_read() should later be freed
- * by calling drpm_destroy().
+ * @warning Must be preceded by call to drpm_read().
  */
-int drpm_read(drpm **delta, const char *filename);
+int drpm_destroy(drpm **delta);
 
 #endif
