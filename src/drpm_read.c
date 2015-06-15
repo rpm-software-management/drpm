@@ -172,33 +172,45 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
 int readdelta_standard(int filedesc, struct drpm *delta)
 {
     FD_t file;
-    Header header;
-    Header signature;
+    Header header = NULL;
+    Header signature = NULL;
     off_t remainder;
+    int error = DRPM_ERR_OK;
 
     if ((file = Fopen(delta->filename, "rb")) == NULL)
         return DRPM_ERR_IO;
 
-    if (Fseek(file, 96, SEEK_SET) == -1)
-        return DRPM_ERR_FORMAT;
+    if (Fseek(file, 96, SEEK_SET) == -1) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
 
-    if ((signature = headerRead(file, HEADER_MAGIC_YES)) == NULL)
-        return DRPM_ERR_FORMAT;
+    if ((signature = headerRead(file, HEADER_MAGIC_YES)) == NULL) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
 
-    if ((remainder = Ftell(file) % 8) != 0)
-        if (Fseek(file, 8 - remainder, SEEK_CUR) == -1)
-            return DRPM_ERR_FORMAT;
+    if ((remainder = Ftell(file) % 8) != 0) {
+        if (Fseek(file, 8 - remainder, SEEK_CUR) == -1) {
+            error = DRPM_ERR_FORMAT;
+            goto cleanup;
+        }
+    }
 
-    if ((header = headerRead(file, HEADER_MAGIC_YES)) == NULL)
-        return DRPM_ERR_FORMAT;
+    if ((header = headerRead(file, HEADER_MAGIC_YES)) == NULL) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
 
     if ((delta->tgt_nevr = headerGetAsString(header, RPMTAG_NEVR)) == NULL)
-        return DRPM_ERR_MEMORY;
+        error = DRPM_ERR_MEMORY;
 
     lseek(filedesc, Ftell(file), SEEK_SET);
+
+cleanup:
     headerFree(header);
     headerFree(signature);
     Fclose(file);
 
-    return DRPM_ERR_OK;
+    return error;
 }
