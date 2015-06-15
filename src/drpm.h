@@ -28,7 +28,7 @@
 #include <config.h>
 #endif
 
-/** @name errors */
+/** @name Errors */
 /**@{*/
 #define DRPM_ERR_OK 0         /**< no error */
 #define DRPM_ERR_MEMORY 1     /**< memory allocation error */
@@ -39,13 +39,13 @@
 #define DRPM_ERR_OTHER 6      /**< unspecified/unknown error */
 /**@}*/
 
-/** @name delta types */
+/** @name Delta Types */
 /**@{*/
 #define DRPM_TYPE_STANDARD 0  /**< standard deltarpm */
 #define DRPM_TYPE_RPMONLY 1   /**< rpm-only deltarpm */
 /**@}*/
 
-/** @name compression types */
+/** @name Compression Types */
 /**@{*/
 #define DRPM_COMP_NONE 0      /**< no compression */
 #define DRPM_COMP_GZIP 1      /**< gzip */
@@ -54,7 +54,7 @@
 #define DRPM_COMP_XZ 4        /**< xz */
 /**@}*/
 
-/** @name info tags */
+/** @name Info Tags */
 /**@{*/
 #define DRPM_TAG_FILENAME 0   /**< file name */
 #define DRPM_TAG_VERSION 1    /**< version */
@@ -99,13 +99,14 @@ int drpm_read(drpm **delta, const char *filename);
  * int error = drpm_get_uint(delta, DRPM_TAG_TYPE, &type);
  * if (error != DRPM_ERR_OK)
  *    return error;
- * printf("This is a %s deltarpm\n", comp_type == DRPM_TYPE_STANDARD ? "standard" : "rpm-only");
+ * printf("This is a %s deltarpm\n", type == DRPM_TYPE_STANDARD ? "standard" : "rpm-only");
  * @endcode
  * @param [in] delta deltarpm containing required info
  * @param [in] tag symbolic value identifying which info is required
  * @param [out] target tagged info will be copied here
  * @return error number
- * @warning Must be preceded by call to drpm_read().
+ * @warning @p delta should have been previously initialized with
+ * drpm_read(), otherwise behaviour is undefined.
  */
 int drpm_get_uint(drpm *delta, int tag, unsigned *target);
 
@@ -130,7 +131,8 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
  * @param [out] target tagged info will be copied here
  * @return error number
  * @note @p *target should be freed manually by the user when no longer needed.
- * @warning Must be preceded by call to drpm_read().
+ * @warning @p delta should have been previously initialized with
+ * drpm_read(), otherwise behaviour is undefined.
  */
 int drpm_get_string(drpm *delta, int tag, char **target);
 
@@ -145,7 +147,8 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  * @endcode
  * @param [out] delta deltarpm that is to be freed
  * @return error number
- * @warning Must be preceded by call to drpm_read().
+ * @warning @p delta should have been previously initialized with
+ * drpm_read(), otherwise behaviour is undefined.
  */
 int drpm_destroy(drpm **delta);
 
