@@ -2,7 +2,7 @@
 
 Name:           drpm
 Version:        0.1.3
-Release:        1%{?dist}
+Release:        3%{?dist}
 Summary:        A small library for fetching information from deltarpm packages
 License:        LGPLv3+
 URL:            http://fedorahosted.org/%{name}
