@@ -2,7 +2,7 @@
 
 Name:           drpm
 Version:        0.1.3
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        A small library for fetching information from deltarpm packages
 License:        LGPLv3+
 URL:            http://fedorahosted.org/%{name}
@@ -56,6 +56,9 @@ make check %{?_smp_mflags}
 %{_libdir}/pkgconfig/drpm.pc
 
 %changelog
+* Fri Jun 19 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-4
+- Memory test only for architectures that have valgrind (#1232157)
+
 * Wed Mar 11 2015 Matej Chalk <mchalk@redhat.com> 0.1.3-3
 - Added cmocka and valgrind package dependencies
 
