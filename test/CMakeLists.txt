@@ -6,6 +6,8 @@ set(DRPM_TEST_VALGRIND_ARGS --error-exitcode=1 --read-var-info=yes --leak-check=
 
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
+find_program(DRPM_VALGRIND_PATH NAMES valgrind)
+
 add_executable(drpm_test ${DRPM_TEST_SOURCES})
 
 set_source_files_properties(${DRPM_TEST_SOURCES} PROPERTIES
@@ -24,11 +26,13 @@ add_test(
    COMMAND ./drpm_test ${DRPM_TEST_ARGS}
 )
 
-add_test(
-   NAME drpm_test_valgrind
-   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-   COMMAND valgrind ${DRPM_TEST_VALGRIND_ARGS} ./drpm_test ${DRPM_TEST_ARGS}
-)
+if (DRPM_VALGRIND_PATH)
+   add_test(
+      NAME drpm_test_valgrind
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      COMMAND valgrind ${DRPM_TEST_VALGRIND_ARGS} ./drpm_test ${DRPM_TEST_ARGS}
+   )
+endif()
 
 file(
    COPY ${DRPM_TEST_FILES}

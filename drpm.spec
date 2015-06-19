@@ -14,7 +14,9 @@ BuildRequires:  bzip2-devel
 BuildRequires:  xz-devel
 BuildRequires:  cmake >= 2.8
 BuildRequires:  libcmocka-devel >= 1.0
+%ifarch x86_64 %{ix86} %{arm} ppc ppc32 %{power64} s390x aarch64 amd64 mips32 mips64
 BuildRequires:  valgrind
+%endif
 
 %package devel
 Summary:        C interface for the drpm library
