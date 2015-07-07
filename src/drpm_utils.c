@@ -36,10 +36,22 @@ void dump_hex(char *dest, char *source, size_t count)
     }
 }
 
-uint32_t parse_be32(char *buffer)
+uint32_t parse_be32(char buffer[4])
 {
     return (0xFF000000 & (buffer[0] << 24)) |
            (0x00FF0000 & (buffer[1] << 16)) |
            (0x0000FF00 & (buffer[2] << 8)) |
            (0x000000FF & buffer[3]);
+}
+
+uint64_t parse_be64(char buffer[8])
+{
+    return (0xFF00000000000000 & ((uint64_t)buffer[0] << 56)) |
+           (0x00FF000000000000 & ((uint64_t)buffer[1] << 48)) |
+           (0x0000FF0000000000 & ((uint64_t)buffer[2] << 40)) |
+           (0x000000FF00000000 & ((uint64_t)buffer[3] << 32)) |
+           (0x00000000FF000000 & ((uint64_t)buffer[4] << 24)) |
+           (0x0000000000FF0000 & ((uint64_t)buffer[5] << 16)) |
+           (0x000000000000FF00 & ((uint64_t)buffer[6] << 8)) |
+           (0x00000000000000FF & (uint64_t)buffer[7]);
 }

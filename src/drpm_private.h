@@ -41,6 +41,20 @@ struct drpm {
     char *tgt_nevr;
     uint32_t tgt_size;
     char tgt_md5[MD5_BYTES * 2 + 1];
+    uint32_t tgt_comp;
+    char *tgt_comp_param;
+    uint32_t tgt_header_len;
+    uint32_t *adj_elems;
+    char *tgt_lead;
+    uint32_t payload_fmt_off;
+    uint32_t *int_copies;
+    uint32_t *ext_copies;
+    uint64_t ext_data_len;
+    uint64_t int_data_len;
+
+    uint32_t adj_elems_size;
+    uint32_t int_copies_size;
+    uint32_t ext_copies_size;
 };
 
 //drpm_compstrm.c
@@ -49,9 +63,11 @@ int compstrm_destroy(struct compstrm **);
 int compstrm_init(struct compstrm **, int, uint32_t *);
 int compstrm_read(struct compstrm *, size_t, char *);
 int compstrm_read_be32(struct compstrm *, uint32_t *);
+int compstrm_skip(struct compstrm *, size_t);
 
 //drpm_read.c
 int read_be32(int, uint32_t *);
+int read_be64(int, uint64_t *);
 int readdelta_rest(int, struct drpm *);
 int readdelta_rpmonly(int, struct drpm *);
 int readdelta_standard(int, struct drpm *);
@@ -59,5 +75,6 @@ int readdelta_standard(int, struct drpm *);
 //drpm_utils.c
 void dump_hex(char *, char *, size_t);
 uint32_t parse_be32(char *);
+uint64_t parse_be64(char *);
 
 #endif

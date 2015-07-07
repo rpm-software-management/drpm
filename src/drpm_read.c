@@ -49,13 +49,44 @@ int read_be32(int filedesc, uint32_t *buffer_ret)
     return DRPM_ERR_OK;
 }
 
+int read_be64(int filedesc, uint64_t *buffer_ret)
+{
+    char buffer[8];
+
+    switch (read(filedesc, buffer, 8)) {
+    case 8:
+        break;
+    case -1:
+        return DRPM_ERR_IO;
+    default:
+        return DRPM_ERR_FORMAT;
+    }
+
+    *buffer_ret = parse_be64(buffer);
+
+    return DRPM_ERR_OK;
+}
+
 int readdelta_rest(int filedesc, struct drpm *delta)
 {
     struct compstrm *stream;
     uint32_t src_nevr_len;
     uint32_t sequence_len;
+    uint32_t tgt_comp;
+    uint32_t comp_param_len;
+    uint32_t offadjn;
+    uint32_t leadlen;
+    uint32_t inn;
+    uint32_t outn;
+    uint32_t ext_data_msb;
+    uint32_t ext_data;
+    uint32_t add_data_size;
+    uint32_t int_data_msb;
+    uint32_t int_data;
     char *sequence = NULL;
     char md5[MD5_BYTES];
+    char *comp_param = NULL;
+    char *lead = NULL;
     int error = DRPM_ERR_OK;
 
     if ((error = compstrm_init(&stream, filedesc, &delta->comp)) != DRPM_ERR_OK)
@@ -92,7 +123,8 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     if ((error = compstrm_read_be32(stream, &sequence_len)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if (sequence_len < MD5_BYTES) {
+    if (sequence_len < MD5_BYTES ||
+        (sequence_len != MD5_BYTES && delta->type == DRPM_TYPE_RPMONLY)) {
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
@@ -113,12 +145,163 @@ int readdelta_rest(int filedesc, struct drpm *delta)
 
     dump_hex(delta->tgt_md5, md5, MD5_BYTES);
 
-    if (delta->version < 2) {
-        delta->tgt_size = 0;
+    if (delta->version >= 2) {
+        if ((error = compstrm_read_be32(stream, &delta->tgt_size)) != DRPM_ERR_OK ||
+            (error = compstrm_read_be32(stream, &tgt_comp)) != DRPM_ERR_OK)
+            goto cleanup;
+
+        switch (tgt_comp % 256) {
+        case 0:
+            delta->tgt_comp = DRPM_COMP_NONE;
+            break;
+        case 1:
+        case 3:
+            delta->tgt_comp = DRPM_COMP_GZIP;
+            break;
+        case 2:
+        case 4:
+            delta->tgt_comp = DRPM_COMP_BZIP2;
+            break;
+        case 5:
+            delta->tgt_comp = DRPM_COMP_LZMA;
+            break;
+        case 6:
+            delta->tgt_comp = DRPM_COMP_XZ;
+            break;
+        default:
+            error = DRPM_ERR_FORMAT;
+            goto cleanup;
+        }
+
+        if ((error = compstrm_read_be32(stream, &comp_param_len)) != DRPM_ERR_OK)
+            goto cleanup;
+
+        if (comp_param_len > 0) {
+            if ((comp_param = malloc(comp_param_len)) == NULL ||
+                (delta->tgt_comp_param = malloc(comp_param_len * 2 + 1)) == NULL) {
+                error = DRPM_ERR_MEMORY;
+                goto cleanup;
+            }
+
+            if ((error = compstrm_read(stream, comp_param_len, comp_param)) != DRPM_ERR_OK)
+                goto cleanup;
+
+            dump_hex(delta->tgt_comp_param, comp_param, comp_param_len);
+        }
+
+        if (delta->version == 3) {
+            if ((error = compstrm_read_be32(stream, &delta->tgt_header_len)) != DRPM_ERR_OK ||
+                (error = compstrm_read_be32(stream, &offadjn)) != DRPM_ERR_OK)
+                goto cleanup;
+
+            delta->adj_elems_size = 2 * offadjn;
+
+            if (delta->adj_elems_size > 0) {
+                if ((delta->adj_elems = malloc(delta->adj_elems_size * 4)) == NULL) {
+                    error = DRPM_ERR_MEMORY;
+                    goto cleanup;
+                }
+                for (uint32_t i = 0; i < delta->adj_elems_size; i += 2)
+                    if ((error = compstrm_read_be32(stream, delta->adj_elems + i)) != DRPM_ERR_OK)
+                        goto cleanup;
+                for (uint32_t j = 1; j < delta->adj_elems_size; j += 2)
+                    if ((error = compstrm_read_be32(stream, delta->adj_elems + j)) != DRPM_ERR_OK)
+                        goto cleanup;
+            }
+        }
+    }
+
+    if (delta->tgt_header_len == 0 && delta->type == DRPM_TYPE_RPMONLY) {
+        error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
 
-    error = compstrm_read_be32(stream, &delta->tgt_size);
+    if ((error = compstrm_read_be32(stream, &leadlen)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if (leadlen < 112) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    if ((lead = malloc(leadlen)) == NULL ||
+        (delta->tgt_lead = malloc(leadlen * 2 + 1)) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
+
+    if ((error = compstrm_read(stream, leadlen, lead)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    dump_hex(delta->tgt_lead, lead, leadlen);
+
+    if ((error = compstrm_read_be32(stream, &delta->payload_fmt_off)) != DRPM_ERR_OK ||
+        (error = compstrm_read_be32(stream, &inn)) != DRPM_ERR_OK ||
+        (error = compstrm_read_be32(stream, &outn)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    delta->int_copies_size = 2 * inn;
+    delta->ext_copies_size = 2 * outn;
+
+    if (delta->int_copies_size > 0) {
+        if ((delta->int_copies = malloc(delta->int_copies_size * 4)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+        for (uint32_t i = 0; i < delta->int_copies_size; i += 2)
+            if ((error = compstrm_read_be32(stream, delta->int_copies + i)) != DRPM_ERR_OK)
+                goto cleanup;
+        for (uint32_t j = 1; j < delta->int_copies_size; j += 2)
+            if ((error = compstrm_read_be32(stream, delta->int_copies + j)) != DRPM_ERR_OK)
+                goto cleanup;
+    }
+
+    if (delta->ext_copies_size > 0) {
+        if ((delta->ext_copies = malloc(delta->ext_copies_size * 4)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+        for (uint32_t i = 0; i < delta->ext_copies_size; i += 2)
+            if ((error = compstrm_read_be32(stream, delta->ext_copies + i)) != DRPM_ERR_OK)
+                goto cleanup;
+        for (uint32_t j = 1; j < delta->ext_copies_size; j += 2)
+            if ((error = compstrm_read_be32(stream, delta->ext_copies + j)) != DRPM_ERR_OK)
+                goto cleanup;
+    }
+
+    if (delta->version == 3) {
+        if ((error = compstrm_read_be32(stream, &ext_data_msb)) != DRPM_ERR_OK)
+            goto cleanup;
+        delta->ext_data_len = (uint64_t)ext_data_msb << 32;
+    }
+
+    if ((error = compstrm_read_be32(stream, &ext_data)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    delta->ext_data_len += ext_data;
+
+    if ((error = compstrm_read_be32(stream, &add_data_size)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if (add_data_size > 0) {
+        if (delta->type == DRPM_TYPE_RPMONLY) {
+            error = DRPM_ERR_FORMAT;
+            goto cleanup;
+        }
+        if ((error = compstrm_skip(stream, add_data_size)) != DRPM_ERR_OK)
+            goto cleanup;
+    }
+
+    if (delta->version == 3) {
+        if ((error = compstrm_read_be32(stream, &int_data_msb)) != DRPM_ERR_OK)
+            goto cleanup;
+        delta->int_data_len = (uint64_t)int_data_msb << 32;
+    }
+
+    if ((error = compstrm_read_be32(stream, &int_data)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    delta->int_data_len += int_data;
 
 cleanup:
 
@@ -128,6 +311,8 @@ cleanup:
         compstrm_destroy(&stream);
 
     free(sequence);
+    free(comp_param);
+    free(lead);
 
     return error;
 }
@@ -175,6 +360,7 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     Header header = NULL;
     Header signature = NULL;
     off_t remainder;
+    char *payload_comp = NULL;
     int error = DRPM_ERR_OK;
 
     if ((file = Fopen(delta->filename, "rb")) == NULL)
@@ -202,12 +388,30 @@ int readdelta_standard(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    if ((delta->tgt_nevr = headerGetAsString(header, RPMTAG_NEVR)) == NULL)
+    if ((delta->tgt_nevr = headerGetAsString(header, RPMTAG_NEVR)) == NULL ||
+        (payload_comp = headerGetAsString(header, RPMTAG_PAYLOADCOMPRESSOR)) == NULL) {
         error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
+
+    if (strcmp(payload_comp, "gzip") == 0) {
+        delta->tgt_comp = DRPM_COMP_GZIP;
+    } else if (strcmp(payload_comp, "bzip2") == 0) {
+        delta->tgt_comp = DRPM_COMP_BZIP2;
+    } else if (strcmp(payload_comp, "lzip") == 0) {
+        delta->tgt_comp = DRPM_COMP_LZIP;
+    } else if (strcmp(payload_comp, "lzma") == 0) {
+        delta->tgt_comp = DRPM_COMP_LZMA;
+    } else if (strcmp(payload_comp, "xz") == 0) {
+        delta->tgt_comp = DRPM_COMP_XZ;
+    } else {
+        delta->tgt_comp = DRPM_COMP_NONE;
+    }
 
     lseek(filedesc, Ftell(file), SEEK_SET);
 
 cleanup:
+    free(payload_comp);
     headerFree(header);
     headerFree(signature);
     Fclose(file);

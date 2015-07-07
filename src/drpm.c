@@ -40,6 +40,11 @@ int drpm_destroy(struct drpm **delta)
     free((*delta)->src_nevr);
     free((*delta)->tgt_nevr);
     free((*delta)->sequence);
+    free((*delta)->tgt_comp_param);
+    free((*delta)->tgt_lead);
+    free((*delta)->adj_elems);
+    free((*delta)->int_copies);
+    free((*delta)->ext_copies);
     free(*delta);
     *delta = NULL;
 
@@ -61,8 +66,85 @@ int drpm_get_uint(struct drpm *delta, int tag, unsigned *ret)
     case DRPM_TAG_COMP:
         *ret = (unsigned)delta->comp;
         break;
-    case DRPM_TAG_TGTSIZE:
+    case DRPM_TAG_TGTSIZE: // for backward compatibility (possible loss)
         *ret = (unsigned)delta->tgt_size;
+        break;
+    case DRPM_TAG_TGTCOMP:
+        *ret = (unsigned)delta->tgt_comp;
+        break;
+    default:
+        return DRPM_ERR_ARGS;
+    }
+
+    return DRPM_ERR_OK;
+}
+
+int drpm_get_ulong(struct drpm *delta, int tag, unsigned long *ret)
+{
+    if (delta == NULL || ret == NULL)
+        return DRPM_ERR_ARGS;
+
+    switch (tag) {
+    case DRPM_TAG_VERSION:
+        *ret = (unsigned long)delta->version;
+        break;
+    case DRPM_TAG_TYPE:
+        *ret = (unsigned long)delta->type;
+        break;
+    case DRPM_TAG_COMP:
+        *ret = (unsigned long)delta->comp;
+        break;
+    case DRPM_TAG_TGTSIZE:
+        *ret = (unsigned long)delta->tgt_size;
+        break;
+    case DRPM_TAG_TGTCOMP:
+        *ret = (unsigned long)delta->tgt_comp;
+        break;
+    case DRPM_TAG_TGTHEADERLEN:
+        *ret = (unsigned long)delta->tgt_header_len;
+        break;
+    case DRPM_TAG_PAYLOADFMTOFF:
+        *ret = (unsigned long)delta->payload_fmt_off;
+        break;
+    default:
+        return DRPM_ERR_ARGS;
+    }
+
+    return DRPM_ERR_OK;
+}
+
+int drpm_get_ullong(struct drpm *delta, int tag, unsigned long long *ret)
+{
+    if (delta == NULL || ret == NULL)
+        return DRPM_ERR_ARGS;
+
+    switch (tag) {
+    case DRPM_TAG_VERSION:
+        *ret = (unsigned long long)delta->version;
+        break;
+    case DRPM_TAG_TYPE:
+        *ret = (unsigned long long)delta->type;
+        break;
+    case DRPM_TAG_COMP:
+        *ret = (unsigned long long)delta->comp;
+        break;
+    case DRPM_TAG_TGTSIZE:
+        *ret = (unsigned long long)delta->tgt_size;
+        break;
+    case DRPM_TAG_TGTCOMP:
+        *ret = (unsigned long long)delta->tgt_comp;
+        break;
+    case DRPM_TAG_TGTHEADERLEN:
+        *ret = (unsigned long long)delta->tgt_header_len;
+        break;
+    case DRPM_TAG_PAYLOADFMTOFF:
+        *ret = (unsigned long long)delta->payload_fmt_off;
+        break;
+    case DRPM_TAG_EXTDATALEN:
+        *ret = (unsigned long long)delta->ext_data_len;
+        break;
+    case DRPM_TAG_INTDATALEN:
+        *ret = (unsigned long long)delta->int_data_len;
         break;
     default:
         return DRPM_ERR_ARGS;
@@ -94,22 +176,67 @@ int drpm_get_string(struct drpm *delta, int tag, char **ret)
     case DRPM_TAG_TGTMD5:
         string = delta->tgt_md5;
         break;
+    case DRPM_TAG_TGTCOMPPARAM:
+        string = delta->tgt_comp_param;
+        break;
+    case DRPM_TAG_TGTLEAD:
+        string = delta->tgt_lead;
+        break;
     default:
         return DRPM_ERR_ARGS;
     }
 
-    if ((*ret = malloc(strlen(string) + 1)) == NULL)
-        return DRPM_ERR_MEMORY;
+    if (string == NULL) {
+        *ret = NULL;
+    } else {
+        if ((*ret = malloc(strlen(string) + 1)) == NULL)
+            return DRPM_ERR_MEMORY;
+        strcpy(*ret, string);
+    }
 
-    strcpy(*ret, string);
+    return DRPM_ERR_OK;
+}
+
+int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array, unsigned long *ret_size)
+{
+    uint32_t *array;
+
+    if (delta == NULL || ret_array == NULL || ret_size == NULL)
+        return DRPM_ERR_ARGS;
+
+    switch (tag) {
+    case DRPM_TAG_ADJELEMS:
+        array = delta->adj_elems;
+        *ret_size = (unsigned long)delta->adj_elems_size;
+        break;
+    case DRPM_TAG_INTCOPIES:
+        array = delta->int_copies;
+        *ret_size = (unsigned long)delta->int_copies_size;
+        break;
+    case DRPM_TAG_EXTCOPIES:
+        array = delta->ext_copies;
+        *ret_size = (unsigned long)delta->ext_copies_size;
+        break;
+    default:
+        return DRPM_ERR_ARGS;
+    }
+
+    if (*ret_size == 0) {
+        *ret_array = NULL;
+    } else {
+        if ((*ret_array = malloc(*ret_size * sizeof(unsigned long))) == NULL)
+            return DRPM_ERR_MEMORY;
+
+        for (unsigned i = 0; i < *ret_size; i++)
+            (*ret_array)[i] = (unsigned long)array[i];
+    }
 
     return DRPM_ERR_OK;
 }
 
 int drpm_read(struct drpm **delta_ret, const char *filename)
 {
-    struct drpm delta = {.filename = NULL, .src_nevr = NULL, .tgt_nevr = NULL,
-                         .sequence = NULL};
+    struct drpm delta = {0};
     int filedesc;
     uint32_t magic;
     int error = DRPM_ERR_OK;
@@ -163,6 +290,11 @@ cleanup_fail:
     free(delta.src_nevr);
     free(delta.tgt_nevr);
     free(delta.sequence);
+    free(delta.tgt_comp_param);
+    free(delta.tgt_lead);
+    free(delta.adj_elems);
+    free(delta.int_copies);
+    free(delta.ext_copies);
 
 cleanup:
     close(filedesc);

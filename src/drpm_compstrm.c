@@ -24,7 +24,6 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -33,10 +32,11 @@
 #include <lzma.h>
 
 #define CHUNK_SIZE 1024
-#define MAGIC_BZIP2(x) (((x) >> 16) == 0x425A)
-#define MAGIC_GZIP(x) (((x) >> 16) == 0x1F8B)
-#define MAGIC_LZMA(x) (((x) >> 8) == 0x5D0000)
-#define MAGIC_XZ(x) ((x) == 0xFD377A58)
+#define MAGIC_BZIP2(x) (((x) >> 40) == 0x425A68)
+#define MAGIC_GZIP(x) (((x) >> 48) == 0x1F8B)
+#define MAGIC_LZIP(x) (((x) >> 32) == 0x4C5A4950)
+#define MAGIC_LZMA(x) (((x) >> 40) == 0x5D0000)
+#define MAGIC_XZ(x) (((x) >> 16) == 0xFD377A585A00)
 
 struct compstrm {
     char *data;
@@ -160,16 +160,16 @@ int compstrm_destroy(struct compstrm **strm)
 
 int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
 {
-    uint32_t magic;
+    uint64_t magic;
     int error;
 
     if (strm == NULL)
         return DRPM_ERR_ARGS;
 
-    if ((error = read_be32(filedesc, &magic)) != DRPM_ERR_OK)
+    if ((error = read_be64(filedesc, &magic)) != DRPM_ERR_OK)
         return error;
 
-    if (lseek(filedesc, -4, SEEK_CUR) == -1)
+    if (lseek(filedesc, -8, SEEK_CUR) == -1)
         return DRPM_ERR_IO;
 
     if ((*strm = malloc(sizeof(struct compstrm))) == NULL)
@@ -238,6 +238,22 @@ int compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
         memcpy(buffer_ret, strm->data + strm->data_pos, read_len);
 
     strm->data_pos += read_len;
+
+    return DRPM_ERR_OK;
+}
+
+int compstrm_skip(struct compstrm *strm, size_t skip_len)
+{
+    int error;
+
+    if (strm == NULL)
+        return DRPM_ERR_ARGS;
+
+    while (strm->data_pos + skip_len > strm->data_len)
+        if ((error = strm->read_chunk(strm)) != DRPM_ERR_OK)
+            return error;
+
+    strm->data_pos += skip_len;
 
     return DRPM_ERR_OK;
 }
