@@ -34,7 +34,6 @@
 #define CHUNK_SIZE 1024
 #define MAGIC_BZIP2(x) (((x) >> 40) == 0x425A68)
 #define MAGIC_GZIP(x) (((x) >> 48) == 0x1F8B)
-#define MAGIC_LZIP(x) (((x) >> 32) == 0x4C5A4950)
 #define MAGIC_LZMA(x) (((x) >> 40) == 0x5D0000)
 #define MAGIC_XZ(x) (((x) >> 16) == 0xFD377A585A00)
 

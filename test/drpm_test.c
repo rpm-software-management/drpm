@@ -40,8 +40,6 @@
 #define STRING_UNSUP_TAGS 12
 #define ULONG_ARR_UNSUP_TAGS 16
 
-//#define VERBOSE
-
 int __real_read_be32(int, uint32_t *);
 int __real_readdelta_rpmonly(int, drpm *);
 int __real_readdelta_standard(int, drpm *);
@@ -296,28 +294,6 @@ static void test_drpm_read_ok(void **state)
     }
 }
 
-#ifdef VERBOSE
-static char *comp_to_string(int comp)
-{
-    switch (comp) {
-    case DRPM_COMP_NONE:
-        return "none";
-    case DRPM_COMP_GZIP:
-        return "gzip";
-    case DRPM_COMP_BZIP2:
-        return "bzip2";
-    case DRPM_COMP_LZMA:
-        return "lzma";
-    case DRPM_COMP_XZ:
-        return "xz";
-    case DRPM_COMP_LZIP:
-        return "lzip";
-    default:
-        return NULL;
-    }
-}
-#endif
-
 static void test_drpm_get_uint(void **state)
 {
     (void) state; /* unused */
@@ -365,14 +341,6 @@ static void test_drpm_get_uint(void **state)
         assert_in_set(tgt_comp, comps, 6);
         if (version < 2)
             assert_int_equal(0, tgt_size);
-
-        #ifdef VERBOSE
-        fprintf(stderr, "%d: version: %u\n", i, version);
-        fprintf(stderr, "%d: type: %s\n", i, (type == DRPM_TYPE_STANDARD) ? "standard" : "rpm-only");
-        fprintf(stderr, "%d: compression: %s\n", i, comp_to_string(comp));
-        fprintf(stderr, "%d: target size: %u\n", i, tgt_size);
-        fprintf(stderr, "%d: target compression: %s\n", i, comp_to_string(tgt_comp));
-        #endif
     }
 
     assert_int_equal(DRPM_ERR_ARGS, drpm_get_uint(NULL, DRPM_TAG_VERSION, &tmp));
@@ -439,16 +407,6 @@ static void test_drpm_get_ulong(void **state)
         assert_int_equal(type, deltas[i].type);
         assert_int_equal(comp, deltas[i].comp);
         assert_int_equal(tgt_comp, deltas[i].tgt_comp);
-
-        #ifdef VERBOSE
-        fprintf(stderr, "%d: version: %lu\n", i, version);
-        fprintf(stderr, "%d: type: %s\n", i, (type == DRPM_TYPE_STANDARD) ? "standard" : "rpm-only");
-        fprintf(stderr, "%d: compression: %s\n", i, comp_to_string(comp));
-        fprintf(stderr, "%d: target size: %lu\n", i, tgt_size);
-        fprintf(stderr, "%d: target compression: %s\n", i, comp_to_string(tgt_comp));
-        fprintf(stderr, "%d: target header length: %lu\n", i, tgt_header_len);
-        fprintf(stderr, "%d: payload format offset: %lu\n", i, payload_fmt_off);
-        #endif
     }
 
     assert_int_equal(DRPM_ERR_ARGS, drpm_get_ulong(NULL, DRPM_TAG_PAYLOADFMTOFF, &payload_fmt_off));
@@ -516,18 +474,6 @@ static void test_drpm_get_ullong(void **state)
         assert_int_equal(tgt_size, deltas[i].tgt_size);
         assert_int_equal(tgt_header_len, deltas[i].tgt_header_len);
         assert_int_equal(payload_fmt_off, deltas[i].payload_fmt_off);
-
-        #ifdef VERBOSE
-        fprintf(stderr, "%d: version: %llu\n", i, version);
-        fprintf(stderr, "%d: type: %s\n", i, (type == DRPM_TYPE_STANDARD) ? "standard" : "rpm-only");
-        fprintf(stderr, "%d: compression: %s\n", i, comp_to_string(comp));
-        fprintf(stderr, "%d: target size: %llu\n", i, tgt_size);
-        fprintf(stderr, "%d: target compression: %s\n", i, comp_to_string(tgt_comp));
-        fprintf(stderr, "%d: target header length: %llu\n", i, tgt_header_len);
-        fprintf(stderr, "%d: payload format offset: %llu\n", i, payload_fmt_off);
-        fprintf(stderr, "%d: external data length: %llu\n", i, ext_data_len);
-        fprintf(stderr, "%d: internal data length: %llu\n", i, int_data_len);
-        #endif
     }
 
     assert_int_equal(DRPM_ERR_ARGS, drpm_get_ullong(NULL, DRPM_TAG_TYPE, &type));
@@ -584,16 +530,6 @@ static void test_drpm_get_string(void **state)
             assert_null(tgt_comp_param);
         if (deltas[i].type == DRPM_TYPE_RPMONLY)
             assert_int_equal(16*2, strlen(sequence));
-
-        #ifdef VERBOSE
-        fprintf(stderr, "%d: file name: %s\n", i, filename);
-        fprintf(stderr, "%d: sequence: %s\n", i, sequence);
-        fprintf(stderr, "%d: source NEVR: %s\n", i, src_nevr);
-        fprintf(stderr, "%d: target NEVR: %s\n", i, tgt_nevr);
-        fprintf(stderr, "%d: target MD5: %s\n", i, tgt_md5);
-        fprintf(stderr, "%d: compression paramater block: %s\n", i, tgt_comp_param);
-        fprintf(stderr, "%d: target lead: %.50s...\n", i, tgt_lead);
-        #endif
 
         free(filename);
         free(sequence);
@@ -657,15 +593,6 @@ static void test_drpm_get_ulong_array(void **state)
             assert_null(adj_elems);
             assert_int_equal(0, adj_elems_size);
         }
-
-        #ifdef VERBOSE
-        for (unsigned long j = 0; j < adj_elems_size; j++)
-            fprintf(stderr, "%d: adjust elements [%lu]: %lu\n", i, j, adj_elems[j]);
-        for (unsigned long j = 0; j < int_copies_size; j++)
-            fprintf(stderr, "%d: internal copies [%lu]: %lu\n", i, j, int_copies[j]);
-        for (unsigned long j = 0; j < ext_copies_size; j++)
-            fprintf(stderr, "%d: external copies [%lu]: %lu\n", i, j, ext_copies[j]);
-        #endif
 
         free(adj_elems);
         free(int_copies);
