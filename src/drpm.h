@@ -265,7 +265,7 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  * }
  *
  * for (unsigned long i = 1; i < ext_copies_size; i += 2)
- *    printf("external copy: offset adjustment = %u, length = %u\n", ext_copies[i-1], ext_copies[i]);
+ *    printf("External copy: offset adjustment = %lu, length = %lu\n", ext_copies[i-1], ext_copies[i]);
  *
  * free(ext_copies);
  * @endcode
