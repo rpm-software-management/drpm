@@ -302,3 +302,24 @@ cleanup:
     return error;
 }
 
+char *drpm_strerror(int error)
+{
+    switch (error) {
+    case DRPM_ERR_OK:
+        return "no error";
+    case DRPM_ERR_MEMORY:
+        return "memory allocation error";
+    case DRPM_ERR_ARGS:
+        return "bad arguments";
+    case DRPM_ERR_IO:
+        return "I/O error";
+    case DRPM_ERR_FORMAT:
+        return "wrong file format";
+    case DRPM_ERR_CONFIG:
+        return "misconfigured external library";
+    case DRPM_ERR_OTHER:
+        return "unspecified/unknown error";
+    default:
+        return NULL;
+    }
+}

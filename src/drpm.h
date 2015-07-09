@@ -86,9 +86,13 @@ typedef struct drpm drpm; /**< abstract data type of deltarpm structure */
  * Example of usage:
  * @code
  * drpm *delta = NULL;
+ *
  * int error = drpm_read(&delta, argv[1]);
- * if (error != DRPM_ERR_OK)
- *    return error;
+ *
+ * if (error != DRPM_ERR_OK) {
+ *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
+ *    return;
+ * }
  * @endcode
  * @param [out] delta       deltarpm to be filled with info
  * @param [in]  filename    name of deltarpm file whose data is to be read
@@ -107,9 +111,14 @@ int drpm_read(drpm **delta, const char *filename);
  * Example of usage:
  * @code
  * unsigned type;
+ *
  * int error = drpm_get_uint(delta, DRPM_TAG_TYPE, &type);
- * if (error != DRPM_ERR_OK)
- *    return error;
+ *
+ * if (error != DRPM_ERR_OK) {
+ *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
+ *    return;
+ * }
+ *
  * printf("This is a %s deltarpm\n", (type == DRPM_TYPE_STANDARD) ? "standard" : "rpm-only");
  * @endcode
  * @param [in]  delta   deltarpm containing required info
@@ -134,9 +143,14 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
  * Example of usage:
  * @code
  * unsigned long tgt_size;
+ *
  * int error = drpm_get_ulong(delta, DRPM_TAG_TGTSIZE, &tgt_size);
- * if (error != DRPM_ERR_OK)
- *    return error;
+ *
+ * if (error != DRPM_ERR_OK) {
+ *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
+ *    return;
+ * }
+ *
  * printf("Size of new RPM: %lu\n", tgt_size);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
@@ -164,9 +178,14 @@ int drpm_get_ulong(drpm *delta, int tag, unsigned long *target);
  * Example of usage:
  * @code
  * unsigned long long int_data_len;
+ *
  * int error = drpm_get_ullong(delta, DRPM_TAG_INTDATALEN, &int_data_len);
- * if (error != DRPM_ERR_OK)
- *    return error;
+ *
+ * if (error != DRPM_ERR_OK) {
+ *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
+ *    return;
+ * }
+ *
  * printf("Length of internal data: %llu\n", int_data_len);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
@@ -197,10 +216,16 @@ int drpm_get_ullong(drpm *delta, int tag, unsigned long long *target);
  * Example of usage:
  * @code
  * char *tgt_nevr;
+ *
  * int error = drpm_get_string(delta, DRPM_TAG_TGTNEVR, &tgt_nevr);
- * if (error != DRPM_ERR_OK)
- *    return error;
+ *
+ * if (error != DRPM_ERR_OK) {
+ *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
+ *    return;
+ * }
+ *
  * printf("Target NEVR: %s\n", tgt_nevr);
+ *
  * free(tgt_nevr);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
@@ -229,12 +254,19 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  *
  * Example of usage:
  * @code
- * unsigned long *ext_copies, ext_copies_size;
+ * unsigned long *ext_copies;
+ * unsigned long ext_copies_size;
+ *
  * int error = drpm_get_uint_array(delta, DRPM_TAG_EXTCOPIES, &ext_copies, &ext_copies_size);
- * if (error != DRPM_ERR_OK)
- *    return error;
+ *
+ * if (error != DRPM_ERR_OK) {
+ *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
+ *    return;
+ * }
+ *
  * for (unsigned long i = 1; i < ext_copies_size; i += 2)
  *    printf("external copy: offset adjustment = %u, length = %u\n", ext_copies[i-1], ext_copies[i]);
+ *
  * free(ext_copies);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
@@ -257,8 +289,11 @@ int drpm_get_ulong_array(drpm *delta, int tag, unsigned long **target, unsigned 
  * Example of usage:
  * @code
  * int error = drpm_destroy(&delta);
- * if (error != DRPM_ERR_OK)
- *    return error;
+ *
+ * if (error != DRPM_ERR_OK) {
+ *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
+ *    return;
+ * }
  * @endcode
  * @param [out] delta   deltarpm that is to be freed
  * @return error number
@@ -266,5 +301,12 @@ int drpm_get_ulong_array(drpm *delta, int tag, unsigned long **target, unsigned 
  * drpm_read(), otherwise behaviour is undefined.
  */
 int drpm_destroy(drpm **delta);
+
+/**
+ * @brief Returns description of error code as string.
+ * @param [in]  error   error code
+ * @return error description (or @c NULL if error code invalid)
+ */
+char *drpm_strerror(int error);
 
 #endif
