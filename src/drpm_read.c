@@ -322,8 +322,8 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     uint32_t version;
     uint32_t tgt_nevr_len;
     uint32_t add_data_size;
-    int error;
     ssize_t bytes_read;
+    int error;
 
     if (read_be32(filedesc, &version) != DRPM_ERR_OK ||
         !MAGIC_DLT(version))
@@ -359,8 +359,7 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     FD_t file;
     Header header = NULL;
     Header signature = NULL;
-    off_t remainder;
-    char *payload_comp = NULL;
+    const char *payload_comp;
     int error = DRPM_ERR_OK;
 
     if ((file = Fopen(delta->filename, "rb")) == NULL)
@@ -376,11 +375,9 @@ int readdelta_standard(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    if ((remainder = Ftell(file) % 8) != 0) {
-        if (Fseek(file, 8 - remainder, SEEK_CUR) == -1) {
-            error = DRPM_ERR_FORMAT;
-            goto cleanup;
-        }
+    if (Fseek(file, (8 - (Ftell(file) % 8)) % 8, SEEK_CUR) == -1) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
     }
 
     if ((header = headerRead(file, HEADER_MAGIC_YES)) == NULL) {
@@ -389,7 +386,7 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     }
 
     if ((delta->tgt_nevr = headerGetAsString(header, RPMTAG_NEVR)) == NULL ||
-        (payload_comp = headerGetAsString(header, RPMTAG_PAYLOADCOMPRESSOR)) == NULL) {
+        (payload_comp = headerGetString(header, RPMTAG_PAYLOADCOMPRESSOR)) == NULL) {
         error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
@@ -405,13 +402,13 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     } else if (strcmp(payload_comp, "xz") == 0) {
         delta->tgt_comp = DRPM_COMP_XZ;
     } else {
-        delta->tgt_comp = DRPM_COMP_NONE;
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
     }
 
     lseek(filedesc, Ftell(file), SEEK_SET);
 
 cleanup:
-    free(payload_comp);
     headerFree(header);
     headerFree(signature);
     Fclose(file);

@@ -87,7 +87,7 @@ typedef struct drpm drpm; /**< abstract data type of deltarpm structure */
  * @code
  * drpm *delta = NULL;
  *
- * int error = drpm_read(&delta, argv[1]);
+ * int error = drpm_read(&delta, "foo.drpm");
  *
  * if (error != DRPM_ERR_OK) {
  *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
@@ -303,7 +303,7 @@ int drpm_get_ulong_array(drpm *delta, int tag, unsigned long **target, unsigned 
 int drpm_destroy(drpm **delta);
 
 /**
- * @brief Returns description of error code as string.
+ * @brief Returns description of error code as a string.
  * @param [in]  error   error code
  * @return error description (or @c NULL if error code invalid)
  */
