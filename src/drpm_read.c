@@ -30,6 +30,7 @@
 #include <rpm/rpmlib.h>
 
 #define MAGIC_DLT(x) (((x) >> 8) == 0x444C54)
+#define MAGIC_DLT3(x) ((x) == 0x444C5433)
 
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
@@ -326,13 +327,10 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     int error;
 
     if (read_be32(filedesc, &version) != DRPM_ERR_OK ||
-        !MAGIC_DLT(version))
+        !MAGIC_DLT3(version))
         return DRPM_ERR_FORMAT;
 
-    version = (version & 0x000000FF) - '0';
-
-    if (version < 1 || version > 3 ||
-        read_be32(filedesc, &tgt_nevr_len) != DRPM_ERR_OK)
+    if (read_be32(filedesc, &tgt_nevr_len) != DRPM_ERR_OK)
         return DRPM_ERR_FORMAT;
 
     if ((delta->tgt_nevr = malloc(tgt_nevr_len + 1)) == NULL)
@@ -349,7 +347,8 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     if ((error = read_be32(filedesc, &add_data_size)) != DRPM_ERR_OK)
         return error;
 
-    lseek(filedesc, add_data_size, SEEK_CUR);
+    if (lseek(filedesc, add_data_size, SEEK_CUR) == (off_t)-1)
+        return DRPM_ERR_IO;
 
     return DRPM_ERR_OK;
 }
@@ -359,35 +358,20 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     FD_t file;
     Header header = NULL;
     Header signature = NULL;
+    off_t file_pos;
     const char *payload_comp;
     int error = DRPM_ERR_OK;
 
     if ((file = Fopen(delta->filename, "rb")) == NULL)
         return DRPM_ERR_IO;
 
-    if (Fseek(file, 96, SEEK_SET) == -1) {
-        error = DRPM_ERR_FORMAT;
-        goto cleanup;
-    }
-
-    if ((signature = headerRead(file, HEADER_MAGIC_YES)) == NULL) {
-        error = DRPM_ERR_FORMAT;
-        goto cleanup;
-    }
-
-    if (Fseek(file, (8 - (Ftell(file) % 8)) % 8, SEEK_CUR) == -1) {
-        error = DRPM_ERR_FORMAT;
-        goto cleanup;
-    }
-
-    if ((header = headerRead(file, HEADER_MAGIC_YES)) == NULL) {
-        error = DRPM_ERR_FORMAT;
-        goto cleanup;
-    }
-
-    if ((delta->tgt_nevr = headerGetAsString(header, RPMTAG_NEVR)) == NULL ||
+    if (Fseek(file, 96, SEEK_SET) < 0 ||
+        (signature = headerRead(file, HEADER_MAGIC_YES)) == NULL ||
+        (file_pos = Ftell(file)) < 0 ||
+        Fseek(file, (8 - (file_pos % 8)) % 8, SEEK_CUR) < 0 ||
+        (header = headerRead(file, HEADER_MAGIC_YES)) == NULL ||
         (payload_comp = headerGetString(header, RPMTAG_PAYLOADCOMPRESSOR)) == NULL) {
-        error = DRPM_ERR_MEMORY;
+        error = Ferror(file) ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
         goto cleanup;
     }
 
@@ -406,7 +390,8 @@ int readdelta_standard(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    lseek(filedesc, Ftell(file), SEEK_SET);
+    if (lseek(filedesc, Ftell(file), SEEK_SET) == (off_t)-1)
+        error = DRPM_ERR_IO;
 
 cleanup:
     headerFree(header);

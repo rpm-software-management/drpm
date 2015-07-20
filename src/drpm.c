@@ -302,7 +302,7 @@ cleanup:
     return error;
 }
 
-char *drpm_strerror(int error)
+const char *drpm_strerror(int error)
 {
     switch (error) {
     case DRPM_ERR_OK:

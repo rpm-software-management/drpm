@@ -257,7 +257,7 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  * unsigned long *ext_copies;
  * unsigned long ext_copies_size;
  *
- * int error = drpm_get_uint_array(delta, DRPM_TAG_EXTCOPIES, &ext_copies, &ext_copies_size);
+ * int error = drpm_get_ulong_array(delta, DRPM_TAG_EXTCOPIES, &ext_copies, &ext_copies_size);
  *
  * if (error != DRPM_ERR_OK) {
  *    fprintf(stderr, "drpm error: %s\n", drpm_strerror(error));
@@ -304,9 +304,12 @@ int drpm_destroy(drpm **delta);
 
 /**
  * @brief Returns description of error code as a string.
+ *
+ * Works very similarly to
+ * [strerror(3)](http://linux.die.net/man/3/strerror).
  * @param [in]  error   error code
  * @return error description (or @c NULL if error code invalid)
  */
-char *drpm_strerror(int error);
+const char *drpm_strerror(int error);
 
 #endif
