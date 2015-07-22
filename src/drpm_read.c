@@ -32,6 +32,18 @@
 #define MAGIC_DLT(x) (((x) >> 8) == 0x444C54)
 #define MAGIC_DLT3(x) ((x) == 0x444C5433)
 
+#define RPM_LEAD_SIG_MIN_LEN 112
+
+#define DELTARPM_COMPALGO(comp) ((comp) % 256)
+
+#define DELTARPM_COMP_UN 0
+#define DELTARPM_COMP_GZ 1
+#define DELTARPM_COMP_BZ_20 2
+#define DELTARPM_COMP_GZ_RSYNC 3
+#define DELTARPM_COMP_BZ_17 4
+#define DELTARPM_COMP_LZMA 5
+#define DELTARPM_COMP_XZ 6
+
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
     char buffer[4];
@@ -151,22 +163,22 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             (error = compstrm_read_be32(stream, &tgt_comp)) != DRPM_ERR_OK)
             goto cleanup;
 
-        switch (tgt_comp % 256) {
-        case 0:
+        switch (DELTARPM_COMPALGO(tgt_comp)) {
+        case DELTARPM_COMP_UN:
             delta->tgt_comp = DRPM_COMP_NONE;
             break;
-        case 1:
-        case 3:
+        case DELTARPM_COMP_GZ:
+        case DELTARPM_COMP_GZ_RSYNC:
             delta->tgt_comp = DRPM_COMP_GZIP;
             break;
-        case 2:
-        case 4:
+        case DELTARPM_COMP_BZ_20:
+        case DELTARPM_COMP_BZ_17:
             delta->tgt_comp = DRPM_COMP_BZIP2;
             break;
-        case 5:
+        case DELTARPM_COMP_LZMA:
             delta->tgt_comp = DRPM_COMP_LZMA;
             break;
-        case 6:
+        case DELTARPM_COMP_XZ:
             delta->tgt_comp = DRPM_COMP_XZ;
             break;
         default:
@@ -220,7 +232,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     if ((error = compstrm_read_be32(stream, &leadlen)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if (leadlen < 112) {
+    if (leadlen < RPM_LEAD_SIG_MIN_LEN) {
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
@@ -326,17 +338,19 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     ssize_t bytes_read;
     int error;
 
-    if (read_be32(filedesc, &version) != DRPM_ERR_OK ||
-        !MAGIC_DLT3(version))
+    if ((error = read_be32(filedesc, &version)) != DRPM_ERR_OK)
+        return error;
+
+    if (!MAGIC_DLT3(version))
         return DRPM_ERR_FORMAT;
 
-    if (read_be32(filedesc, &tgt_nevr_len) != DRPM_ERR_OK)
-        return DRPM_ERR_FORMAT;
+    if ((error = read_be32(filedesc, &tgt_nevr_len)) != DRPM_ERR_OK)
+        return error;
 
     if ((delta->tgt_nevr = malloc(tgt_nevr_len + 1)) == NULL)
         return DRPM_ERR_MEMORY;
 
-    if ((bytes_read = read(filedesc, delta->tgt_nevr, tgt_nevr_len)) == -1)
+    if ((bytes_read = read(filedesc, delta->tgt_nevr, tgt_nevr_len)) < 0)
         return DRPM_ERR_IO;
 
     if ((uint32_t) bytes_read != tgt_nevr_len)

@@ -19,7 +19,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-/** @file drpm.h */
+/**
+ * @file drpm.h
+ * @author Pavel Tobias <ptobias@redhat.com>
+ * @author Matej Chalk <mchalk@redhat.com>
+ * @date 2014-2015
+ * @copyright Copyright &copy; 2014 Red Hat, Inc.
+ * This project is released under the GNU Lesser Public License.
+ */
 
 #ifndef _DRPM_H_
 #define _DRPM_H_
@@ -78,10 +85,10 @@
 #define DRPM_TAG_INTDATALEN 18      /**< length of internal data */
 /**@}*/
 
-typedef struct drpm drpm; /**< abstract data type of deltarpm structure */
+typedef struct drpm drpm; /**< deltarpm package info */
 
 /**
- * @brief Reads information from a deltarpm package @p filename into @p *delta.
+ * @brief Reads information from deltarpm package @p filename into @p *delta.
  * 
  * Example of usage:
  * @code
@@ -122,7 +129,7 @@ int drpm_read(drpm **delta, const char *filename);
  * printf("This is a %s deltarpm\n", (type == DRPM_TYPE_STANDARD) ? "standard" : "rpm-only");
  * @endcode
  * @param [in]  delta   deltarpm containing required info
- * @param [in]  tag     symbolic value identifying which info is required
+ * @param [in]  tag     identifies which info is required
  * @param [out] target  tagged info will be copied here
  * @return error number
  * @warning @p delta should have been previously initialized with
@@ -154,7 +161,7 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
  * printf("Size of new RPM: %lu\n", tgt_size);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
- * @param [in]  tag     symbolic value identifying which info is required
+ * @param [in]  tag     identifies which info is required
  * @param [out] target  tagged info will be copied here
  * @return error number
  * @warning @p delta should have been previously initialized with
@@ -189,7 +196,7 @@ int drpm_get_ulong(drpm *delta, int tag, unsigned long *target);
  * printf("Length of internal data: %llu\n", int_data_len);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
- * @param [in]  tag     symbolic value identifying which info is required
+ * @param [in]  tag     identifies which info is required
  * @param [out] target  tagged info will be copied here
  * @return error number
  * @warning @p delta should have been previously initialized with
@@ -229,7 +236,7 @@ int drpm_get_ullong(drpm *delta, int tag, unsigned long long *target);
  * free(tgt_nevr);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
- * @param [in]  tag     symbolic value identifying which info is required
+ * @param [in]  tag     identifies which info is required
  * @param [out] target  tagged info will be copied here
  * @return error number
  * @note @p *target should be freed manually by the user when no longer needed.
@@ -270,7 +277,7 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  * free(ext_copies);
  * @endcode
  * @param [in]  delta   deltarpm containing required info
- * @param [in]  tag     symbolic value identifying which info is required
+ * @param [in]  tag     identifies which info is required
  * @param [out] target  tagged info will be copied here
  * @param [out] size    size of array will be copied here
  * @return error number
