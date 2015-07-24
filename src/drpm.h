@@ -113,7 +113,7 @@ int drpm_read(drpm **delta, const char *filename);
  * @brief Fetches information representable as an unsigned integer.
  * 
  * Fetches information identified by @p tag from @p delta and copies it 
- * to adress pointed to by @p target.
+ * to address pointed to by @p target.
  * 
  * Example of usage:
  * @code
@@ -145,7 +145,7 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
  * @brief Fetches information representable as an unsigned long integer.
  *
  * Fetches information identified by @p tag from @p delta and copies it
- * to adress pointed to by @p target.
+ * to address pointed to by @p target.
  *
  * Example of usage:
  * @code
@@ -180,7 +180,7 @@ int drpm_get_ulong(drpm *delta, int tag, unsigned long *target);
  * @brief Fetches information representable as an unsigned long long integer.
  *
  * Fetches information identified by @p tag from @p delta and copies it
- * to adress pointed to by @p target.
+ * to address pointed to by @p target.
  *
  * Example of usage:
  * @code
@@ -218,7 +218,7 @@ int drpm_get_ullong(drpm *delta, int tag, unsigned long long *target);
  * 
  * Fetches string-type information identified by @p tag from @p delta, 
  * copies it to space previously allocated by the function itself and 
- * saves the adress to @p *target.
+ * saves the address to @p *target.
  *
  * Example of usage:
  * @code
@@ -257,7 +257,7 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  *
  * Fetches information identified by @p tag from @p delta,
  * copies it to space previously allocated by the function itself,
- * saves the adress to @p *target and stores size in @p *size.
+ * saves the address to @p *target and stores size in @p *size.
  *
  * Example of usage:
  * @code

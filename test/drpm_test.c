@@ -51,13 +51,13 @@ int __real_compstrm_destroy(struct compstrm **);
 
 struct delta_meta {
     drpm *delta;
-    uint16_t version;
-    uint16_t type;
-    uint16_t comp;
-    uint16_t tgt_comp;
-    uint32_t tgt_size;
-    uint32_t tgt_header_len;
-    uint32_t payload_fmt_off;
+    unsigned version;
+    unsigned type;
+    unsigned comp;
+    unsigned tgt_comp;
+    unsigned long tgt_size;
+    unsigned long tgt_header_len;
+    unsigned long payload_fmt_off;
 };
 
 struct delta_meta deltas[DELTAS];
@@ -324,16 +324,16 @@ static void test_drpm_get_uint(void **state)
     };
 
     for (int i = 0; i < DELTAS; i++) {
-        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_VERSION, (unsigned *)&deltas[i].version));
-        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_TYPE, (unsigned *)&deltas[i].type));
-        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_COMP, (unsigned *)&deltas[i].comp));
+        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_VERSION, &deltas[i].version));
+        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_TYPE, &deltas[i].type));
+        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_COMP, &deltas[i].comp));
         assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_TGTSIZE, &tgt_size));
-        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_TGTCOMP, (unsigned *)&deltas[i].tgt_comp));
+        assert_int_equal(DRPM_ERR_OK, drpm_get_uint(deltas[i].delta, DRPM_TAG_TGTCOMP, &deltas[i].tgt_comp));
 
-        version = (unsigned)deltas[i].version;
-        type = (unsigned)deltas[i].type;
-        comp = (unsigned)deltas[i].comp;
-        tgt_comp = (unsigned)deltas[i].tgt_comp;
+        version = deltas[i].version;
+        type = deltas[i].type;
+        comp = deltas[i].comp;
+        tgt_comp = deltas[i].tgt_comp;
 
         assert_in_range(version, 1, 3);
         assert_in_set(type, types, 2);
@@ -385,14 +385,14 @@ static void test_drpm_get_ulong(void **state)
         assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_VERSION, &version));
         assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_TYPE, &type));
         assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_COMP, &comp));
-        assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_TGTSIZE, (unsigned long *)&deltas[i].tgt_size));
+        assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_TGTSIZE, &deltas[i].tgt_size));
         assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_TGTCOMP, &tgt_comp));
-        assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_TGTHEADERLEN, (unsigned long *)&deltas[i].tgt_header_len));
-        assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_PAYLOADFMTOFF, (unsigned long *)&deltas[i].payload_fmt_off));
+        assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_TGTHEADERLEN, &deltas[i].tgt_header_len));
+        assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(deltas[i].delta, DRPM_TAG_PAYLOADFMTOFF, &deltas[i].payload_fmt_off));
 
-        tgt_size = (unsigned long)deltas[i].tgt_size;
-        tgt_header_len = (unsigned long)deltas[i].tgt_header_len;
-        payload_fmt_off = (unsigned long)deltas[i].payload_fmt_off;
+        tgt_size = deltas[i].tgt_size;
+        tgt_header_len = deltas[i].tgt_header_len;
+        payload_fmt_off = deltas[i].payload_fmt_off;
 
         assert_in_range(version, 1, 3);
         assert_in_set(type, types, 2);
@@ -403,10 +403,10 @@ static void test_drpm_get_ulong(void **state)
         if (type == DRPM_TYPE_RPMONLY)
             assert_int_not_equal(0, tgt_header_len);
 
-        assert_int_equal(version, deltas[i].version);
-        assert_int_equal(type, deltas[i].type);
-        assert_int_equal(comp, deltas[i].comp);
-        assert_int_equal(tgt_comp, deltas[i].tgt_comp);
+        assert_int_equal(version, (unsigned long)deltas[i].version);
+        assert_int_equal(type, (unsigned long)deltas[i].type);
+        assert_int_equal(comp, (unsigned long)deltas[i].comp);
+        assert_int_equal(tgt_comp, (unsigned long)deltas[i].tgt_comp);
     }
 
     assert_int_equal(DRPM_ERR_ARGS, drpm_get_ulong(NULL, DRPM_TAG_PAYLOADFMTOFF, &payload_fmt_off));
@@ -467,13 +467,13 @@ static void test_drpm_get_ullong(void **state)
         if (type == DRPM_TYPE_RPMONLY)
             assert_int_not_equal(0, tgt_header_len);
 
-        assert_int_equal(version, deltas[i].version);
-        assert_int_equal(type, deltas[i].type);
-        assert_int_equal(comp, deltas[i].comp);
-        assert_int_equal(tgt_comp, deltas[i].tgt_comp);
-        assert_int_equal(tgt_size, deltas[i].tgt_size);
-        assert_int_equal(tgt_header_len, deltas[i].tgt_header_len);
-        assert_int_equal(payload_fmt_off, deltas[i].payload_fmt_off);
+        assert_int_equal(version, (unsigned long long)deltas[i].version);
+        assert_int_equal(type, (unsigned long long)deltas[i].type);
+        assert_int_equal(comp, (unsigned long long)deltas[i].comp);
+        assert_int_equal(tgt_comp, (unsigned long long)deltas[i].tgt_comp);
+        assert_int_equal(tgt_size, (unsigned long long)deltas[i].tgt_size);
+        assert_int_equal(tgt_header_len, (unsigned long long)deltas[i].tgt_header_len);
+        assert_int_equal(payload_fmt_off, (unsigned long long)deltas[i].payload_fmt_off);
     }
 
     assert_int_equal(DRPM_ERR_ARGS, drpm_get_ullong(NULL, DRPM_TAG_TYPE, &type));
