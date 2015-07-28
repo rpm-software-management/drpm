@@ -44,10 +44,10 @@ int __real_read_be32(int, uint32_t *);
 int __real_readdelta_rpmonly(int, drpm *);
 int __real_readdelta_standard(int, drpm *);
 int __real_readdelta_rest(int, drpm *);
-int __real_compstrm_init(struct compstrm **, int, uint32_t *);
-int __real_compstrm_read_be32(struct compstrm *, uint32_t *);
-int __real_compstrm_read(struct compstrm *, size_t, char *);
-int __real_compstrm_destroy(struct compstrm **);
+int __real_decompstrm_init(struct decompstrm **, int, uint32_t *);
+int __real_decompstrm_read_be32(struct decompstrm *, uint32_t *);
+int __real_decompstrm_read(struct decompstrm *, size_t, char *);
+int __real_decompstrm_destroy(struct decompstrm **);
 
 struct delta_meta {
     drpm *delta;
@@ -136,7 +136,7 @@ int __wrap_readdelta_rest(int filedesc, drpm *delta)
     }
 }
 
-int __wrap_compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
+int __wrap_decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
 {
     switch (test_no) {
     case 11:
@@ -146,21 +146,21 @@ int __wrap_compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
     case 15:
         return (int)mock();
     default:
-        return __real_compstrm_init(strm, filedesc, comp);
+        return __real_decompstrm_init(strm, filedesc, comp);
     }
 }
 
-int __wrap_compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
+int __wrap_decompstrm_read_be32(struct decompstrm *strm, uint32_t *buffer_ret)
 {
     switch (test_no) {
     case 16:
         return (int)mock();
     default:
-        return __real_compstrm_read_be32(strm, buffer_ret);
+        return __real_decompstrm_read_be32(strm, buffer_ret);
     }
 }
 
-int __wrap_compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
+int __wrap_decompstrm_read(struct decompstrm *strm, size_t read_len, char *buffer_ret)
 {
     switch (test_no) {
     case 17:
@@ -169,18 +169,18 @@ int __wrap_compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_re
     case 20:
         return (int)mock();
     default:
-        return __real_compstrm_read(strm, read_len, buffer_ret);
+        return __real_decompstrm_read(strm, read_len, buffer_ret);
     }
 }
 
-int __wrap_compstrm_destroy(struct compstrm **strm)
+int __wrap_decompstrm_destroy(struct decompstrm **strm)
 {
     switch (test_no) {
     case 21:
-        __real_compstrm_destroy(strm);
+        __real_decompstrm_destroy(strm);
         return (int)mock();
     default:
-        return __real_compstrm_destroy(strm);
+        return __real_decompstrm_destroy(strm);
     }
 }
 
@@ -239,19 +239,19 @@ static void test_drpm_read_err_mock(void **state)
         case 13:
         case 14:
         case 15:
-            will_return(__wrap_compstrm_init, ret_vals[test_no-1]);
+            will_return(__wrap_decompstrm_init, ret_vals[test_no-1]);
             break;
         case 16:
-            will_return(__wrap_compstrm_read_be32, ret_vals[test_no-1]);
+            will_return(__wrap_decompstrm_read_be32, ret_vals[test_no-1]);
             break;
         case 17:
         case 18:
         case 19:
         case 20:
-            will_return(__wrap_compstrm_read, ret_vals[test_no-1]);
+            will_return(__wrap_decompstrm_read, ret_vals[test_no-1]);
             break;
         case 21:
-            will_return(__wrap_compstrm_destroy, ret_vals[test_no-1]);
+            will_return(__wrap_decompstrm_destroy, ret_vals[test_no-1]);
             break;
         }
 

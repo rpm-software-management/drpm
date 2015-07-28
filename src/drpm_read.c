@@ -82,7 +82,7 @@ int read_be64(int filedesc, uint64_t *buffer_ret)
 
 int readdelta_rest(int filedesc, struct drpm *delta)
 {
-    struct compstrm *stream;
+    struct decompstrm *stream;
     uint32_t src_nevr_len;
     uint32_t sequence_len;
     uint32_t tgt_comp;
@@ -91,21 +91,19 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     uint32_t leadlen;
     uint32_t inn;
     uint32_t outn;
-    uint32_t ext_data_msb;
-    uint32_t ext_data;
+    uint32_t ext_data_32;
     uint32_t add_data_size;
-    uint32_t int_data_msb;
-    uint32_t int_data;
+    uint32_t int_data_32;
     char *sequence = NULL;
     char md5[MD5_BYTES];
     char *comp_param = NULL;
     char *lead = NULL;
     int error = DRPM_ERR_OK;
 
-    if ((error = compstrm_init(&stream, filedesc, &delta->comp)) != DRPM_ERR_OK)
+    if ((error = decompstrm_init(&stream, filedesc, &delta->comp)) != DRPM_ERR_OK)
         return error;
 
-    if ((error = compstrm_read_be32(stream, &delta->version)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read_be32(stream, &delta->version)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (!MAGIC_DLT(delta->version)) {
@@ -120,7 +118,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    if ((error = compstrm_read_be32(stream, &src_nevr_len)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read_be32(stream, &src_nevr_len)) != DRPM_ERR_OK)
         goto cleanup;
 
     if ((delta->src_nevr = malloc(src_nevr_len + 1)) == NULL) {
@@ -128,12 +126,12 @@ int readdelta_rest(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    if ((error = compstrm_read(stream, src_nevr_len, delta->src_nevr)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(stream, src_nevr_len, delta->src_nevr)) != DRPM_ERR_OK)
         goto cleanup;
 
     delta->src_nevr[src_nevr_len] = '\0';
 
-    if ((error = compstrm_read_be32(stream, &sequence_len)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read_be32(stream, &sequence_len)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (sequence_len < MD5_BYTES ||
@@ -148,19 +146,19 @@ int readdelta_rest(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    if ((error = compstrm_read(stream, sequence_len, sequence)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(stream, sequence_len, sequence)) != DRPM_ERR_OK)
         goto cleanup;
 
     dump_hex(delta->sequence, sequence, sequence_len);
 
-    if ((error = compstrm_read(stream, MD5_BYTES, md5)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(stream, MD5_BYTES, md5)) != DRPM_ERR_OK)
         goto cleanup;
 
     dump_hex(delta->tgt_md5, md5, MD5_BYTES);
 
     if (delta->version >= 2) {
-        if ((error = compstrm_read_be32(stream, &delta->tgt_size)) != DRPM_ERR_OK ||
-            (error = compstrm_read_be32(stream, &tgt_comp)) != DRPM_ERR_OK)
+        if ((error = decompstrm_read_be32(stream, &delta->tgt_size)) != DRPM_ERR_OK ||
+            (error = decompstrm_read_be32(stream, &tgt_comp)) != DRPM_ERR_OK)
             goto cleanup;
 
         switch (DELTARPM_COMPALGO(tgt_comp)) {
@@ -186,7 +184,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             goto cleanup;
         }
 
-        if ((error = compstrm_read_be32(stream, &comp_param_len)) != DRPM_ERR_OK)
+        if ((error = decompstrm_read_be32(stream, &comp_param_len)) != DRPM_ERR_OK)
             goto cleanup;
 
         if (comp_param_len > 0) {
@@ -196,15 +194,15 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                 goto cleanup;
             }
 
-            if ((error = compstrm_read(stream, comp_param_len, comp_param)) != DRPM_ERR_OK)
+            if ((error = decompstrm_read(stream, comp_param_len, comp_param)) != DRPM_ERR_OK)
                 goto cleanup;
 
             dump_hex(delta->tgt_comp_param, comp_param, comp_param_len);
         }
 
         if (delta->version == 3) {
-            if ((error = compstrm_read_be32(stream, &delta->tgt_header_len)) != DRPM_ERR_OK ||
-                (error = compstrm_read_be32(stream, &offadjn)) != DRPM_ERR_OK)
+            if ((error = decompstrm_read_be32(stream, &delta->tgt_header_len)) != DRPM_ERR_OK ||
+                (error = decompstrm_read_be32(stream, &offadjn)) != DRPM_ERR_OK)
                 goto cleanup;
 
             delta->adj_elems_size = 2 * offadjn;
@@ -215,10 +213,10 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                     goto cleanup;
                 }
                 for (uint32_t i = 0; i < delta->adj_elems_size; i += 2)
-                    if ((error = compstrm_read_be32(stream, delta->adj_elems + i)) != DRPM_ERR_OK)
+                    if ((error = decompstrm_read_be32(stream, delta->adj_elems + i)) != DRPM_ERR_OK)
                         goto cleanup;
                 for (uint32_t j = 1; j < delta->adj_elems_size; j += 2)
-                    if ((error = compstrm_read_be32(stream, delta->adj_elems + j)) != DRPM_ERR_OK)
+                    if ((error = decompstrm_read_be32(stream, delta->adj_elems + j)) != DRPM_ERR_OK)
                         goto cleanup;
             }
         }
@@ -229,7 +227,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    if ((error = compstrm_read_be32(stream, &leadlen)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read_be32(stream, &leadlen)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (leadlen < RPM_LEAD_SIG_MIN_LEN) {
@@ -243,14 +241,14 @@ int readdelta_rest(int filedesc, struct drpm *delta)
         goto cleanup;
     }
 
-    if ((error = compstrm_read(stream, leadlen, lead)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(stream, leadlen, lead)) != DRPM_ERR_OK)
         goto cleanup;
 
     dump_hex(delta->tgt_lead, lead, leadlen);
 
-    if ((error = compstrm_read_be32(stream, &delta->payload_fmt_off)) != DRPM_ERR_OK ||
-        (error = compstrm_read_be32(stream, &inn)) != DRPM_ERR_OK ||
-        (error = compstrm_read_be32(stream, &outn)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read_be32(stream, &delta->payload_fmt_off)) != DRPM_ERR_OK ||
+        (error = decompstrm_read_be32(stream, &inn)) != DRPM_ERR_OK ||
+        (error = decompstrm_read_be32(stream, &outn)) != DRPM_ERR_OK)
         goto cleanup;
 
     delta->int_copies_size = 2 * inn;
@@ -262,10 +260,10 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             goto cleanup;
         }
         for (uint32_t i = 0; i < delta->int_copies_size; i += 2)
-            if ((error = compstrm_read_be32(stream, delta->int_copies + i)) != DRPM_ERR_OK)
+            if ((error = decompstrm_read_be32(stream, delta->int_copies + i)) != DRPM_ERR_OK)
                 goto cleanup;
         for (uint32_t j = 1; j < delta->int_copies_size; j += 2)
-            if ((error = compstrm_read_be32(stream, delta->int_copies + j)) != DRPM_ERR_OK)
+            if ((error = decompstrm_read_be32(stream, delta->int_copies + j)) != DRPM_ERR_OK)
                 goto cleanup;
     }
 
@@ -275,25 +273,23 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             goto cleanup;
         }
         for (uint32_t i = 0; i < delta->ext_copies_size; i += 2)
-            if ((error = compstrm_read_be32(stream, delta->ext_copies + i)) != DRPM_ERR_OK)
+            if ((error = decompstrm_read_be32(stream, delta->ext_copies + i)) != DRPM_ERR_OK)
                 goto cleanup;
         for (uint32_t j = 1; j < delta->ext_copies_size; j += 2)
-            if ((error = compstrm_read_be32(stream, delta->ext_copies + j)) != DRPM_ERR_OK)
+            if ((error = decompstrm_read_be32(stream, delta->ext_copies + j)) != DRPM_ERR_OK)
                 goto cleanup;
     }
 
     if (delta->version == 3) {
-        if ((error = compstrm_read_be32(stream, &ext_data_msb)) != DRPM_ERR_OK)
+        if ((error = decompstrm_read_be64(stream, &delta->ext_data_len)) != DRPM_ERR_OK)
             goto cleanup;
-        delta->ext_data_len = (uint64_t)ext_data_msb << 32;
+    } else {
+        if ((error = decompstrm_read_be32(stream, &ext_data_32)) != DRPM_ERR_OK)
+            goto cleanup;
+        delta->ext_data_len = ext_data_32;
     }
 
-    if ((error = compstrm_read_be32(stream, &ext_data)) != DRPM_ERR_OK)
-        goto cleanup;
-
-    delta->ext_data_len += ext_data;
-
-    if ((error = compstrm_read_be32(stream, &add_data_size)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read_be32(stream, &add_data_size)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (add_data_size > 0) {
@@ -301,27 +297,25 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
-        if ((error = compstrm_skip(stream, add_data_size)) != DRPM_ERR_OK)
+        if ((error = decompstrm_read(stream, add_data_size, NULL)) != DRPM_ERR_OK)
             goto cleanup;
     }
 
     if (delta->version == 3) {
-        if ((error = compstrm_read_be32(stream, &int_data_msb)) != DRPM_ERR_OK)
+        if ((error = decompstrm_read_be64(stream, &delta->int_data_len)) != DRPM_ERR_OK)
             goto cleanup;
-        delta->int_data_len = (uint64_t)int_data_msb << 32;
+    } else {
+        if ((error = decompstrm_read_be32(stream, &int_data_32)) != DRPM_ERR_OK)
+            goto cleanup;
+        delta->int_data_len = int_data_32;
     }
-
-    if ((error = compstrm_read_be32(stream, &int_data)) != DRPM_ERR_OK)
-        goto cleanup;
-
-    delta->int_data_len += int_data;
 
 cleanup:
 
     if (error == DRPM_ERR_OK)
-        error = compstrm_destroy(&stream);
+        error = decompstrm_destroy(&stream);
     else
-        compstrm_destroy(&stream);
+        decompstrm_destroy(&stream);
 
     free(sequence);
     free(comp_param);

@@ -21,9 +21,9 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
-#cmakedefine ARCH_32BIT
+#cmakedefine ARCH_LESS_64BIT
 
-#ifdef ARCH_32BIT
+#ifdef ARCH_LESS_64BIT
 #define _FILE_OFFSET_BITS 64
 #endif
 

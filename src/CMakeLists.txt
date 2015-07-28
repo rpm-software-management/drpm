@@ -1,4 +1,4 @@
-set(DRPM_SOURCES drpm.c drpm_compstrm.c drpm_read.c drpm_utils.c)
+set(DRPM_SOURCES drpm.c drpm_decompstrm.c drpm_read.c drpm_utils.c)
 
 set(DRPM_VERSION_MAJOR 0)
 set(DRPM_VERSION_MINOR 1)
@@ -10,7 +10,7 @@ set(DRPM_SOVERSION ${DRPM_VERSION_MAJOR})
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
 if (NOT ${CMAKE_SIZEOF_VOID_P} EQUAL 8)
-   set(ARCH_32BIT 1)
+   set(ARCH_LESS_64BIT 1)
 endif()
 
 configure_file(config.h.in ${CMAKE_BINARY_DIR}/config.h)

@@ -37,7 +37,7 @@
 #define MAGIC_LZMA(x) (((x) >> 40) == 0x5D0000)
 #define MAGIC_XZ(x) (((x) >> 16) == 0xFD377A585A00)
 
-struct compstrm {
+struct decompstrm {
     char *data;
     size_t data_len;
     size_t data_pos;
@@ -47,37 +47,37 @@ struct compstrm {
         bz_stream bzip2;
         lzma_stream lzma;
     } stream;
-    int (*read_chunk)(struct compstrm *);
-    void (*finish)(struct compstrm *);
+    int (*read_chunk)(struct decompstrm *);
+    void (*finish)(struct decompstrm *);
 };
 
-static void finish_bzip2(struct compstrm *);
-static void finish_gzip(struct compstrm *);
-static void finish_lzma(struct compstrm *);
-static int init_bzip2(struct compstrm *);
-static int init_gzip(struct compstrm *);
-static int init_lzma(struct compstrm *);
-static int readchunk(struct compstrm *);
-static int readchunk_bzip2(struct compstrm *);
-static int readchunk_gzip(struct compstrm *);
-static int readchunk_lzma(struct compstrm *);
+static void finish_bzip2(struct decompstrm *);
+static void finish_gzip(struct decompstrm *);
+static void finish_lzma(struct decompstrm *);
+static int init_bzip2(struct decompstrm *);
+static int init_gzip(struct decompstrm *);
+static int init_lzma(struct decompstrm *);
+static int readchunk(struct decompstrm *);
+static int readchunk_bzip2(struct decompstrm *);
+static int readchunk_gzip(struct decompstrm *);
+static int readchunk_lzma(struct decompstrm *);
 
-void finish_bzip2(struct compstrm *strm)
+void finish_bzip2(struct decompstrm *strm)
 {
     BZ2_bzDecompressEnd(&strm->stream.bzip2);
 }
 
-void finish_gzip(struct compstrm *strm)
+void finish_gzip(struct decompstrm *strm)
 {
     inflateEnd(&strm->stream.gzip);
 }
 
-void finish_lzma(struct compstrm *strm)
+void finish_lzma(struct decompstrm *strm)
 {
     lzma_end(&strm->stream.lzma);
 }
 
-int init_bzip2(struct compstrm *strm)
+int init_bzip2(struct decompstrm *strm)
 {
     strm->read_chunk = readchunk_bzip2;
     strm->finish = finish_bzip2;
@@ -99,7 +99,7 @@ int init_bzip2(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int init_gzip(struct compstrm *strm)
+int init_gzip(struct decompstrm *strm)
 {
     strm->read_chunk = readchunk_gzip;
     strm->finish = finish_gzip;
@@ -119,7 +119,7 @@ int init_gzip(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int init_lzma(struct compstrm *strm)
+int init_lzma(struct decompstrm *strm)
 {
     lzma_stream stream = LZMA_STREAM_INIT;
 
@@ -142,7 +142,7 @@ int init_lzma(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int compstrm_destroy(struct compstrm **strm)
+int decompstrm_destroy(struct decompstrm **strm)
 {
     if (strm == NULL || *strm == NULL)
         return DRPM_ERR_ARGS;
@@ -157,7 +157,7 @@ int compstrm_destroy(struct compstrm **strm)
     return DRPM_ERR_OK;
 }
 
-int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
+int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
 {
     uint64_t magic;
     int error;
@@ -171,7 +171,7 @@ int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
     if (lseek(filedesc, -8, SEEK_CUR) == -1)
         return DRPM_ERR_IO;
 
-    if ((*strm = malloc(sizeof(struct compstrm))) == NULL)
+    if ((*strm = malloc(sizeof(struct decompstrm))) == NULL)
         return DRPM_ERR_MEMORY;
 
     (*strm)->data = NULL;
@@ -206,7 +206,7 @@ int compstrm_init(struct compstrm **strm, int filedesc, uint32_t *comp)
     return DRPM_ERR_OK;
 }
 
-int compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
+int decompstrm_read_be32(struct decompstrm *strm, uint32_t *buffer_ret)
 {
     int error;
     char bytes[4];
@@ -214,7 +214,7 @@ int compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
     if (strm == NULL)
         return DRPM_ERR_ARGS;
 
-    if ((error = compstrm_read(strm, 4, bytes)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(strm, 4, bytes)) != DRPM_ERR_OK)
         return error;
 
     *buffer_ret = parse_be32(bytes);
@@ -222,7 +222,23 @@ int compstrm_read_be32(struct compstrm *strm, uint32_t *buffer_ret)
     return DRPM_ERR_OK;
 }
 
-int compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
+int decompstrm_read_be64(struct decompstrm *strm, uint64_t *buffer_ret)
+{
+    int error;
+    char bytes[8];
+
+    if (strm == NULL)
+        return DRPM_ERR_ARGS;
+
+    if ((error = decompstrm_read(strm, 8, bytes)) != DRPM_ERR_OK)
+        return error;
+
+    *buffer_ret = parse_be64(bytes);
+
+    return DRPM_ERR_OK;
+}
+
+int decompstrm_read(struct decompstrm *strm, size_t read_len, char *buffer_ret)
 {
     int error;
 
@@ -241,23 +257,7 @@ int compstrm_read(struct compstrm *strm, size_t read_len, char *buffer_ret)
     return DRPM_ERR_OK;
 }
 
-int compstrm_skip(struct compstrm *strm, size_t skip_len)
-{
-    int error;
-
-    if (strm == NULL)
-        return DRPM_ERR_ARGS;
-
-    while (strm->data_pos + skip_len > strm->data_len)
-        if ((error = strm->read_chunk(strm)) != DRPM_ERR_OK)
-            return error;
-
-    strm->data_pos += skip_len;
-
-    return DRPM_ERR_OK;
-}
-
-int readchunk(struct compstrm *strm)
+int readchunk(struct decompstrm *strm)
 {
     ssize_t in_len;
     char *data_tmp;
@@ -276,7 +276,7 @@ int readchunk(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int readchunk_bzip2(struct compstrm *strm)
+int readchunk_bzip2(struct decompstrm *strm)
 {
     ssize_t in_len;
     char *data_tmp;
@@ -314,7 +314,7 @@ int readchunk_bzip2(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int readchunk_gzip(struct compstrm *strm)
+int readchunk_gzip(struct decompstrm *strm)
 {
     ssize_t in_len;
     char *data_tmp;
@@ -353,7 +353,7 @@ int readchunk_gzip(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int readchunk_lzma(struct compstrm *strm)
+int readchunk_lzma(struct decompstrm *strm)
 {
     ssize_t in_len;
     char *data_tmp;

@@ -57,13 +57,13 @@ struct drpm {
     uint32_t ext_copies_size;
 };
 
-//drpm_compstrm.c
-struct compstrm;
-int compstrm_destroy(struct compstrm **);
-int compstrm_init(struct compstrm **, int, uint32_t *);
-int compstrm_read(struct compstrm *, size_t, char *);
-int compstrm_read_be32(struct compstrm *, uint32_t *);
-int compstrm_skip(struct compstrm *, size_t);
+//drpm_decompstrm.c
+struct decompstrm;
+int decompstrm_destroy(struct decompstrm **);
+int decompstrm_init(struct decompstrm **, int, uint32_t *);
+int decompstrm_read(struct decompstrm *, size_t, char *);
+int decompstrm_read_be32(struct decompstrm *, uint32_t *);
+int decompstrm_read_be64(struct decompstrm *, uint64_t *);
 
 //drpm_read.c
 int read_be32(int, uint32_t *);
