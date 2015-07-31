@@ -28,6 +28,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MD5_BYTES 16
 #define CHUNK_SIZE 1024
@@ -73,6 +74,10 @@ int decompstrm_init(struct decompstrm **, int, uint32_t *);
 int decompstrm_read(struct decompstrm *, size_t, char *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
+
+//drpm_deltarpm.c
+bool deltarpm_decode_comp(uint32_t, unsigned short *);
+bool deltarpm_encode_comp(unsigned short, uint32_t *);
 
 //drpm_read.c
 int read_be32(int, uint32_t *);
