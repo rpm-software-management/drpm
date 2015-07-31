@@ -55,3 +55,23 @@ uint64_t parse_be64(char buffer[8])
            (0x000000000000FF00 & ((uint64_t)buffer[6] << 8)) |
            (0x00000000000000FF & (uint64_t)buffer[7]);
 }
+
+void create_be32(uint32_t in, char out[4])
+{
+    out[0] = in >> 24;
+    out[1] = in >> 16;
+    out[2] = in >> 8;
+    out[3] = in;
+}
+
+void create_be64(uint64_t in, char out[8])
+{
+    out[0] = in >> 56;
+    out[1] = in >> 48;
+    out[2] = in >> 40;
+    out[3] = in >> 32;
+    out[4] = in >> 24;
+    out[5] = in >> 16;
+    out[6] = in >> 8;
+    out[7] = in;
+}

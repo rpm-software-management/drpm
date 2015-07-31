@@ -30,6 +30,7 @@
 #include <stdlib.h>
 
 #define MD5_BYTES 16
+#define CHUNK_SIZE 1024
 
 struct drpm {
     char *filename;
@@ -57,6 +58,14 @@ struct drpm {
     uint32_t ext_copies_size;
 };
 
+//drpm_compstrm.c
+struct compstrm;
+int compstrm_destroy(struct compstrm **);
+int compstrm_init(struct compstrm **, int, unsigned short);
+int compstrm_write(struct compstrm *, size_t, const char *);
+int compstrm_write_be32(struct compstrm *, uint32_t);
+int compstrm_write_be64(struct compstrm *, uint64_t);
+
 //drpm_decompstrm.c
 struct decompstrm;
 int decompstrm_destroy(struct decompstrm **);
@@ -73,6 +82,8 @@ int readdelta_rpmonly(int, struct drpm *);
 int readdelta_standard(int, struct drpm *);
 
 //drpm_utils.c
+void create_be32(uint32_t, char *);
+void create_be64(uint64_t, char *);
 void dump_hex(char *, char *, size_t);
 uint32_t parse_be32(char *);
 uint64_t parse_be64(char *);

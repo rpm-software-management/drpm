@@ -31,7 +31,6 @@
 #include <bzlib.h>
 #include <lzma.h>
 
-#define CHUNK_SIZE 1024
 #define MAGIC_BZIP2(x) (((x) >> 40) == 0x425A68)
 #define MAGIC_GZIP(x) (((x) >> 48) == 0x1F8B)
 #define MAGIC_LZMA(x) (((x) >> 40) == 0x5D0000)
@@ -103,16 +102,18 @@ int init_gzip(struct decompstrm *strm)
 {
     strm->read_chunk = readchunk_gzip;
     strm->finish = finish_gzip;
-    strm->stream.gzip.zalloc = NULL;
-    strm->stream.gzip.zfree = NULL;
-    strm->stream.gzip.opaque = NULL;
-    strm->stream.gzip.next_in = NULL;
+    strm->stream.gzip.zalloc = Z_NULL;
+    strm->stream.gzip.zfree = Z_NULL;
+    strm->stream.gzip.opaque = Z_NULL;
+    strm->stream.gzip.next_in = Z_NULL;
     strm->stream.gzip.avail_in = 0;
 
     switch (inflateInit2(&strm->stream.gzip, 16 + MAX_WBITS)) {
     case Z_VERSION_ERROR:
+        inflateEnd(&strm->stream.gzip);
         return DRPM_ERR_CONFIG;
     case Z_MEM_ERROR:
+        inflateEnd(&strm->stream.gzip);
         return DRPM_ERR_MEMORY;
     }
 
@@ -127,15 +128,12 @@ int init_lzma(struct decompstrm *strm)
     strm->finish = finish_lzma;
     strm->stream.lzma = stream;
 
-    switch (lzma_auto_decoder(&strm->stream.lzma, UINT64_MAX,
-                                LZMA_CONCATENATED)) {
+    switch (lzma_auto_decoder(&strm->stream.lzma, UINT64_MAX, 0)) {
     case LZMA_OK:
         break;
     case LZMA_MEM_ERROR:
-        lzma_end(&strm->stream.lzma);
         return DRPM_ERR_MEMORY;
     default:
-        lzma_end(&strm->stream.lzma);
         return DRPM_ERR_FORMAT;
     }
 
