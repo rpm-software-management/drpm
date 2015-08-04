@@ -85,7 +85,62 @@
 #define DRPM_TAG_INTDATALEN 18      /**< length of internal data */
 /**@}*/
 
+/** @name Delta Creation Flags */
+/**@{*/
+#define DRPM_FLAG_NONE 0            /**< no additional flags */
+#define DRPM_FLAG_RPMONLY 1         /**< "rpm-only" deltarpm */
+#define DRPM_FLAG_VERSION_1 2       /**< V1 deltarpm */
+#define DRPM_FLAG_VERSION_2 4       /**< V2 deltarpm */
+#define DRPM_FLAG_VERSION_3 8       /**< V3 deltarpm */
+#define DRPM_FLAG_COMP_NONE 16      /**< uncompressed deltarpm */
+#define DRPM_FLAG_COMP_GZIP 32      /**< gzip compressed deltarpm */
+#define DRPM_FLAG_COMP_BZIP2 64     /**< bzip2 compressed deltarpm */
+#define DRPM_FLAG_COMP_LZMA 128     /**< lzma compressed deltarpm */
+#define DRPM_FLAG_COMP_XZ 256       /**< xz compressed deltarpm */
+/**@}*/
+
 typedef struct drpm drpm; /**< deltarpm package info */
+
+/**
+ * @brief Creates a deltarpm from two rpms.
+ *
+ * Does the same thing as the
+ * [makedeltarpm(8)](http://linux.die.net/man/8/makedeltarpm)
+ * command-line utility.
+ *
+ * Examples of function calls:
+ * @code
+ * // makedeltarpm foo.rpm goo.rpm fg.drpm
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_NONE)
+ * @endcode
+ * @code
+ * // makedeltarpm -r -s seqfile.txt foo.rpm goo.rpm fg.drpm
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", "seqfile.txt", DRPM_FLAG_RPMONLY)
+ * @endcode
+ * @code
+ * // makedeltarpm -V 2 -z uncompressed foo.rpm goo.rpm fg.drpm
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_VERSION_2 | DRPM_FLAG_COMP_NONE)
+ * @endcode
+ * @code
+ * // makedeltarpm -u -z bzip2 foo.rpm foo.drpm
+ * drpm_make("foo.rpm", NULL, "foo.drpm", NULL, DRPM_FLAG_COMP_BZIP2)
+ * @endcode
+ * @param [in]  old_rpm     Name of old RPM file.
+ * @param [in]  new_rpm     Name of new RPM file.
+ * @param [in]  deltarpm    Name of DeltaRPM file to be created.
+ * @param [in]  seqfile     Name of file to which to write out @p deltarpm sequence.
+ * @param [in]  flags       Bitwise OR of macros specifying options.
+ * @return error number
+ * @note Sequence is only written to file if @p seqfile is not @c NULL.
+ * @note If either @p old_rpm or @p new_rpm is @c NULL, an "identity"
+ * deltarpm is created.
+ * @see DRPM_FLAG_NONE
+ * @see DRPM_FLAG_RPMONLY
+ * @see DRPM_FLAG_VERSION_1, DRPM_FLAG_VERSION_2, DRPM_FLAG_VERSION_3
+ * @see DRPM_FLAG_COMP_NONE, DRPM_FLAG_COMP_GZIP, DRPM_FLAG_COMP_BZIP2,
+ * DRPM_FLAG_COMP_LZMA, DRPM_FLAG_COMP_XZ
+ */
+int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, const char *seqfile, int flags);
 
 /**
  * @brief Reads information from deltarpm package @p filename into @p *delta.

@@ -1,7 +1,7 @@
 %global _hardened_build 1
 
 Name:           drpm
-Version:        0.2.1
+Version:        0.3.0
 Release:        1%{?dist}
 Summary:        A small library for fetching information from deltarpm packages
 License:        LGPLv3+
