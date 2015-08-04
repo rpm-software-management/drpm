@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <openssl/md5.h>
 
 #define MD5_BYTES 16
 #define CHUNK_SIZE 1024
