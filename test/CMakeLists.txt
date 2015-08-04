@@ -1,4 +1,4 @@
-set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_decompstrm.c ../src/drpm_read.c ../src/drpm_utils.c)
+set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_decompstrm.c ../src/drpm_deltarpm.c ../src/drpm_read.c ../src/drpm_utils.c)
 
 set(DRPM_TEST_FILES drpm_test_file_1.drpm drpm_test_file_2.drpm drpm_test_file_3.rpm drpm_test_file_4)
 set(DRPM_TEST_ARGS ${DRPM_TEST_FILES} drpm_test_file_5)

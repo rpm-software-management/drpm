@@ -34,16 +34,6 @@
 
 #define RPM_LEAD_SIG_MIN_LEN 112
 
-#define DELTARPM_COMPALGO(comp) ((comp) % 256)
-
-#define DELTARPM_COMP_UN 0
-#define DELTARPM_COMP_GZ 1
-#define DELTARPM_COMP_BZ_20 2
-#define DELTARPM_COMP_GZ_RSYNC 3
-#define DELTARPM_COMP_BZ_17 4
-#define DELTARPM_COMP_LZMA 5
-#define DELTARPM_COMP_XZ 6
-
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
     char buffer[4];
@@ -85,7 +75,8 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     struct decompstrm *stream;
     uint32_t src_nevr_len;
     uint32_t sequence_len;
-    uint32_t tgt_comp;
+    uint32_t deltarpm_comp;
+    unsigned short tgt_comp;
     uint32_t comp_param_len;
     uint32_t offadjn;
     uint32_t leadlen;
@@ -158,31 +149,15 @@ int readdelta_rest(int filedesc, struct drpm *delta)
 
     if (delta->version >= 2) {
         if ((error = decompstrm_read_be32(stream, &delta->tgt_size)) != DRPM_ERR_OK ||
-            (error = decompstrm_read_be32(stream, &tgt_comp)) != DRPM_ERR_OK)
+            (error = decompstrm_read_be32(stream, &deltarpm_comp)) != DRPM_ERR_OK)
             goto cleanup;
 
-        switch (DELTARPM_COMPALGO(tgt_comp)) {
-        case DELTARPM_COMP_UN:
-            delta->tgt_comp = DRPM_COMP_NONE;
-            break;
-        case DELTARPM_COMP_GZ:
-        case DELTARPM_COMP_GZ_RSYNC:
-            delta->tgt_comp = DRPM_COMP_GZIP;
-            break;
-        case DELTARPM_COMP_BZ_20:
-        case DELTARPM_COMP_BZ_17:
-            delta->tgt_comp = DRPM_COMP_BZIP2;
-            break;
-        case DELTARPM_COMP_LZMA:
-            delta->tgt_comp = DRPM_COMP_LZMA;
-            break;
-        case DELTARPM_COMP_XZ:
-            delta->tgt_comp = DRPM_COMP_XZ;
-            break;
-        default:
+        if (!deltarpm_decode_comp(deltarpm_comp, &tgt_comp)) {
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
+
+        delta->tgt_comp = tgt_comp;
 
         if ((error = decompstrm_read_be32(stream, &comp_param_len)) != DRPM_ERR_OK)
             goto cleanup;
