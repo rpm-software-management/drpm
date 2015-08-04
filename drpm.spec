@@ -1,8 +1,8 @@
 %global _hardened_build 1
 
 Name:           drpm
-Version:        0.2.0
-Release:        2%{?dist}
+Version:        0.2.1
+Release:        1%{?dist}
 Summary:        A small library for fetching information from deltarpm packages
 License:        LGPLv3+
 URL:            http://fedorahosted.org/%{name}
@@ -12,6 +12,8 @@ BuildRequires:  rpm-devel
 BuildRequires:  zlib-devel
 BuildRequires:  bzip2-devel
 BuildRequires:  xz-devel
+BuildRequires:  openssl-devel
+
 BuildRequires:  cmake >= 2.8
 BuildRequires:  libcmocka-devel >= 1.0
 %ifarch x86_64 %{ix86} %{arm} ppc ppc32 %{power64} s390x aarch64 amd64 mips32 mips64
@@ -56,6 +58,9 @@ make check %{?_smp_mflags}
 %{_libdir}/pkgconfig/drpm.pc
 
 %changelog
+* Tue Aug 4 2015 Matej Chalk <mchalk@redhat.com> 0.2.1-1
+- Added openssl dependency
+
 * Fri Jul 24 2015 Matej Chalk <mchalk@redhat.com> 0.2.0-2
 - Fixed bug in test suite
 
