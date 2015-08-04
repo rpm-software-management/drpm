@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <openssl/md5.h>
 
 #define MD5_BYTES 16
@@ -92,24 +93,24 @@ int readdelta_standard(int, struct drpm *);
 
 //drpm_rpm.c
 struct rpm;
-int rpm_add_archive_to_md5(struct rpm, MD5_CTX *);
-int rpm_add_header_to_md5(struct rpm, MD5_CTX *);
-int rpm_add_lead_to_md5(struct rpm, MD5_CTX *);
-int rpm_add_signature_to_md5(struct rpm, MD5_CTX *);
-unsigned rpm_archive_read_chunk(struct rpm *, unsigned char *, unsigned);
-int rpm_destroy(struct rpm *);
-int rpm_fetch_header(struct rpm, unsigned char **, uint32_t *);
-int rpm_fetch_lead_and_signature(struct rpm, unsigned char **, uint32_t *);
-int rpm_get_comp(struct rpm, uint32_t *);
+int rpm_add_archive_to_md5(struct rpm *, MD5_CTX *);
+int rpm_add_header_to_md5(struct rpm *, MD5_CTX *);
+int rpm_add_lead_to_md5(struct rpm *, MD5_CTX *);
+int rpm_add_signature_to_md5(struct rpm *, MD5_CTX *);
+ssize_t rpm_archive_read_chunk(struct rpm *, unsigned char *, size_t);
+int rpm_destroy(struct rpm **);
+int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
+int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
+int rpm_get_comp(struct rpm *, uint32_t *);
 int rpm_get_comp_only(const char *, unsigned short *);
-int rpm_get_nevr(struct rpm, char **);
-int rpm_get_payload_format(struct rpm, unsigned short *);
-int rpm_get_payload_format_offset(struct rpm, uint32_t *);
+int rpm_get_nevr(struct rpm *, char **);
+int rpm_get_payload_format(struct rpm *, unsigned short *);
+int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
 int rpm_patch_payload_format(struct rpm *, const char *);
-int rpm_read(struct rpm *, const char *, bool);
-uint32_t rpm_size_full(struct rpm);
-uint32_t rpm_size_header(struct rpm);
-int rpm_write(struct rpm, const char *, bool);
+int rpm_read(struct rpm **, const char *, bool);
+uint32_t rpm_size_full(struct rpm *);
+uint32_t rpm_size_header(struct rpm *);
+int rpm_write(struct rpm *, const char *, bool);
 
 //drpm_utils.c
 void create_be32(uint32_t, char *);

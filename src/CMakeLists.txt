@@ -1,4 +1,4 @@
-set(DRPM_SOURCES drpm.c drpm_decompstrm.c drpm_deltarpm.c drpm_read.c drpm_utils.c)
+set(DRPM_SOURCES drpm.c drpm_decompstrm.c drpm_deltarpm.c drpm_read.c drpm_rpm.c drpm_utils.c)
 
 set(DRPM_VERSION_MAJOR 0)
 set(DRPM_VERSION_MINOR 1)
@@ -24,7 +24,7 @@ set_source_files_properties(${DRPM_SOURCES} PROPERTIES
 set_target_properties(drpm PROPERTIES
    VERSION ${DRPM_VERSION}
    SOVERSION ${DRPM_SOVERSION}
-   LINK_FLAGS "-lz -lbz2 -llzma -lrpm -lrpmio"
+   LINK_FLAGS "-lz -lbz2 -llzma -lrpm -lrpmio -lcrypto"
 )
 
 install(TARGETS drpm DESTINATION ${LIB_INSTALL_DIR})
