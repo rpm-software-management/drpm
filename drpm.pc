@@ -1,5 +1,5 @@
 Name: drpm
 Description: A small library for fetching information from deltarpm packages
 URL: http://fedorahosted.org/drpm
-Version: 0.2.1
+Version: 0.3.0
 Libs: -ldrpm

@@ -1,8 +1,8 @@
 set(DRPM_SOURCES drpm.c drpm_decompstrm.c drpm_deltarpm.c drpm_read.c drpm_rpm.c drpm_utils.c)
 
 set(DRPM_VERSION_MAJOR 0)
-set(DRPM_VERSION_MINOR 1)
-set(DRPM_VERSION_PATCH 1)
+set(DRPM_VERSION_MINOR 2)
+set(DRPM_VERSION_PATCH 0)
 
 set(DRPM_VERSION ${DRPM_VERSION_MAJOR}.${DRPM_VERSION_MINOR}.${DRPM_VERSION_PATCH})
 set(DRPM_SOVERSION ${DRPM_VERSION_MAJOR})
