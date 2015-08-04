@@ -22,6 +22,9 @@
 #include "drpm.h"
 #include "drpm_private.h"
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #define DELTARPM_COMPALGO(comp) ((comp) % 256)
 
 #define DELTARPM_COMP_UN 0

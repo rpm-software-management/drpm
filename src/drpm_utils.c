@@ -23,6 +23,7 @@
 #include "drpm_private.h"
 
 #include <stdlib.h>
+#include <stdint.h>
 
 void dump_hex(char *dest, char *source, size_t count)
 {

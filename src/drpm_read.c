@@ -27,7 +27,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <rpm/rpmlib.h>
 
 #define MAGIC_DLT(x) (((x) >> 8) == 0x444C54)
 #define MAGIC_DLT3(x) ((x) == 0x444C5433)
@@ -338,48 +337,24 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
 
 int readdelta_standard(int filedesc, struct drpm *delta)
 {
-    FD_t file;
-    Header header = NULL;
-    Header signature = NULL;
-    off_t file_pos;
-    const char *payload_comp;
-    int error = DRPM_ERR_OK;
+    struct rpm *rpmst;
+    int error;
 
-    if ((file = Fopen(delta->filename, "rb")) == NULL)
-        return DRPM_ERR_IO;
+    if ((error = rpm_read(&rpmst, delta->filename, false)) != DRPM_ERR_OK)
+        return error;
 
-    if (Fseek(file, 96, SEEK_SET) < 0 ||
-        (signature = headerRead(file, HEADER_MAGIC_YES)) == NULL ||
-        (file_pos = Ftell(file)) < 0 ||
-        Fseek(file, (8 - (file_pos % 8)) % 8, SEEK_CUR) < 0 ||
-        (header = headerRead(file, HEADER_MAGIC_YES)) == NULL ||
-        (payload_comp = headerGetString(header, RPMTAG_PAYLOADCOMPRESSOR)) == NULL) {
-        error = Ferror(file) ? DRPM_ERR_IO : DRPM_ERR_FORMAT;
+    if ((error = rpm_get_nevr(rpmst, &delta->tgt_nevr)) != DRPM_ERR_OK ||
+        (error = rpm_get_comp(rpmst, &delta->tgt_comp)) != DRPM_ERR_OK)
         goto cleanup;
-    }
 
-    if (strcmp(payload_comp, "gzip") == 0) {
-        delta->tgt_comp = DRPM_COMP_GZIP;
-    } else if (strcmp(payload_comp, "bzip2") == 0) {
-        delta->tgt_comp = DRPM_COMP_BZIP2;
-    } else if (strcmp(payload_comp, "lzip") == 0) {
-        delta->tgt_comp = DRPM_COMP_LZIP;
-    } else if (strcmp(payload_comp, "lzma") == 0) {
-        delta->tgt_comp = DRPM_COMP_LZMA;
-    } else if (strcmp(payload_comp, "xz") == 0) {
-        delta->tgt_comp = DRPM_COMP_XZ;
-    } else {
-        error = DRPM_ERR_FORMAT;
-        goto cleanup;
-    }
-
-    if (lseek(filedesc, Ftell(file), SEEK_SET) == (off_t)-1)
+    if (lseek(filedesc, rpm_size_full(rpmst), SEEK_SET) == (off_t)-1)
         error = DRPM_ERR_IO;
 
 cleanup:
-    headerFree(header);
-    headerFree(signature);
-    Fclose(file);
+    if (error == DRPM_ERR_OK)
+        error = rpm_destroy(&rpmst);
+    else
+        rpm_destroy(&rpmst);
 
     return error;
 }
