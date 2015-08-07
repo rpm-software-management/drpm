@@ -1,4 +1,4 @@
-set(DRPM_SOURCES drpm.c drpm_decompstrm.c drpm_deltarpm.c drpm_read.c drpm_rpm.c drpm_utils.c)
+set(DRPM_SOURCES drpm.c drpm_compstrm.c drpm_decompstrm.c drpm_deltarpm.c drpm_make.c drpm_read.c drpm_rpm.c drpm_utils.c drpm_write.c)
 
 set(DRPM_VERSION_MAJOR 0)
 set(DRPM_VERSION_MINOR 2)

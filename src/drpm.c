@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -31,24 +32,110 @@
 #define MAGIC_DRPM 0x6472706D
 #define MAGIC_RPM 0xEDABEEDB
 
-int drpm_destroy(struct drpm **delta)
+#define VERSION_FLAGS (DRPM_FLAG_VERSION_1 | DRPM_FLAG_VERSION_2 \
+                       | DRPM_FLAG_VERSION_3)
+
+#define COMP_FLAGS (DRPM_FLAG_COMP_NONE | DRPM_FLAG_COMP_GZIP \
+                    | DRPM_FLAG_COMP_BZIP2 | DRPM_FLAG_COMP_LZMA \
+                    | DRPM_FLAG_COMP_XZ)
+
+#define COMP_LEVEL_FLAGS (DRPM_FLAG_COMP_LEVEL_1 | DRPM_FLAG_COMP_LEVEL_2 \
+                          | DRPM_FLAG_COMP_LEVEL_3 | DRPM_FLAG_COMP_LEVEL_4 \
+                          | DRPM_FLAG_COMP_LEVEL_5 | DRPM_FLAG_COMP_LEVEL_6 \
+                          | DRPM_FLAG_COMP_LEVEL_7 | DRPM_FLAG_COMP_LEVEL_8 \
+                          | DRPM_FLAG_COMP_LEVEL_9)
+
+#define FLAG_SET(flags, flag) (((flags) & (flag)) != 0)
+#define MASK_FLAGS(flags, mask) ((flags) & (mask))
+
+const char *drpm_strerror(int error)
 {
-    if (delta == NULL || *delta == NULL)
+    switch (error) {
+    case DRPM_ERR_OK:
+        return "no error";
+    case DRPM_ERR_MEMORY:
+        return "memory allocation error";
+    case DRPM_ERR_ARGS:
+        return "bad arguments";
+    case DRPM_ERR_IO:
+        return "I/O error";
+    case DRPM_ERR_FORMAT:
+        return "wrong file format";
+    case DRPM_ERR_CONFIG:
+        return "misconfigured external library";
+    case DRPM_ERR_OTHER:
+        return "unspecified/unknown error";
+    default:
+        return NULL;
+    }
+}
+
+int drpm_read(struct drpm **delta_ret, const char *filename)
+{
+    struct drpm delta = {0};
+    int filedesc;
+    uint32_t magic;
+    int error = DRPM_ERR_OK;
+
+    if (filename == NULL || delta_ret == NULL)
         return DRPM_ERR_ARGS;
 
-    free((*delta)->filename);
-    free((*delta)->src_nevr);
-    free((*delta)->tgt_nevr);
-    free((*delta)->sequence);
-    free((*delta)->tgt_comp_param);
-    free((*delta)->tgt_lead);
-    free((*delta)->adj_elems);
-    free((*delta)->int_copies);
-    free((*delta)->ext_copies);
-    free(*delta);
-    *delta = NULL;
+    *delta_ret = NULL;
 
-    return DRPM_ERR_OK;
+    if ((filedesc = open(filename, O_RDONLY)) == -1)
+        return DRPM_ERR_IO;
+
+    if ((delta.filename = malloc(strlen(filename) + 1)) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    strcpy(delta.filename, filename);
+
+    if ((error = read_be32(filedesc, &magic)) != DRPM_ERR_OK)
+        goto cleanup_fail;
+
+    switch (magic) {
+    case MAGIC_DRPM:
+        delta.type = DRPM_TYPE_RPMONLY;
+        if ((error = readdelta_rpmonly(filedesc, &delta)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+        break;
+    case MAGIC_RPM:
+        delta.type = DRPM_TYPE_STANDARD;
+        if ((error = readdelta_standard(filedesc, &delta)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+        break;
+    default:
+        error = DRPM_ERR_FORMAT;
+        goto cleanup_fail;
+    }
+
+    if ((error = readdelta_rest(filedesc, &delta)) != DRPM_ERR_OK)
+        goto cleanup_fail;
+
+    if ((*delta_ret = malloc(sizeof(struct drpm))) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup_fail;
+    }
+
+    **delta_ret = delta;
+
+    goto cleanup;
+
+cleanup_fail:
+    free(delta.filename);
+    free(delta.src_nevr);
+    free(delta.tgt_nevr);
+    free(delta.sequence);
+    free(delta.tgt_comp_param);
+    free(delta.tgt_lead);
+    free(delta.adj_elems);
+    free(delta.int_copies);
+    free(delta.ext_copies);
+
+cleanup:
+    close(filedesc);
+
+    return error;
 }
 
 int drpm_get_uint(struct drpm *delta, int tag, unsigned *ret)
@@ -234,92 +321,141 @@ int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array,
     return DRPM_ERR_OK;
 }
 
-int drpm_read(struct drpm **delta_ret, const char *filename)
+int drpm_destroy(struct drpm **delta)
 {
-    struct drpm delta = {0};
-    int filedesc;
-    uint32_t magic;
-    int error = DRPM_ERR_OK;
-
-    if (filename == NULL || delta_ret == NULL)
+    if (delta == NULL || *delta == NULL)
         return DRPM_ERR_ARGS;
 
-    *delta_ret = NULL;
+    free((*delta)->filename);
+    free((*delta)->src_nevr);
+    free((*delta)->tgt_nevr);
+    free((*delta)->sequence);
+    free((*delta)->tgt_comp_param);
+    free((*delta)->tgt_lead);
+    free((*delta)->adj_elems);
+    free((*delta)->int_copies);
+    free((*delta)->ext_copies);
+    free(*delta);
+    *delta = NULL;
 
-    if ((filedesc = open(filename, O_RDONLY)) == -1)
-        return DRPM_ERR_IO;
-
-    if ((delta.filename = malloc(strlen(filename) + 1)) == NULL)
-        return DRPM_ERR_MEMORY;
-
-    strcpy(delta.filename, filename);
-
-    if ((error = read_be32(filedesc, &magic)) != DRPM_ERR_OK)
-        goto cleanup_fail;
-
-    switch (magic) {
-    case MAGIC_DRPM:
-        delta.type = DRPM_TYPE_RPMONLY;
-        if ((error = readdelta_rpmonly(filedesc, &delta)) != DRPM_ERR_OK)
-            goto cleanup_fail;
-        break;
-    case MAGIC_RPM:
-        delta.type = DRPM_TYPE_STANDARD;
-        if ((error = readdelta_standard(filedesc, &delta)) != DRPM_ERR_OK)
-            goto cleanup_fail;
-        break;
-    default:
-        error = DRPM_ERR_FORMAT;
-        goto cleanup_fail;
-    }
-
-    if ((error = readdelta_rest(filedesc, &delta)) != DRPM_ERR_OK)
-        goto cleanup_fail;
-
-    if ((*delta_ret = malloc(sizeof(struct drpm))) == NULL) {
-        error = DRPM_ERR_MEMORY;
-        goto cleanup_fail;
-    }
-
-    **delta_ret = delta;
-
-    goto cleanup;
-
-cleanup_fail:
-    free(delta.filename);
-    free(delta.src_nevr);
-    free(delta.tgt_nevr);
-    free(delta.sequence);
-    free(delta.tgt_comp_param);
-    free(delta.tgt_lead);
-    free(delta.adj_elems);
-    free(delta.int_copies);
-    free(delta.ext_copies);
-
-cleanup:
-    close(filedesc);
-
-    return error;
+    return DRPM_ERR_OK;
 }
 
-const char *drpm_strerror(int error)
+int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, const char *seqfile, int flags)
 {
-    switch (error) {
-    case DRPM_ERR_OK:
-        return "no error";
-    case DRPM_ERR_MEMORY:
-        return "memory allocation error";
-    case DRPM_ERR_ARGS:
-        return "bad arguments";
-    case DRPM_ERR_IO:
-        return "I/O error";
-    case DRPM_ERR_FORMAT:
-        return "wrong file format";
-    case DRPM_ERR_CONFIG:
-        return "misconfigured external library";
-    case DRPM_ERR_OTHER:
-        return "unspecified/unknown error";
+    int error = DRPM_ERR_OK;
+
+    bool rpm_only;
+    bool alone;
+    const char *solo_rpm = NULL;
+    unsigned short version;
+    unsigned short comp;
+    unsigned short comp_level;
+
+    struct deltarpm delta = {0};
+
+    if (delta_rpm == NULL || (old_rpm == NULL && new_rpm == NULL))
+        return DRPM_ERR_ARGS;
+
+    if ((alone = (old_rpm == NULL || new_rpm == NULL)))
+        solo_rpm = (old_rpm == NULL) ? new_rpm : old_rpm;
+
+    rpm_only = FLAG_SET(flags, DRPM_FLAG_RPMONLY);
+
+    switch (MASK_FLAGS(flags, VERSION_FLAGS)) {
+    case DRPM_FLAG_VERSION_1:
+        version = 1;
+        break;
+    case DRPM_FLAG_VERSION_2:
+        version = 2;
+        break;
+    case DRPM_FLAG_VERSION_3:
+    case DRPM_FLAG_NONE:
+        version = 3;
+        break;
     default:
-        return NULL;
+        return DRPM_ERR_ARGS;
     }
+
+    switch (MASK_FLAGS(flags, COMP_FLAGS)) {
+    case DRPM_FLAG_COMP_NONE:
+        comp = DRPM_COMP_NONE;
+        break;
+    case DRPM_FLAG_COMP_GZIP:
+        comp = DRPM_COMP_GZIP;
+        break;
+    case DRPM_FLAG_COMP_BZIP2:
+        comp = DRPM_COMP_BZIP2;
+        break;
+    case DRPM_FLAG_COMP_LZMA:
+        comp = DRPM_COMP_LZMA;
+        break;
+    case DRPM_FLAG_COMP_XZ:
+        comp = DRPM_COMP_XZ;
+        break;
+    case DRPM_FLAG_NONE:
+        if ((error = rpm_get_comp_only(alone ? solo_rpm : new_rpm, &comp))
+            != DRPM_ERR_OK)
+            return error;
+        break;
+    default:
+        return DRPM_ERR_ARGS;
+    }
+
+    switch (MASK_FLAGS(flags, COMP_LEVEL_FLAGS)) {
+    case DRPM_FLAG_COMP_LEVEL_1:
+        comp_level = 1;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_2:
+        comp_level = 2;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_3:
+        comp_level = 3;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_4:
+        comp_level = 4;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_5:
+        comp_level = 5;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_6:
+        comp_level = 6;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_7:
+        comp_level = 7;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_8:
+        comp_level = 8;
+        break;
+    case DRPM_FLAG_COMP_LEVEL_9:
+        comp_level = 9;
+        break;
+    case DRPM_FLAG_NONE:
+        comp_level = COMP_LEVEL_DEFAULT;
+        break;
+    default:
+        return DRPM_ERR_ARGS;
+    }
+
+    if (rpm_only && version < 3)
+        return DRPM_ERR_ARGS;
+
+    delta.filename = delta_rpm;
+    delta.type = rpm_only ? DRPM_TYPE_RPMONLY : DRPM_TYPE_STANDARD;
+    delta.version = version;
+    delta.comp = comp;
+    delta.comp_level = comp_level;
+
+    if (alone && rpm_only) {
+        error = write_nodiff_deltarpm(&delta, solo_rpm);
+        goto write_seq;
+    }
+
+write_seq:
+    if (seqfile != NULL)
+        error = write_seqfile(delta, seqfile);
+
+//cleanup:
+
+    return error;
 }
