@@ -27,11 +27,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <openssl/md5.h>
 
 #define MAGIC_DLT(x) (((x) >> 8) == 0x444C54)
 #define MAGIC_DLT3(x) ((x) == 0x444C5433)
 
-#define RPM_LEAD_SIG_MIN_LEN 112
+#define RPM_LEADSIG_MIN_LEN 112 /* 96 B rpmlead + 16 B signature intro */
 
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
@@ -85,7 +86,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     uint32_t add_data_size;
     uint32_t int_data_32;
     char *sequence = NULL;
-    char md5[MD5_BYTES];
+    char md5[MD5_DIGEST_LENGTH];
     char *comp_param = NULL;
     char *lead = NULL;
     int error = DRPM_ERR_OK;
@@ -124,8 +125,8 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     if ((error = decompstrm_read_be32(stream, &sequence_len)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if (sequence_len < MD5_BYTES ||
-        (sequence_len != MD5_BYTES && delta->type == DRPM_TYPE_RPMONLY)) {
+    if (sequence_len < MD5_DIGEST_LENGTH ||
+        (sequence_len != MD5_DIGEST_LENGTH && delta->type == DRPM_TYPE_RPMONLY)) {
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
@@ -141,17 +142,17 @@ int readdelta_rest(int filedesc, struct drpm *delta)
 
     dump_hex(delta->sequence, sequence, sequence_len);
 
-    if ((error = decompstrm_read(stream, MD5_BYTES, md5)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(stream, MD5_DIGEST_LENGTH, md5)) != DRPM_ERR_OK)
         goto cleanup;
 
-    dump_hex(delta->tgt_md5, md5, MD5_BYTES);
+    dump_hex(delta->tgt_md5, md5, MD5_DIGEST_LENGTH);
 
     if (delta->version >= 2) {
         if ((error = decompstrm_read_be32(stream, &delta->tgt_size)) != DRPM_ERR_OK ||
             (error = decompstrm_read_be32(stream, &deltarpm_comp)) != DRPM_ERR_OK)
             goto cleanup;
 
-        if (!deltarpm_decode_comp(deltarpm_comp, &tgt_comp)) {
+        if (!deltarpm_decode_comp(deltarpm_comp, &tgt_comp, NULL)) {
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
@@ -204,7 +205,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     if ((error = decompstrm_read_be32(stream, &leadlen)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if (leadlen < RPM_LEAD_SIG_MIN_LEN) {
+    if (leadlen < RPM_LEADSIG_MIN_LEN) {
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }

@@ -87,16 +87,25 @@
 
 /** @name Delta Creation Flags */
 /**@{*/
-#define DRPM_FLAG_NONE 0            /**< no additional flags */
-#define DRPM_FLAG_RPMONLY 1         /**< "rpm-only" deltarpm */
-#define DRPM_FLAG_VERSION_1 2       /**< V1 deltarpm */
-#define DRPM_FLAG_VERSION_2 4       /**< V2 deltarpm */
-#define DRPM_FLAG_VERSION_3 8       /**< V3 deltarpm */
-#define DRPM_FLAG_COMP_NONE 16      /**< uncompressed deltarpm */
-#define DRPM_FLAG_COMP_GZIP 32      /**< gzip compressed deltarpm */
-#define DRPM_FLAG_COMP_BZIP2 64     /**< bzip2 compressed deltarpm */
-#define DRPM_FLAG_COMP_LZMA 128     /**< lzma compressed deltarpm */
-#define DRPM_FLAG_COMP_XZ 256       /**< xz compressed deltarpm */
+#define DRPM_FLAG_NONE 0                /**< no additional flags */
+#define DRPM_FLAG_RPMONLY (1<<0)        /**< "rpm-only" deltarpm */
+#define DRPM_FLAG_VERSION_1 (1<<1)      /**< V1 deltarpm */
+#define DRPM_FLAG_VERSION_2 (1<<2)      /**< V2 deltarpm */
+#define DRPM_FLAG_VERSION_3 (1<<3)      /**< V3 deltarpm */
+#define DRPM_FLAG_COMP_NONE (1<<4)      /**< uncompressed deltarpm */
+#define DRPM_FLAG_COMP_GZIP (1<<5)      /**< gzip compressed deltarpm */
+#define DRPM_FLAG_COMP_BZIP2 (1<<6)     /**< bzip2 compressed deltarpm */
+#define DRPM_FLAG_COMP_LZMA (1<<7)      /**< lzma compressed deltarpm */
+#define DRPM_FLAG_COMP_XZ (1<<8)        /**< xz compressed deltarpm */
+#define DRPM_FLAG_COMP_LEVEL_1 (1<<9)   /**< compression level 1 */
+#define DRPM_FLAG_COMP_LEVEL_2 (1<<10)  /**< compression level 2 */
+#define DRPM_FLAG_COMP_LEVEL_3 (1<<11)  /**< compression level 3 */
+#define DRPM_FLAG_COMP_LEVEL_4 (1<<12)  /**< compression level 4 */
+#define DRPM_FLAG_COMP_LEVEL_5 (1<<13)  /**< compression level 5 */
+#define DRPM_FLAG_COMP_LEVEL_6 (1<<14)  /**< compression level 6 */
+#define DRPM_FLAG_COMP_LEVEL_7 (1<<15)  /**< compression level 7 */
+#define DRPM_FLAG_COMP_LEVEL_8 (1<<16)  /**< compression level 8 */
+#define DRPM_FLAG_COMP_LEVEL_9 (1<<17)  /**< compression level 9 */
 /**@}*/
 
 typedef struct drpm drpm; /**< deltarpm package info */
@@ -119,7 +128,11 @@ typedef struct drpm drpm; /**< deltarpm package info */
  * @endcode
  * @code
  * // makedeltarpm -V 2 -z uncompressed foo.rpm goo.rpm fg.drpm
- * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_VERSION_2 | DRPM_FLAG_COMP_NONE)
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_VERSION_3 | DRPM_FLAG_COMP_NONE)
+ * @endcode
+ * @code
+ * // makedeltarpm -z xz.6 foo.rpm goo.rpm fg.drpm
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_COMP_XZ | DRPM_FLAG_COMP_LEVEL_6)
  * @endcode
  * @code
  * // makedeltarpm -u -z bzip2 foo.rpm foo.drpm

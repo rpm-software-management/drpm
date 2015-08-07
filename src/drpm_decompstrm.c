@@ -160,7 +160,7 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
     uint64_t magic;
     int error;
 
-    if (strm == NULL)
+    if (strm == NULL || filedesc < 0)
         return DRPM_ERR_ARGS;
 
     if ((error = read_be64(filedesc, &magic)) != DRPM_ERR_OK)

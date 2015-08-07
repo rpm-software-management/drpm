@@ -24,8 +24,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define DELTARPM_COMPALGO(comp) ((comp) % 256)
-
 #define DELTARPM_COMP_UN 0
 #define DELTARPM_COMP_GZ 1
 #define DELTARPM_COMP_BZ_20 2
@@ -34,7 +32,13 @@
 #define DELTARPM_COMP_LZMA 5
 #define DELTARPM_COMP_XZ 6
 
-bool deltarpm_decode_comp(uint32_t deltarpm_comp, unsigned short *comp)
+#define DELTARPM_COMP_BZ DELTARPM_COMP_BZ_20
+
+#define DELTARPM_MKCOMP(comp, level) ((comp) | ((level) << 8))
+#define DELTARPM_COMPALGO(comp) ((comp) & 255)
+#define DELTARPM_COMPLEVEL(comp) (((comp) >> 8) & 255)
+
+bool deltarpm_decode_comp(uint32_t deltarpm_comp, unsigned short *comp, unsigned short *level)
 {
     switch (DELTARPM_COMPALGO(deltarpm_comp)) {
     case DELTARPM_COMP_UN:
@@ -58,26 +62,29 @@ bool deltarpm_decode_comp(uint32_t deltarpm_comp, unsigned short *comp)
         return false;
     }
 
+    if (level != NULL)
+        *level = DELTARPM_COMPLEVEL(deltarpm_comp);
+
     return true;
 }
 
-bool deltarpm_encode_comp(unsigned short comp, uint32_t *deltarpm_comp)
+bool deltarpm_encode_comp(uint32_t *deltarpm_comp, unsigned short comp, unsigned short level)
 {
     switch (comp) {
     case DRPM_COMP_NONE:
-        *deltarpm_comp = DELTARPM_COMP_UN;
+        *deltarpm_comp = DELTARPM_MKCOMP(DELTARPM_COMP_UN, level);
         break;
     case DRPM_COMP_GZIP:
-        *deltarpm_comp = DELTARPM_COMP_GZ;
+        *deltarpm_comp = DELTARPM_MKCOMP(DELTARPM_COMP_GZ, level);
         break;
     case DRPM_COMP_BZIP2:
-        *deltarpm_comp = DELTARPM_COMP_BZ_20;
+        *deltarpm_comp = DELTARPM_MKCOMP(DELTARPM_COMP_BZ, level);
         break;
     case DRPM_COMP_LZMA:
-        *deltarpm_comp = DELTARPM_COMP_LZMA;
+        *deltarpm_comp = DELTARPM_MKCOMP(DELTARPM_COMP_LZMA, level);
         break;
     case DRPM_COMP_XZ:
-        *deltarpm_comp = DELTARPM_COMP_XZ;
+        *deltarpm_comp = DELTARPM_MKCOMP(DELTARPM_COMP_XZ, level);
         break;
     default:
         return false;

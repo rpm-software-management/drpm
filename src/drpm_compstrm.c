@@ -47,10 +47,10 @@ struct compstrm {
 static int finish_bzip2(struct compstrm *);
 static int finish_gzip(struct compstrm *);
 static int finish_lzma(struct compstrm *);
-static int init_bzip2(struct compstrm *);
-static int init_gzip(struct compstrm *);
-static int init_lzma(struct compstrm *);
-static int init_xz(struct compstrm *);
+static int init_bzip2(struct compstrm *, int);
+static int init_gzip(struct compstrm *, int);
+static int init_lzma(struct compstrm *, int);
+static int init_xz(struct compstrm *, int);
 static int writechunk(struct compstrm *, size_t, char *);
 static int writechunk_bzip2(struct compstrm *, size_t, char *);
 static int writechunk_gzip(struct compstrm *, size_t, char *);
@@ -123,7 +123,7 @@ cleanup:
 
 int finish_lzma(struct compstrm *strm)
 {
-    int error;
+    int error = DRPM_ERR_OK;
     int ret;
     char *data_tmp;
     unsigned char out_buffer[CHUNK_SIZE];
@@ -164,7 +164,7 @@ cleanup:
     return error;
 }
 
-int init_bzip2(struct compstrm *strm)
+int init_bzip2(struct compstrm *strm, int level)
 {
     strm->write_chunk = writechunk_bzip2;
     strm->finish = finish_bzip2;
@@ -175,7 +175,10 @@ int init_bzip2(struct compstrm *strm)
     strm->stream.bzip2.next_in = NULL;
     strm->stream.bzip2.avail_in = 0;
 
-    switch (BZ2_bzCompressInit(&strm->stream.bzip2, 9, 0, 0)) {
+    if (level == COMP_LEVEL_DEFAULT)
+        level = 9;
+
+    switch (BZ2_bzCompressInit(&strm->stream.bzip2, level, 0, 0)) {
     case BZ_CONFIG_ERROR:
         BZ2_bzCompressEnd(&strm->stream.bzip2);
         return DRPM_ERR_CONFIG;
@@ -187,7 +190,7 @@ int init_bzip2(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int init_gzip(struct compstrm *strm)
+int init_gzip(struct compstrm *strm, int level)
 {
     strm->write_chunk = writechunk_gzip;
     strm->finish = finish_gzip;
@@ -196,8 +199,11 @@ int init_gzip(struct compstrm *strm)
     strm->stream.gzip.zfree = Z_NULL;
     strm->stream.gzip.opaque = Z_NULL;
 
-    switch (deflateInit2(&strm->stream.gzip, Z_DEFAULT_COMPRESSION,
-            Z_DEFLATED, 16 + MAX_WBITS, 8, Z_DEFAULT_STRATEGY)) {
+    if (level == COMP_LEVEL_DEFAULT)
+        level = Z_DEFAULT_COMPRESSION;
+
+    switch (deflateInit2(&strm->stream.gzip, level, Z_DEFLATED,
+            16 + MAX_WBITS, 8, Z_DEFAULT_STRATEGY)) {
     case Z_VERSION_ERROR:
         deflateEnd(&strm->stream.gzip);
         return DRPM_ERR_CONFIG;
@@ -209,7 +215,7 @@ int init_gzip(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int init_lzma(struct compstrm *strm)
+int init_lzma(struct compstrm *strm, int level)
 {
     lzma_stream stream = LZMA_STREAM_INIT;
     lzma_options_lzma options;
@@ -218,7 +224,10 @@ int init_lzma(struct compstrm *strm)
     strm->finish = finish_lzma;
     strm->stream.lzma = stream;
 
-    lzma_lzma_preset(&options, 6);
+    if (level == COMP_LEVEL_DEFAULT)
+        level = LZMA_PRESET_DEFAULT;
+
+    lzma_lzma_preset(&options, level);
 
     switch (lzma_alone_encoder(&strm->stream.lzma, &options)) {
     case LZMA_OK:
@@ -232,7 +241,7 @@ int init_lzma(struct compstrm *strm)
     return DRPM_ERR_OK;
 }
 
-int init_xz(struct compstrm *strm)
+int init_xz(struct compstrm *strm, int level)
 {
     lzma_stream stream = LZMA_STREAM_INIT;
 
@@ -240,7 +249,10 @@ int init_xz(struct compstrm *strm)
     strm->finish = finish_lzma;
     strm->stream.lzma = stream;
 
-    switch (lzma_easy_encoder(&strm->stream.lzma, 6, LZMA_CHECK_CRC64)) {
+    if (level == 0)
+        level = LZMA_PRESET_DEFAULT;
+
+    switch (lzma_easy_encoder(&strm->stream.lzma, level, LZMA_CHECK_CRC64)) {
     case LZMA_OK:
         break;
     case LZMA_MEM_ERROR:
@@ -277,9 +289,10 @@ int compstrm_destroy(struct compstrm **strm)
     return DRPM_ERR_OK;
 }
 
-int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp)
+int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int level)
 {
-    if (strm == NULL)
+    if (strm == NULL || filedesc < 0 ||
+        (level != COMP_LEVEL_DEFAULT && (level < 1 || level > 9)))
         return DRPM_ERR_ARGS;
 
     if ((*strm = malloc(sizeof(struct compstrm))) == NULL)
@@ -296,16 +309,30 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp)
         (*strm)->finish = NULL;
         return DRPM_ERR_OK;
     case DRPM_COMP_GZIP:
-        return init_gzip(*strm);
+        return init_gzip(*strm, level);
     case DRPM_COMP_BZIP2:
-        return init_bzip2(*strm);
+        return init_bzip2(*strm, level);
     case DRPM_COMP_LZMA:
-        return init_lzma(*strm);
+        return init_lzma(*strm, level);
     case DRPM_COMP_XZ:
-        return init_xz(*strm);
+        return init_xz(*strm, level);
     default:
         return DRPM_ERR_ARGS;
     }
+}
+
+int compstrm_get_data(struct compstrm *strm, char **data, size_t *data_len)
+{
+    if (strm == NULL || data == NULL || data_len == NULL)
+        return DRPM_ERR_ARGS;
+
+    if ((*data = malloc(strm->data_len)) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    memcpy(*data, strm->data, strm->data_len);
+    *data_len = strm->data_len;
+
+    return DRPM_ERR_OK;
 }
 
 int compstrm_write_be32(struct compstrm *strm, uint32_t number)

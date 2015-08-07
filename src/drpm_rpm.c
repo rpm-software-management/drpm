@@ -203,6 +203,7 @@ int rpm_fetch_lead_and_signature(struct rpm *rpmst, unsigned char **lead_sig, ui
 {
     void *signature;
     unsigned signature_size;
+    int error = DRPM_ERR_OK;
 
     if (rpmst == NULL || lead_sig == NULL || len == NULL)
         return DRPM_ERR_ARGS;
@@ -211,20 +212,26 @@ int rpm_fetch_lead_and_signature(struct rpm *rpmst, unsigned char **lead_sig, ui
     *len = 0;
 
     if ((signature = headerExport(rpmst->signature, &signature_size)) == NULL ||
-        (*lead_sig = malloc(96 + signature_size)) == NULL)
-        return DRPM_ERR_MEMORY;
+        (*lead_sig = malloc(96 + signature_size)) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
 
     memcpy(*lead_sig, rpmst->lead, 96);
     memcpy(*lead_sig + 96, signature, signature_size);
     *len = 96 + signature_size;
 
-    return DRPM_ERR_OK;
+cleanup:
+    free(signature);
+
+    return error;
 }
 
 int rpm_fetch_header(struct rpm *rpmst, unsigned char **header_ret, uint32_t *len)
 {
     void *header;
     unsigned header_size;
+    int error = DRPM_ERR_OK;
 
     if (rpmst == NULL || header_ret == NULL || len == NULL)
         return DRPM_ERR_ARGS;
@@ -233,13 +240,18 @@ int rpm_fetch_header(struct rpm *rpmst, unsigned char **header_ret, uint32_t *le
     *len = 0;
 
     if ((header = headerExport(rpmst->header, &header_size)) == NULL ||
-        (*header_ret = malloc(header_size)) == NULL)
-        return DRPM_ERR_MEMORY;
+        (*header_ret = malloc(header_size)) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
 
     memcpy(*header_ret, header, header_size);
     *len = header_size;
 
-    return DRPM_ERR_OK;
+cleanup:
+    free(header);
+
+    return error;
 }
 
 int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive)
@@ -474,6 +486,105 @@ cleanup:
         error = rpm_destroy(&rpmst);
     else
         rpm_destroy(&rpmst);
+
+    return error;
+}
+
+int rpm_signature_empty(struct rpm *rpmst)
+{
+    if (rpmst == NULL)
+        return DRPM_ERR_ARGS;
+
+    headerFree(rpmst->signature);
+    rpmst->signature = headerNew();
+
+    return DRPM_ERR_OK;
+}
+
+int rpm_signature_set_size(struct rpm *rpmst, uint32_t size)
+{
+    rpmtd tag_data = rpmtdNew();
+    uint32_t size_var = size;
+
+    if (rpmst == NULL)
+        return DRPM_ERR_ARGS;
+
+    tag_data->tag = RPMSIGTAG_SIZE;
+    tag_data->type = RPM_INT32_TYPE;
+    tag_data->data = &size_var;
+    tag_data->count = 1;
+
+    headerPut(rpmst->signature, tag_data, HEADERPUT_DEFAULT);
+
+    rpmtdFree(tag_data);
+
+    return DRPM_ERR_OK;
+}
+
+int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[16])
+{
+    rpmtd tag_data = rpmtdNew();
+
+    if (rpmst == NULL)
+        return DRPM_ERR_ARGS;
+
+    tag_data->tag = RPMSIGTAG_MD5;
+    tag_data->type = RPM_BIN_TYPE;
+    tag_data->data = md5;
+    tag_data->count = 16;
+
+    headerPut(rpmst->signature, tag_data, HEADERPUT_DEFAULT);
+
+    rpmtdFree(tag_data);
+
+    return DRPM_ERR_OK;
+}
+
+int rpm_signature_set_headersignatures(struct rpm *rpmst, unsigned char hdrsig[16])
+{
+    rpmtd tag_data = rpmtdNew();
+
+    if (rpmst == NULL)
+        return DRPM_ERR_ARGS;
+
+    tag_data->tag = RPMTAG_HEADERSIGNATURES;
+    tag_data->type = RPM_BIN_TYPE;
+    tag_data->data = hdrsig;
+    tag_data->count = 16;
+
+    headerPut(rpmst->signature, tag_data, HEADERPUT_DEFAULT);
+
+    rpmtdFree(tag_data);
+
+    return DRPM_ERR_OK;
+}
+
+int rpm_rewrite_signature(struct rpm *rpmst, int filedesc)
+{
+    int error = DRPM_ERR_OK;
+    void *signature = NULL;
+    unsigned signature_size = 0;
+    off_t offset;
+
+    if ((offset = lseek(filedesc, 0, SEEK_CUR)) == (off_t)-1 ||
+        lseek(filedesc, 96, SEEK_SET) == (off_t)-1)
+        return DRPM_ERR_IO;
+
+    if ((signature = headerExport(rpmst->signature, &signature_size)) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
+
+    if (write(filedesc, signature, signature_size) != signature_size) {
+        error = DRPM_ERR_IO;
+        goto cleanup;
+    }
+
+cleanup:
+    if (lseek(filedesc, offset, SEEK_SET) == (off_t)-1)
+        error = DRPM_ERR_IO;
+
+    free(signature);
 
     return error;
 }

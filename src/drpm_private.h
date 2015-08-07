@@ -32,8 +32,8 @@
 #include <unistd.h>
 #include <openssl/md5.h>
 
-#define MD5_BYTES 16
 #define CHUNK_SIZE 1024
+#define COMP_LEVEL_DEFAULT 0
 
 #define PAYLOAD_FORMAT_CPIO 0
 #define PAYLOAD_FORMAT_XAR 1
@@ -47,7 +47,7 @@ struct drpm {
     char *src_nevr;
     char *tgt_nevr;
     uint32_t tgt_size;
-    char tgt_md5[MD5_BYTES * 2 + 1];
+    char tgt_md5[MD5_DIGEST_LENGTH * 2 + 1];
     uint32_t tgt_comp;
     char *tgt_comp_param;
     uint32_t tgt_header_len;
@@ -64,11 +64,14 @@ struct drpm {
     uint32_t ext_copies_size;
 };
 
+struct deltarpm;
+
 //drpm_compstrm.c
 struct compstrm;
 int compstrm_destroy(struct compstrm **);
-int compstrm_init(struct compstrm **, int, unsigned short);
-int compstrm_write(struct compstrm *, size_t, const char *);
+int compstrm_get_data(struct compstrm *, char **, size_t *);
+int compstrm_init(struct compstrm **, int, unsigned short, int);
+int compstrm_write(struct compstrm *, size_t, char *);
 int compstrm_write_be32(struct compstrm *, uint32_t);
 int compstrm_write_be64(struct compstrm *, uint64_t);
 
@@ -81,8 +84,12 @@ int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
 
 //drpm_deltarpm.c
-bool deltarpm_decode_comp(uint32_t, unsigned short *);
-bool deltarpm_encode_comp(unsigned short, uint32_t *);
+bool deltarpm_decode_comp(uint32_t, unsigned short *, unsigned short *);
+bool deltarpm_encode_comp(uint32_t *, unsigned short, unsigned short);
+
+//drpm_make.c
+void free_deltarpm(struct deltarpm *);
+int write_nodiff_deltarpm(struct deltarpm *, const char *);
 
 //drpm_read.c
 int read_be32(int, uint32_t *);
@@ -108,6 +115,11 @@ int rpm_get_payload_format(struct rpm *, unsigned short *);
 int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
 int rpm_patch_payload_format(struct rpm *, const char *);
 int rpm_read(struct rpm **, const char *, bool);
+int rpm_rewrite_signature(struct rpm *, int);
+int rpm_signature_empty(struct rpm *);
+int rpm_signature_set_headersignatures(struct rpm *, unsigned char *);
+int rpm_signature_set_md5(struct rpm *, unsigned char *);
+int rpm_signature_set_size(struct rpm *, uint32_t);
 uint32_t rpm_size_full(struct rpm *);
 uint32_t rpm_size_header(struct rpm *);
 int rpm_write(struct rpm *, const char *, bool);
@@ -118,5 +130,50 @@ void create_be64(uint64_t, char *);
 void dump_hex(char *, char *, size_t);
 uint32_t parse_be32(char *);
 uint64_t parse_be64(char *);
+
+//drpm_write.c
+int write_be32(int, uint32_t);
+int write_be64(int, uint64_t);
+int write_deltarpm(struct deltarpm);
+int write_seqfile(struct deltarpm, const char *);
+
+struct deltarpm {
+    const char *filename;
+    unsigned short type;
+    unsigned short comp;
+    unsigned short comp_level;
+    union {
+        struct rpm *standard;
+        struct {
+            char *tgt_nevr;
+            uint32_t add_data_len;
+            unsigned char *add_data;
+        } rpmonly;
+    } head;
+    unsigned short version;
+    char *src_nevr;
+    uint32_t sequence_len;
+    unsigned char *sequence;
+    unsigned char tgt_md5[MD5_DIGEST_LENGTH];
+    uint32_t tgt_size;
+    unsigned short tgt_comp;
+    uint32_t tgt_comp_param_len;
+    unsigned char *tgt_comp_param;
+    uint32_t tgt_header_len;
+    uint32_t offadjn;
+    uint32_t *offadjs;
+    uint32_t tgt_lead_len;
+    unsigned char *tgt_lead;
+    uint32_t payload_fmt_off;
+    uint32_t inn;
+    uint32_t outn;
+    uint32_t *int_copies;
+    uint32_t *ext_copies;
+    uint64_t ext_data_len;
+    uint32_t add_data_len;
+    unsigned char *add_data;
+    uint64_t int_data_len;
+    unsigned char *int_data;
+};
 
 #endif
