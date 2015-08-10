@@ -377,31 +377,6 @@ int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, c
         return DRPM_ERR_ARGS;
     }
 
-    switch (MASK_FLAGS(flags, COMP_FLAGS)) {
-    case DRPM_FLAG_COMP_NONE:
-        comp = DRPM_COMP_NONE;
-        break;
-    case DRPM_FLAG_COMP_GZIP:
-        comp = DRPM_COMP_GZIP;
-        break;
-    case DRPM_FLAG_COMP_BZIP2:
-        comp = DRPM_COMP_BZIP2;
-        break;
-    case DRPM_FLAG_COMP_LZMA:
-        comp = DRPM_COMP_LZMA;
-        break;
-    case DRPM_FLAG_COMP_XZ:
-        comp = DRPM_COMP_XZ;
-        break;
-    case DRPM_FLAG_NONE:
-        if ((error = rpm_get_comp_only(alone ? solo_rpm : new_rpm, &comp))
-            != DRPM_ERR_OK)
-            return error;
-        break;
-    default:
-        return DRPM_ERR_ARGS;
-    }
-
     switch (MASK_FLAGS(flags, COMP_LEVEL_FLAGS)) {
     case DRPM_FLAG_COMP_LEVEL_1:
         comp_level = 1;
@@ -437,6 +412,31 @@ int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, c
         return DRPM_ERR_ARGS;
     }
 
+    switch (MASK_FLAGS(flags, COMP_FLAGS)) {
+    case DRPM_FLAG_COMP_NONE:
+        comp = DRPM_COMP_NONE;
+        break;
+    case DRPM_FLAG_COMP_GZIP:
+        comp = DRPM_COMP_GZIP;
+        break;
+    case DRPM_FLAG_COMP_BZIP2:
+        comp = DRPM_COMP_BZIP2;
+        break;
+    case DRPM_FLAG_COMP_LZMA:
+        comp = DRPM_COMP_LZMA;
+        break;
+    case DRPM_FLAG_COMP_XZ:
+        comp = DRPM_COMP_XZ;
+        break;
+    case DRPM_FLAG_NONE:
+        if ((error = rpm_read_only_comp(alone ? solo_rpm : new_rpm,
+            &comp, &comp_level)) != DRPM_ERR_OK)
+            return error;
+        break;
+    default:
+        return DRPM_ERR_ARGS;
+    }
+
     if (rpm_only && version < 3)
         return DRPM_ERR_ARGS;
 
@@ -450,6 +450,8 @@ int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, c
         error = write_nodiff_deltarpm(&delta, solo_rpm);
         goto write_seq;
     }
+
+    //...
 
 write_seq:
     if (seqfile != NULL)

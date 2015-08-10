@@ -38,6 +38,8 @@
 #define PAYLOAD_FORMAT_CPIO 0
 #define PAYLOAD_FORMAT_XAR 1
 
+struct deltarpm;
+
 struct drpm {
     char *filename;
     uint32_t version;
@@ -63,8 +65,6 @@ struct drpm {
     uint32_t int_copies_size;
     uint32_t ext_copies_size;
 };
-
-struct deltarpm;
 
 //drpm_compstrm.c
 struct compstrm;
@@ -109,12 +109,13 @@ int rpm_destroy(struct rpm **);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
 int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
 int rpm_get_comp(struct rpm *, uint32_t *);
-int rpm_get_comp_only(const char *, unsigned short *);
+int rpm_get_comp_level(struct rpm *, unsigned short *);
 int rpm_get_nevr(struct rpm *, char **);
 int rpm_get_payload_format(struct rpm *, unsigned short *);
 int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
 int rpm_patch_payload_format(struct rpm *, const char *);
 int rpm_read(struct rpm **, const char *, bool);
+int rpm_read_only_comp(const char *, unsigned short *, unsigned short *);
 int rpm_rewrite_signature(struct rpm *, int);
 int rpm_signature_empty(struct rpm *);
 int rpm_signature_set_headersignatures(struct rpm *, unsigned char *);
@@ -157,6 +158,7 @@ struct deltarpm {
     unsigned char tgt_md5[MD5_DIGEST_LENGTH];
     uint32_t tgt_size;
     unsigned short tgt_comp;
+    unsigned short tgt_comp_level;
     uint32_t tgt_comp_param_len;
     unsigned char *tgt_comp_param;
     uint32_t tgt_header_len;

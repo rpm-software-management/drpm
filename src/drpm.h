@@ -152,6 +152,10 @@ typedef struct drpm drpm; /**< deltarpm package info */
  * @see DRPM_FLAG_VERSION_1, DRPM_FLAG_VERSION_2, DRPM_FLAG_VERSION_3
  * @see DRPM_FLAG_COMP_NONE, DRPM_FLAG_COMP_GZIP, DRPM_FLAG_COMP_BZIP2,
  * DRPM_FLAG_COMP_LZMA, DRPM_FLAG_COMP_XZ
+ * @see DRPM_FLAG_COMP_LEVEL_1, DRPM_FLAG_COMP_LEVEL_2,
+ * DRPM_FLAG_COMP_LEVEL_3, DRPM_FLAG_COMP_LEVEL_4,
+ * DRPM_FLAG_COMP_LEVEL_5, DRPM_FLAG_COMP_LEVEL_6,
+ * DRPM_FLAG_COMP_LEVEL_7, DRPM_FLAG_COMP_LEVEL_8, DRPM_FLAG_COMP_LEVEL_9
  */
 int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, const char *seqfile, int flags);
 
