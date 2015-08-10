@@ -404,6 +404,25 @@ int rpm_get_comp(struct rpm *rpmst, uint32_t *comp)
     return DRPM_ERR_OK;
 }
 
+int rpm_get_comp_level(struct rpm *rpmst, unsigned short *level)
+{
+    const char *payload_flags;
+
+    if (rpmst == NULL || level == NULL)
+        return DRPM_ERR_ARGS;
+
+    if ((payload_flags = headerGetString(rpmst->header, RPMTAG_PAYLOADFLAGS)) == NULL)
+        return DRPM_ERR_FORMAT;
+
+    if (strlen(payload_flags) != 1 ||
+        payload_flags[0] < '1' || payload_flags[0] > '9')
+        return DRPM_ERR_FORMAT;
+
+    *level = payload_flags[0] - '0';
+
+    return DRPM_ERR_OK;
+}
+
 int rpm_get_payload_format(struct rpm *rpmst, unsigned short *payfmt)
 {
     const char *payload_format;
@@ -466,20 +485,24 @@ cleanup:
     return error;
 }
 
-int rpm_get_comp_only(const char *filename, unsigned short *ret)
+int rpm_read_only_comp(const char *filename, unsigned short *comp_ret, unsigned short *comp_level_ret)
 {
     struct rpm *rpmst = NULL;
     uint32_t comp;
     int error = DRPM_ERR_OK;
 
-    if (filename == NULL || ret == NULL)
+    if (filename == NULL || comp_ret == NULL)
         return DRPM_ERR_ARGS;
 
     if ((error = rpm_read(&rpmst, filename, false)) != DRPM_ERR_OK ||
         (error = rpm_get_comp(rpmst, &comp)) != DRPM_ERR_OK)
         goto cleanup;
 
-    *ret = comp;
+    if (comp_level_ret != NULL)
+        if ((error = rpm_get_comp_level(rpmst, comp_level_ret)) != DRPM_ERR_OK)
+            goto cleanup;
+
+    *comp_ret = comp;
 
 cleanup:
     if (error == DRPM_ERR_OK)
