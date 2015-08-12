@@ -38,8 +38,6 @@
 #define PAYLOAD_FORMAT_CPIO 0
 #define PAYLOAD_FORMAT_XAR 1
 
-struct deltarpm;
-
 struct drpm {
     char *filename;
     uint32_t version;
@@ -65,6 +63,9 @@ struct drpm {
     uint32_t int_copies_size;
     uint32_t ext_copies_size;
 };
+
+struct deltarpm;
+struct file_info;
 
 //drpm_compstrm.c
 struct compstrm;
@@ -110,6 +111,7 @@ int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
 int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
 int rpm_get_comp(struct rpm *, uint32_t *);
 int rpm_get_comp_level(struct rpm *, unsigned short *);
+int rpm_get_file_info(struct rpm *, struct file_info **, unsigned *);
 int rpm_get_nevr(struct rpm *, char **);
 int rpm_get_payload_format(struct rpm *, unsigned short *);
 int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
@@ -176,6 +178,18 @@ struct deltarpm {
     unsigned char *add_data;
     uint64_t int_data_len;
     unsigned char *int_data;
+};
+
+struct file_info {
+    char *name;
+    uint32_t flags;
+    char *md5;
+    uint16_t rdev;
+    uint32_t size;
+    uint16_t mode;
+    uint32_t verify;
+    char *linkto;
+    uint32_t color;
 };
 
 #endif
