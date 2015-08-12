@@ -455,6 +455,153 @@ int rpm_patch_payload_format(struct rpm *rpmst, const char *new_payfmt)
     return DRPM_ERR_OK;
 }
 
+int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret, unsigned *count_ret)
+{
+    int error = DRPM_ERR_OK;
+    struct file_info empty_file_info = {0};
+    struct file_info *files;
+    unsigned count;
+    bool colors;
+    rpmtd filenames;
+    rpmtd fileflags;
+    rpmtd filemd5s;
+    rpmtd filerdevs;
+    rpmtd filesizes;
+    rpmtd filemodes;
+    rpmtd fileverify;
+    rpmtd filelinktos;
+    rpmtd filecolors;
+    const char *name;
+    uint32_t *flags;
+    const char *md5;
+    uint16_t *rdev;
+    uint32_t *size;
+    uint16_t *mode;
+    uint32_t *verify;
+    const char *linkto;
+    uint32_t *color;
+
+    if (rpmst == NULL || files_ret == NULL || count_ret == NULL)
+        return DRPM_ERR_ARGS;
+
+    filenames = rpmtdNew();
+    fileflags = rpmtdNew();
+    filemd5s = rpmtdNew();
+    filerdevs = rpmtdNew();
+    filesizes = rpmtdNew();
+    filemodes = rpmtdNew();
+    fileverify = rpmtdNew();
+    filelinktos = rpmtdNew();
+    filecolors = rpmtdNew();
+
+    if (headerGet(rpmst->header, RPMTAG_FILENAMES, filenames, HEADERGET_EXT) != 1 ||
+        headerGet(rpmst->header, RPMTAG_FILEFLAGS, fileflags, HEADERGET_MINMEM) != 1 ||
+        headerGet(rpmst->header, RPMTAG_FILEMD5S, filemd5s, HEADERGET_MINMEM) != 1 ||
+        headerGet(rpmst->header, RPMTAG_FILERDEVS, filerdevs, HEADERGET_MINMEM) != 1 ||
+        headerGet(rpmst->header, RPMTAG_FILESIZES, filesizes, HEADERGET_MINMEM) != 1 ||
+        headerGet(rpmst->header, RPMTAG_FILEMODES, filemodes, HEADERGET_MINMEM) != 1 ||
+        headerGet(rpmst->header, RPMTAG_FILEVERIFYFLAGS, fileverify, HEADERGET_MINMEM) != 1 ||
+        headerGet(rpmst->header, RPMTAG_FILELINKTOS, filelinktos, HEADERGET_MINMEM) != 1 ||) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    colors = headerGet(rpmst->header, RPMTAG_FILECOLORS, filecolors, HEADERGET_MINMEM) == 1;
+
+    count = rpmtdCount(filenames);
+    if (count != rpmtdCount(fileflags) ||
+        count != rpmtdCount(filemd5s) ||
+        count != rpmtdCount(filerdevs) ||
+        count != rpmtdCount(filesizes) ||
+        count != rpmtdCount(filemodes) ||
+        count != rpmtdCount(fileverify) ||
+        count != rpmtdCount(filelinktos) ||
+        (colors && count != rpmtdCount(filecolors))) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    if ((files = malloc(count * sizeof(struct file_info))) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
+
+    for (unsigned i = 0; i < count; i++)
+        files[i] = empty_file_info;
+
+    for (unsigned i = 0; i < count; i++) {
+        if ((name = rpmtdNextString(filenames)) == NULL ||
+            (flags = rpmtdNextUint32(fileflags)) == NULL ||
+            (md5 = rpmtdNextString(filemd5s)) == NULL ||
+            (size = rpmtdNextUint32(filesizes)) == NULL ||
+            (verify = rpmtdNextUint32(fileverify)) == NULL ||
+            (linkto = rpmtdNextString(filelinktos)) == NULL ||
+            (colors && (color = rpmtdNextUint32(filecolors)) == NULL) ||
+            rpmtdNext(filerdevs) < 0 ||
+            rpmtdNext(filemodes) < 0 ||
+            (rdev = rpmtdGetUint16(filerdevs)) == NULL ||
+            (mode = rpmtdGetUint16(filemodes)) == NULL) {
+            error = DRPM_ERR_FORMAT;
+            goto cleanup_files;
+        }
+
+        if ((files[i].name = malloc(strlen(name))) == NULL ||
+            (files[i].md5 = malloc(strlen(md5))) == NULL ||
+            (files[i].linkto = malloc(strlen(linkto))) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup_files;
+        }
+
+        strcpy(files[i].name, name);
+        files[i].flags = *flags;
+        strcpy(files[i].md5, md5);
+        files[i].rdev = *rdev;
+        files[i].size = *size;
+        files[i].mode = *mode;
+        files[i].verify = *verify;
+        strcpy(files[i].linkto, linkto);
+        if (colors)
+            files[i].color = *color;
+    }
+
+    *files_ret = files;
+    *count_ret = count;
+
+    goto cleanup;
+
+cleanup_files:
+    for (unsigned i = 0; i < count; i++) {
+        free(files[i].name);
+        free(files[i].md5);
+        free(files[i].linkto);
+    }
+
+    free(files);
+
+cleanup:
+    rpmtdFreeData(filenames);
+    rpmtdFreeData(fileflags);
+    rpmtdFreeData(filemd5s);
+    rpmtdFreeData(filerdevs);
+    rpmtdFreeData(filesizes);
+    rpmtdFreeData(filemodes);
+    rpmtdFreeData(fileverify);
+    rpmtdFreeData(filelinktos);
+    rpmtdFreeData(filecolors);
+
+    rpmtdFree(filenames);
+    rpmtdFree(fileflags);
+    rpmtdFree(filemd5s);
+    rpmtdFree(filerdevs);
+    rpmtdFree(filesizes);
+    rpmtdFree(filemodes);
+    rpmtdFree(fileverify);
+    rpmtdFree(filelinktos);
+    rpmtdFree(filecolors);
+
+    return error;
+}
+
 int rpm_get_payload_format_offset(struct rpm *rpmst, uint32_t *offset)
 {
     char *header;
@@ -471,7 +618,7 @@ int rpm_get_payload_format_offset(struct rpm *rpmst, uint32_t *offset)
     index_count = parse_be32(header + 8);
 
     for (uint32_t i = 0, off = 16; i < index_count && off+16 <= header_size;
-         i++, off += i*16) {
+         i++, off += 16) {
         if (parse_be32(header + off) == RPMTAG_PAYLOADFORMAT) {
             *offset = parse_be32(header + off + 8);
             error = DRPM_ERR_OK;
@@ -590,7 +737,7 @@ int rpm_rewrite_signature(struct rpm *rpmst, int filedesc)
     off_t offset;
 
     if ((offset = lseek(filedesc, 0, SEEK_CUR)) == (off_t)-1 ||
-        lseek(filedesc, 96, SEEK_SET) == (off_t)-1)
+        lseek(filedesc, 96, SEEK_SET) != 96)
         return DRPM_ERR_IO;
 
     if ((signature = headerExport(rpmst->signature, &signature_size)) == NULL) {
@@ -604,7 +751,7 @@ int rpm_rewrite_signature(struct rpm *rpmst, int filedesc)
     }
 
 cleanup:
-    if (lseek(filedesc, offset, SEEK_SET) == (off_t)-1)
+    if (lseek(filedesc, offset, SEEK_SET) == offset)
         error = DRPM_ERR_IO;
 
     free(signature);

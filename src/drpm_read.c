@@ -32,7 +32,7 @@
 #define MAGIC_DLT(x) (((x) >> 8) == 0x444C54)
 #define MAGIC_DLT3(x) ((x) == 0x444C5433)
 
-#define RPM_LEADSIG_MIN_LEN 112 /* 96 B rpmlead + 16 B signature intro */
+#define RPM_LEADSIG_MIN_LEN 112 /* 96B rpmlead + 16B signature intro */
 
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
