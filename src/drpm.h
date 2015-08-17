@@ -127,7 +127,7 @@ typedef struct drpm drpm; /**< deltarpm package info */
  * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", "seqfile.txt", DRPM_FLAG_RPMONLY)
  * @endcode
  * @code
- * // makedeltarpm -V 2 -z uncompressed foo.rpm goo.rpm fg.drpm
+ * // makedeltarpm -V 3 -z uncompressed foo.rpm goo.rpm fg.drpm
  * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_VERSION_3 | DRPM_FLAG_COMP_NONE)
  * @endcode
  * @code
@@ -138,8 +138,8 @@ typedef struct drpm drpm; /**< deltarpm package info */
  * // makedeltarpm -u -z bzip2 foo.rpm foo.drpm
  * drpm_make("foo.rpm", NULL, "foo.drpm", NULL, DRPM_FLAG_COMP_BZIP2)
  * @endcode
- * @param [in]  old_rpm     Name of old RPM file.
- * @param [in]  new_rpm     Name of new RPM file.
+ * @param [in]  oldrpm      Name of old RPM file.
+ * @param [in]  newrpm      Name of new RPM file.
  * @param [in]  deltarpm    Name of DeltaRPM file to be created.
  * @param [in]  seqfile     Name of file to which to write out @p deltarpm sequence.
  * @param [in]  flags       Bitwise OR of macros specifying options.
@@ -157,7 +157,7 @@ typedef struct drpm drpm; /**< deltarpm package info */
  * DRPM_FLAG_COMP_LEVEL_5, DRPM_FLAG_COMP_LEVEL_6,
  * DRPM_FLAG_COMP_LEVEL_7, DRPM_FLAG_COMP_LEVEL_8, DRPM_FLAG_COMP_LEVEL_9
  */
-int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, const char *seqfile, int flags);
+int drpm_make(const char *oldrpm, const char *newrpm, const char *deltarpm, const char *seqfile, int flags);
 
 /**
  * @brief Reads information from deltarpm package @p filename into @p *delta.

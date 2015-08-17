@@ -179,6 +179,11 @@ ssize_t rpm_archive_read_chunk(struct rpm *rpmst, unsigned char *buffer, size_t 
     return count;
 }
 
+void rpm_archive_rewind(struct rpm *rpmst)
+{
+    rpmst->archive_offset = 0;
+}
+
 uint32_t rpm_size_full(struct rpm *rpmst)
 {
     if (rpmst == NULL)
@@ -455,10 +460,10 @@ int rpm_patch_payload_format(struct rpm *rpmst, const char *new_payfmt)
     return DRPM_ERR_OK;
 }
 
-int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret, unsigned *count_ret)
+int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret, unsigned *count_ret, bool *colors_ret)
 {
     int error = DRPM_ERR_OK;
-    struct file_info empty_file_info = {0};
+    struct file_info file_info_init = {0};
     struct file_info *files;
     unsigned count;
     bool colors;
@@ -481,7 +486,7 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret, unsigned 
     const char *linkto;
     uint32_t *color;
 
-    if (rpmst == NULL || files_ret == NULL || count_ret == NULL)
+    if (rpmst == NULL || files_ret == NULL || count_ret == NULL || colors_ret == NULL)
         return DRPM_ERR_ARGS;
 
     filenames = rpmtdNew();
@@ -501,7 +506,7 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret, unsigned 
         headerGet(rpmst->header, RPMTAG_FILESIZES, filesizes, HEADERGET_MINMEM) != 1 ||
         headerGet(rpmst->header, RPMTAG_FILEMODES, filemodes, HEADERGET_MINMEM) != 1 ||
         headerGet(rpmst->header, RPMTAG_FILEVERIFYFLAGS, fileverify, HEADERGET_MINMEM) != 1 ||
-        headerGet(rpmst->header, RPMTAG_FILELINKTOS, filelinktos, HEADERGET_MINMEM) != 1 ||) {
+        headerGet(rpmst->header, RPMTAG_FILELINKTOS, filelinktos, HEADERGET_MINMEM) != 1) {
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
@@ -527,7 +532,7 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret, unsigned 
     }
 
     for (unsigned i = 0; i < count; i++)
-        files[i] = empty_file_info;
+        files[i] = file_info_init;
 
     for (unsigned i = 0; i < count; i++) {
         if ((name = rpmtdNextString(filenames)) == NULL ||
@@ -566,6 +571,7 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret, unsigned 
 
     *files_ret = files;
     *count_ret = count;
+    *colors_ret = colors;
 
     goto cleanup;
 

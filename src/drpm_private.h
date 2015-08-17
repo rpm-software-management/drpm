@@ -33,6 +33,7 @@
 #include <openssl/md5.h>
 
 #define CHUNK_SIZE 1024
+
 #define COMP_LEVEL_DEFAULT 0
 
 #define PAYLOAD_FORMAT_CPIO 0
@@ -106,12 +107,13 @@ int rpm_add_header_to_md5(struct rpm *, MD5_CTX *);
 int rpm_add_lead_to_md5(struct rpm *, MD5_CTX *);
 int rpm_add_signature_to_md5(struct rpm *, MD5_CTX *);
 ssize_t rpm_archive_read_chunk(struct rpm *, unsigned char *, size_t);
+void rpm_archive_rewind(struct rpm *);
 int rpm_destroy(struct rpm **);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
 int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
 int rpm_get_comp(struct rpm *, uint32_t *);
 int rpm_get_comp_level(struct rpm *, unsigned short *);
-int rpm_get_file_info(struct rpm *, struct file_info **, unsigned *);
+int rpm_get_file_info(struct rpm *, struct file_info **, unsigned *, bool *);
 int rpm_get_nevr(struct rpm *, char **);
 int rpm_get_payload_format(struct rpm *, unsigned short *);
 int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
@@ -133,6 +135,7 @@ void create_be64(uint64_t, char *);
 void dump_hex(char *, char *, size_t);
 uint32_t parse_be32(char *);
 uint64_t parse_be64(char *);
+bool resize(void **, uint32_t *, size_t);
 
 //drpm_write.c
 int write_be32(int, uint32_t);
@@ -146,12 +149,8 @@ struct deltarpm {
     unsigned short comp;
     unsigned short comp_level;
     union {
-        struct rpm *standard;
-        struct {
-            char *tgt_nevr;
-            uint32_t add_data_len;
-            unsigned char *add_data;
-        } rpmonly;
+        struct rpm *rpm_head;
+        char *tgt_nevr;
     } head;
     unsigned short version;
     char *src_nevr;

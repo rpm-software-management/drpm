@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#define ALLOC_SIZE 32
+
 void dump_hex(char *dest, char *source, size_t count)
 {
     char digits[] = "0123456789abcdef";
@@ -75,4 +77,16 @@ void create_be64(uint64_t in, char out[8])
     out[5] = in >> 16;
     out[6] = in >> 8;
     out[7] = in;
+}
+
+bool resize(void **buffer, uint32_t *members_count, size_t member_size)
+{
+    if (*members_count % ALLOC_SIZE == 0) {
+        if ((*buffer = realloc(*buffer,
+             member_size * (*members_count + ALLOC_SIZE))) == NULL)
+            return false;
+        *members_count += ALLOC_SIZE;
+    }
+
+    return true;
 }
