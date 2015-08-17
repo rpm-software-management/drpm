@@ -25,13 +25,15 @@
 #include <string.h>
 #include <openssl/md5.h>
 
+#define BUFFER_SIZE 4096
+
 void free_deltarpm(struct deltarpm *delta)
 {
     if (delta->type == DRPM_TYPE_STANDARD) {
-        rpm_destroy(&delta->head.standard);
+        rpm_destroy(&delta->head.rpm_head);
     } else if (delta->type == DRPM_TYPE_RPMONLY) {
-        free(delta->head.rpmonly.tgt_nevr);
-        free(delta->head.rpmonly.add_data);
+        free(delta->head.tgt_nevr);
+        delta->head.tgt_nevr = NULL;
     }
     free(delta->src_nevr);
     free(delta->sequence);
@@ -43,10 +45,6 @@ void free_deltarpm(struct deltarpm *delta)
     free(delta->add_data);
     free(delta->int_data);
 
-    delta->head.rpmonly.tgt_nevr = NULL;
-    delta->head.rpmonly.add_data_len = 0;
-    delta->head.rpmonly.add_data = NULL;
-    delta->head.standard = NULL;
     delta->src_nevr = NULL;
     delta->sequence_len = 0;
     delta->sequence = NULL;
@@ -113,13 +111,13 @@ int write_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename)
         goto cleanup;
 
     if ((delta->src_nevr = malloc(strlen(nevr))) == NULL ||
-        (delta->head.rpmonly.tgt_nevr = malloc(strlen(nevr))) == NULL) {
+        (delta->head.tgt_nevr = malloc(strlen(nevr))) == NULL) {
         error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
 
     strcpy(delta->src_nevr, nevr);
-    strcpy(delta->head.rpmonly.tgt_nevr, nevr);
+    strcpy(delta->head.tgt_nevr, nevr);
 
     delta->tgt_size = rpm_size_full(solo_rpm);
     delta->tgt_header_len = rpm_size_header(solo_rpm);

@@ -61,7 +61,6 @@ int write_deltarpm(struct deltarpm delta)
     uint32_t src_nevr_len;
     char version[5];
     uint32_t tgt_comp;
-    struct rpm *rpm_head = delta.head.standard;
     unsigned char *header = NULL;
     uint32_t header_size;
     MD5_CTX md5;
@@ -78,7 +77,7 @@ int write_deltarpm(struct deltarpm delta)
 
     switch (delta.type) {
     case DRPM_TYPE_STANDARD:
-        if ((error = rpm_fetch_header(rpm_head, &header, &header_size)) != DRPM_ERR_OK)
+        if ((error = rpm_fetch_header(delta.head.rpm_head, &header, &header_size)) != DRPM_ERR_OK)
             return error;
 
         if (MD5_Init(&md5) != 1 ||
@@ -90,12 +89,12 @@ int write_deltarpm(struct deltarpm delta)
         create_be32((uint32_t)-3*16, header_signatures + 8);
         create_be32(16, header_signatures + 12);
 
-        if ((error = rpm_signature_empty(rpm_head)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_headersignatures(rpm_head, header_signatures)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_size(rpm_head, 0)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_md5(rpm_head, md5_digest)) != DRPM_ERR_OK ||
-            (error = rpm_patch_payload_format(rpm_head, "drpm")) != DRPM_ERR_OK ||
-            (error = rpm_write(rpm_head, delta.filename, false)) != DRPM_ERR_OK)
+        if ((error = rpm_signature_empty(delta.head.rpm_head)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_headersignatures(delta.head.rpm_head, header_signatures)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_size(delta.head.rpm_head, 0)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_md5(delta.head.rpm_head, md5_digest)) != DRPM_ERR_OK ||
+            (error = rpm_patch_payload_format(delta.head.rpm_head, "drpm")) != DRPM_ERR_OK ||
+            (error = rpm_write(delta.head.rpm_head, delta.filename, false)) != DRPM_ERR_OK)
             return error;
 
         if ((filedesc = open(delta.filename, O_WRONLY | O_APPEND)) < 0)
@@ -112,18 +111,17 @@ int write_deltarpm(struct deltarpm delta)
             goto cleanup;
         }
 
-        tgt_nevr_len = strlen(delta.head.rpmonly.tgt_nevr);
+        tgt_nevr_len = strlen(delta.head.tgt_nevr);
         if ((error = write_be32(filedesc, tgt_nevr_len)) != DRPM_ERR_OK)
             goto cleanup;
-        if (write(filedesc, delta.head.rpmonly.tgt_nevr, tgt_nevr_len) != tgt_nevr_len) {
+        if (write(filedesc, delta.head.tgt_nevr, tgt_nevr_len) != tgt_nevr_len) {
             error = DRPM_ERR_IO;
             goto cleanup;
         }
 
-        if ((error = write_be32(filedesc, delta.head.rpmonly.add_data_len)) != DRPM_ERR_OK)
+        if ((error = write_be32(filedesc, delta.add_data_len)) != DRPM_ERR_OK)
             goto cleanup;
-        if (write(filedesc, delta.head.rpmonly.add_data, delta.head.rpmonly.add_data_len)
-            != delta.head.rpmonly.add_data_len) {
+        if (write(filedesc, delta.add_data, delta.add_data_len) != delta.add_data_len) {
             error = DRPM_ERR_IO;
             goto cleanup;
         }
@@ -200,9 +198,14 @@ int write_deltarpm(struct deltarpm delta)
             goto cleanup;
     }
 
-    if ((error = compstrm_write_be32(stream, delta.add_data_len)) != DRPM_ERR_OK ||
-        (error = compstrm_write(stream, delta.add_data_len, (char *)delta.add_data)) != DRPM_ERR_OK)
-        goto cleanup;
+    if (delta.type == DRPM_TYPE_STANDARD) {
+        if ((error = compstrm_write_be32(stream, delta.add_data_len)) != DRPM_ERR_OK ||
+            (error = compstrm_write(stream, delta.add_data_len, (char *)delta.add_data)) != DRPM_ERR_OK)
+            goto cleanup;
+    } else {
+        if ((error = compstrm_write_be32(stream, 0)) != DRPM_ERR_OK)
+            goto cleanup;
+    }
 
     if (delta.version >= 3) {
         if ((error = compstrm_write_be64(stream, delta.int_data_len)) != DRPM_ERR_OK)
@@ -223,9 +226,9 @@ int write_deltarpm(struct deltarpm delta)
             error = DRPM_ERR_CONFIG;
             goto cleanup;
         }
-        if ((error = rpm_signature_set_size(rpm_head, header_size + strm_data_len) != DRPM_ERR_OK) ||
-            (error = rpm_signature_set_md5(rpm_head, md5_digest) != DRPM_ERR_OK) ||
-            (error = rpm_rewrite_signature(rpm_head, filedesc)) != DRPM_ERR_OK)
+        if ((error = rpm_signature_set_size(delta.head.rpm_head, header_size + strm_data_len) != DRPM_ERR_OK) ||
+            (error = rpm_signature_set_md5(delta.head.rpm_head, md5_digest) != DRPM_ERR_OK) ||
+            (error = rpm_rewrite_signature(delta.head.rpm_head, filedesc)) != DRPM_ERR_OK)
             goto cleanup;
     }
 
