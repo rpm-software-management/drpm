@@ -261,8 +261,11 @@ int readchunk(struct decompstrm *strm)
     char *data_tmp;
     char buffer[CHUNK_SIZE];
 
-    if ((in_len = read(strm->filedesc, buffer, CHUNK_SIZE)) <= 0)
+    if ((in_len = read(strm->filedesc, buffer, CHUNK_SIZE)) < 0)
         return DRPM_ERR_IO;
+
+    if (in_len == 0)
+        return DRPM_ERR_FORMAT;
 
     if ((data_tmp = realloc(strm->data, strm->data_len + in_len)) == NULL)
         return DRPM_ERR_MEMORY;
@@ -282,8 +285,11 @@ int readchunk_bzip2(struct decompstrm *strm)
     char out_buffer[CHUNK_SIZE];
     size_t out_len;
 
-    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) <= 0)
+    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
         return DRPM_ERR_IO;
+
+    if (in_len == 0)
+        return DRPM_ERR_FORMAT;
 
     strm->stream.bzip2.next_in = in_buffer;
     strm->stream.bzip2.avail_in = in_len;
@@ -320,8 +326,11 @@ int readchunk_gzip(struct decompstrm *strm)
     unsigned char out_buffer[CHUNK_SIZE];
     size_t out_len;
 
-    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) <= 0)
+    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
         return DRPM_ERR_IO;
+
+    if (in_len == 0)
+        return DRPM_ERR_FORMAT;
 
     strm->stream.gzip.next_in = in_buffer;
     strm->stream.gzip.avail_in = in_len;
@@ -359,8 +368,11 @@ int readchunk_lzma(struct decompstrm *strm)
     unsigned char out_buffer[CHUNK_SIZE];
     size_t out_len;
 
-    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) <= 0)
+    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
         return DRPM_ERR_IO;
+
+    if (in_len == 0)
+        return DRPM_ERR_FORMAT;
 
     strm->stream.lzma.next_in = in_buffer;
     strm->stream.lzma.avail_in = in_len;
