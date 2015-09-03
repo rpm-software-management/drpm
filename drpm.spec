@@ -58,6 +58,9 @@ make check %{?_smp_mflags}
 %{_libdir}/pkgconfig/drpm.pc
 
 %changelog
+* Thu Sep 3 2015 Matej Chalk <mchalk@redhat.com> 0.3.0-1
+- Bumped minor version (deltarpm creation added)
+
 * Tue Aug 4 2015 Matej Chalk <mchalk@redhat.com> 0.2.1-1
 - Added openssl dependency
 

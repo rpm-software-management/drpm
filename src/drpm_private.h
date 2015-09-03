@@ -36,8 +36,23 @@
 
 #define COMP_LEVEL_DEFAULT 0
 
+#define DIGESTALGO_MD5 0
+#define DIGESTALGO_SHA256 1
+
 #define PAYLOAD_FORMAT_CPIO 0
 #define PAYLOAD_FORMAT_XAR 1
+
+#define RPM_ARCHIVE_DONT_READ 0
+#define RPM_ARCHIVE_READ_UNCOMP 1
+#define RPM_ARCHIVE_READ_DECOMP 2
+
+#define FLAG_SET(flags, flag) (((flags) & (flag)) != 0)
+#define MASK_FLAGS(flags, mask) ((flags) & (mask))
+
+#define MIN(x,y) (((x) < (y)) ? (x) : (y))
+#define MAX(x,y) (((x) > (y)) ? (x) : (y))
+
+#define PADDING(offset, align) ((((align) - ((offset) % (align))) % (align)))
 
 struct drpm {
     char *filename;
@@ -70,20 +85,27 @@ struct file_info;
 
 //drpm_compstrm.c
 struct compstrm;
+//drpm_decompstrm.c
+struct decompstrm;
+//drpm_rpm.c
+struct rpm;
+
+//drpm_compstrm.c
+int compstrm_copy_data(struct compstrm *, char **, size_t *);
 int compstrm_destroy(struct compstrm **);
-int compstrm_get_data(struct compstrm *, char **, size_t *);
 int compstrm_init(struct compstrm **, int, unsigned short, int);
 int compstrm_write(struct compstrm *, size_t, char *);
 int compstrm_write_be32(struct compstrm *, uint32_t);
 int compstrm_write_be64(struct compstrm *, uint64_t);
 
 //drpm_decompstrm.c
-struct decompstrm;
+int decompstrm_copy_read_len(struct decompstrm *, size_t *);
 int decompstrm_destroy(struct decompstrm **);
 int decompstrm_init(struct decompstrm **, int, uint32_t *);
 int decompstrm_read(struct decompstrm *, size_t, char *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
+int decompstrm_read_until_eof(struct decompstrm *, size_t *, char **);
 
 //drpm_deltarpm.c
 bool deltarpm_decode_comp(uint32_t, unsigned short *, unsigned short *);
@@ -91,6 +113,8 @@ bool deltarpm_encode_comp(uint32_t *, unsigned short, unsigned short);
 
 //drpm_make.c
 void free_deltarpm(struct deltarpm *);
+int parse_cpio_from_rpm_filedata(struct rpm *, unsigned char **, size_t *,
+    unsigned char **, uint32_t *, uint32_t **, uint32_t *);
 int write_nodiff_deltarpm(struct deltarpm *, const char *);
 
 //drpm_read.c
@@ -101,24 +125,24 @@ int readdelta_rpmonly(int, struct drpm *);
 int readdelta_standard(int, struct drpm *);
 
 //drpm_rpm.c
-struct rpm;
 int rpm_add_archive_to_md5(struct rpm *, MD5_CTX *);
 int rpm_add_header_to_md5(struct rpm *, MD5_CTX *);
 int rpm_add_lead_to_md5(struct rpm *, MD5_CTX *);
 int rpm_add_signature_to_md5(struct rpm *, MD5_CTX *);
-ssize_t rpm_archive_read_chunk(struct rpm *, unsigned char *, size_t);
-void rpm_archive_rewind(struct rpm *);
+int rpm_archive_read_chunk(struct rpm *, void *, size_t);
+int rpm_archive_rewind(struct rpm *);
 int rpm_destroy(struct rpm **);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
 int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
 int rpm_get_comp(struct rpm *, uint32_t *);
 int rpm_get_comp_level(struct rpm *, unsigned short *);
-int rpm_get_file_info(struct rpm *, struct file_info **, unsigned *, bool *);
+int rpm_get_digest_algo(struct rpm *, unsigned short *);
+int rpm_get_file_info(struct rpm *, struct file_info **, size_t *, bool *);
 int rpm_get_nevr(struct rpm *, char **);
 int rpm_get_payload_format(struct rpm *, unsigned short *);
 int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
 int rpm_patch_payload_format(struct rpm *, const char *);
-int rpm_read(struct rpm **, const char *, bool);
+int rpm_read(struct rpm **, const char *, int);
 int rpm_read_only_comp(const char *, unsigned short *, unsigned short *);
 int rpm_rewrite_signature(struct rpm *, int);
 int rpm_signature_empty(struct rpm *);
@@ -132,16 +156,21 @@ int rpm_write(struct rpm *, const char *, bool);
 //drpm_utils.c
 void create_be32(uint32_t, char *);
 void create_be64(uint64_t, char *);
-void dump_hex(char *, char *, size_t);
-uint32_t parse_be32(char *);
-uint64_t parse_be64(char *);
-bool resize(void **, uint32_t *, size_t);
+void dump_hex(char *, const char *, size_t);
+int md5_update_be32(MD5_CTX *, uint32_t);
+uint32_t parse_be32(const char *);
+uint64_t parse_be64(const char *);
+ssize_t parse_hex(char *, const char *);
+ssize_t parse_hexnum(const char *, size_t);
+bool parse_md5(char *, const char *);
+bool parse_sha256(char *, const char *);
+bool resize(void **, size_t, size_t);
 
 //drpm_write.c
 int write_be32(int, uint32_t);
 int write_be64(int, uint64_t);
-int write_deltarpm(struct deltarpm);
-int write_seqfile(struct deltarpm, const char *);
+int write_deltarpm(struct deltarpm *);
+int write_seqfile(struct deltarpm *, const char *);
 
 struct deltarpm {
     const char *filename;

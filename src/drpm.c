@@ -45,9 +45,6 @@
                           | DRPM_FLAG_COMP_LEVEL_7 | DRPM_FLAG_COMP_LEVEL_8 \
                           | DRPM_FLAG_COMP_LEVEL_9)
 
-#define FLAG_SET(flags, flag) (((flags) & (flag)) != 0)
-#define MASK_FLAGS(flags, mask) ((flags) & (mask))
-
 const char *drpm_strerror(int error)
 {
     switch (error) {
@@ -341,7 +338,8 @@ int drpm_destroy(struct drpm **delta)
     return DRPM_ERR_OK;
 }
 
-int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, const char *seqfile, int flags)
+int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm,
+              const char *seqfile, int flags)
 {
     int error = DRPM_ERR_OK;
 
@@ -430,8 +428,12 @@ int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, c
         break;
     case DRPM_FLAG_NONE:
         if ((error = rpm_read_only_comp(alone ? solo_rpm : new_rpm,
-            &comp, &comp_level)) != DRPM_ERR_OK)
+                                        &comp, &comp_level)) != DRPM_ERR_OK)
             return error;
+        if (comp == DRPM_COMP_LZIP) { // deltarpm does not support lzip
+            comp = DRPM_COMP_XZ;
+            comp_level = COMP_LEVEL_DEFAULT;
+        }
         break;
     default:
         return DRPM_ERR_ARGS;
@@ -455,7 +457,7 @@ int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm, c
 
 write_seq:
     if (seqfile != NULL)
-        error = write_seqfile(delta, seqfile);
+        error = write_seqfile(&delta, seqfile);
 
 //cleanup:
 

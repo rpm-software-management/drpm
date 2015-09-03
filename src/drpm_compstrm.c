@@ -321,7 +321,7 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
     }
 }
 
-int compstrm_get_data(struct compstrm *strm, char **data, size_t *data_len)
+int compstrm_copy_data(struct compstrm *strm, char **data, size_t *data_len)
 {
     if (strm == NULL || data == NULL || data_len == NULL)
         return DRPM_ERR_ARGS;
