@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <zlib.h>
@@ -48,6 +49,7 @@ struct decompstrm {
     } stream;
     int (*read_chunk)(struct decompstrm *);
     void (*finish)(struct decompstrm *);
+    size_t read_len;
 };
 
 static void finish_bzip2(struct decompstrm *);
@@ -176,6 +178,7 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
     (*strm)->data_len = 0;
     (*strm)->data_pos = 0;
     (*strm)->filedesc = filedesc;
+    (*strm)->read_len = 0;
 
     if (MAGIC_GZIP(magic)) {
         if (comp != NULL)
@@ -200,6 +203,16 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
 
     (*strm)->read_chunk = readchunk;
     (*strm)->finish = NULL;
+
+    return DRPM_ERR_OK;
+}
+
+int decompstrm_copy_read_len(struct decompstrm *strm, size_t *read_len)
+{
+    if (strm == NULL || read_len == NULL)
+        return DRPM_ERR_ARGS;
+
+    *read_len = strm->read_len;
 
     return DRPM_ERR_OK;
 }
@@ -255,6 +268,39 @@ int decompstrm_read(struct decompstrm *strm, size_t read_len, char *buffer_ret)
     return DRPM_ERR_OK;
 }
 
+int decompstrm_read_until_eof(struct decompstrm *strm, size_t *len_ret, char **buffer_ret)
+{
+    int error;
+    bool eof = false;
+
+    if (strm == NULL || (buffer_ret != NULL && len_ret == NULL))
+        return DRPM_ERR_ARGS;
+
+    while (!eof) {
+        switch ((error = strm->read_chunk(strm))) {
+        case DRPM_ERR_OK:
+            break;
+        case DRPM_ERR_FORMAT: // nothing more to read
+            eof = true;
+            break;
+        default:
+            return error;
+        }
+    }
+
+    if (len_ret != NULL) {
+        *len_ret = strm->data_len - strm->data_pos;
+        if (buffer_ret != NULL) {
+            if ((*buffer_ret = malloc(*len_ret)) == NULL)
+                return DRPM_ERR_MEMORY;
+            memcpy(*buffer_ret, strm->data + strm->data_pos, *len_ret);
+            strm->data_pos = strm->data_len;
+        }
+    }
+
+    return DRPM_ERR_OK;
+}
+
 int readchunk(struct decompstrm *strm)
 {
     ssize_t in_len;
@@ -273,6 +319,8 @@ int readchunk(struct decompstrm *strm)
     strm->data = data_tmp;
     memcpy(strm->data + strm->data_len, buffer, in_len);
     strm->data_len += in_len;
+
+    strm->read_len = strm->data_len;
 
     return DRPM_ERR_OK;
 }
@@ -315,6 +363,8 @@ int readchunk_bzip2(struct decompstrm *strm)
         strm->data_len += out_len;
     } while (!strm->stream.bzip2.avail_out);
 
+    strm->read_len += in_len;
+
     return DRPM_ERR_OK;
 }
 
@@ -356,6 +406,8 @@ int readchunk_gzip(struct decompstrm *strm)
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     } while (!strm->stream.gzip.avail_out);
+
+    strm->read_len += in_len;
 
     return DRPM_ERR_OK;
 }
@@ -404,6 +456,8 @@ int readchunk_lzma(struct decompstrm *strm)
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     } while (!strm->stream.lzma.avail_out);
+
+    strm->read_len += in_len;
 
     return DRPM_ERR_OK;
 }

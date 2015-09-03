@@ -24,22 +24,17 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <ctype.h>
+#include <sys/types.h>
+#include <openssl/md5.h>
+#include <openssl/sha.h>//
 
 #define ALLOC_SIZE 32
 
-void dump_hex(char *dest, char *source, size_t count)
-{
-    char digits[] = "0123456789abcdef";
+// TODO: decide between char and unsigned char arrays for create_be*
 
-    dest[count * 2] = '\0';
-
-    while (count--) {
-        dest[count * 2] = digits[source[count] >> 4 & 0x0F];
-        dest[count * 2 + 1] = digits[source[count] & 0x0F];
-    }
-}
-
-uint32_t parse_be32(char buffer[4])
+uint32_t parse_be32(const char buffer[4])
 {
     return (0xFF000000 & (buffer[0] << 24)) |
            (0x00FF0000 & (buffer[1] << 16)) |
@@ -47,7 +42,7 @@ uint32_t parse_be32(char buffer[4])
            (0x000000FF & buffer[3]);
 }
 
-uint64_t parse_be64(char buffer[8])
+uint64_t parse_be64(const char buffer[8])
 {
     return (0xFF00000000000000 & ((uint64_t)buffer[0] << 56)) |
            (0x00FF000000000000 & ((uint64_t)buffer[1] << 48)) |
@@ -79,13 +74,76 @@ void create_be64(uint64_t in, char out[8])
     out[7] = in;
 }
 
-bool resize(void **buffer, uint32_t *members_count, size_t member_size)
+int md5_update_be32(MD5_CTX *md5, uint32_t number)
 {
-    if (*members_count % ALLOC_SIZE == 0) {
+    char be32[4];
+
+    create_be32(number, be32);
+
+    return MD5_Update(md5, be32, 4);
+}
+
+void dump_hex(char *dest, const char *source, size_t count)
+{
+    char digits[] = "0123456789abcdef";
+
+    dest[count * 2] = '\0';
+
+    while (count--) {
+        dest[count * 2] = digits[source[count] >> 4 & 0x0F];
+        dest[count * 2 + 1] = digits[source[count] & 0x0F];
+    }
+}
+
+ssize_t parse_hex(char *dest, const char *source)
+{
+    ssize_t byte;
+    size_t count;
+
+    count = strlen(source) / 2;
+
+    for (size_t i = 0; i < count; i++, source += 2) {
+        if ((byte = parse_hexnum(source, 2)) < 0)
+            return -1;
+        dest[i] = byte;
+    }
+
+    return count;
+}
+
+ssize_t parse_hexnum(const char *str, size_t size)
+{
+    size_t ret = 0;
+
+    for (size_t i = 0; i < size; i++) {
+        ret *= 16;
+        if (isdigit(str[i]))
+            ret += str[i] - '0';
+        else if (isxdigit(str[i]))
+            ret += toupper(str[i]) - 'A' + 0xA;
+        else
+            return -1;
+    }
+
+    return ret;
+}
+
+bool parse_md5(char *dest, const char *source)
+{
+    return parse_hex(dest, source) == MD5_DIGEST_LENGTH;
+}
+
+bool parse_sha256(char *dest, const char *source)
+{
+    return parse_hex(dest, source) == SHA256_DIGEST_LENGTH;
+}
+
+bool resize(void **buffer, size_t members_count, size_t member_size)
+{
+    if (members_count % ALLOC_SIZE == 0) {
         if ((*buffer = realloc(*buffer,
-             member_size * (*members_count + ALLOC_SIZE))) == NULL)
+             member_size * (members_count + ALLOC_SIZE))) == NULL)
             return false;
-        *members_count += ALLOC_SIZE;
     }
 
     return true;
