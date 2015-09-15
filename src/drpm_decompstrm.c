@@ -31,6 +31,7 @@
 #include <zlib.h>
 #include <bzlib.h>
 #include <lzma.h>
+#include <openssl/md5.h>
 
 #define MAGIC_BZIP2(x) (((x) >> 40) == 0x425A68)
 #define MAGIC_GZIP(x) (((x) >> 48) == 0x1F8B)
@@ -50,6 +51,7 @@ struct decompstrm {
     int (*read_chunk)(struct decompstrm *);
     void (*finish)(struct decompstrm *);
     size_t read_len;
+    MD5_CTX *md5;
 };
 
 static void finish_bzip2(struct decompstrm *);
@@ -157,10 +159,10 @@ int decompstrm_destroy(struct decompstrm **strm)
     return DRPM_ERR_OK;
 }
 
-int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
+int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp, MD5_CTX *md5)
 {
     uint64_t magic;
-    int error;
+    int error = DRPM_ERR_OK;
 
     if (strm == NULL || filedesc < 0)
         return DRPM_ERR_ARGS;
@@ -179,32 +181,41 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
     (*strm)->data_pos = 0;
     (*strm)->filedesc = filedesc;
     (*strm)->read_len = 0;
+    (*strm)->md5 = md5;
 
     if (MAGIC_GZIP(magic)) {
         if (comp != NULL)
             *comp = DRPM_COMP_GZIP;
-        return init_gzip(*strm);
+        if ((error = init_gzip(*strm)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     } else if (MAGIC_BZIP2(magic)) {
         if (comp != NULL)
             *comp = DRPM_COMP_BZIP2;
-        return init_bzip2(*strm);
+        if ((error = init_bzip2(*strm)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     } else if (MAGIC_XZ(magic)) {
         if (comp != NULL)
             *comp = DRPM_COMP_XZ;
-        return init_lzma(*strm);
+        if ((error = init_lzma(*strm)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     } else if (MAGIC_LZMA(magic)) {
         if (comp != NULL)
             *comp = DRPM_COMP_LZMA;
-        return init_lzma(*strm);
+        if ((error = init_lzma(*strm)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+    } else {
+        if (comp != NULL)
+            *comp = DRPM_COMP_NONE;
+        (*strm)->read_chunk = readchunk;
+        (*strm)->finish = NULL;
     }
 
-    if (comp != NULL)
-        *comp = DRPM_COMP_NONE;
-
-    (*strm)->read_chunk = readchunk;
-    (*strm)->finish = NULL;
-
     return DRPM_ERR_OK;
+
+cleanup_fail:
+    free(*strm);
+
+    return error;
 }
 
 int decompstrm_copy_read_len(struct decompstrm *strm, size_t *read_len)
@@ -220,12 +231,12 @@ int decompstrm_copy_read_len(struct decompstrm *strm, size_t *read_len)
 int decompstrm_read_be32(struct decompstrm *strm, uint32_t *buffer_ret)
 {
     int error;
-    char bytes[4];
+    unsigned char bytes[4];
 
     if (strm == NULL)
         return DRPM_ERR_ARGS;
 
-    if ((error = decompstrm_read(strm, 4, bytes)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(strm, 4, (char *)bytes)) != DRPM_ERR_OK)
         return error;
 
     *buffer_ret = parse_be32(bytes);
@@ -236,12 +247,12 @@ int decompstrm_read_be32(struct decompstrm *strm, uint32_t *buffer_ret)
 int decompstrm_read_be64(struct decompstrm *strm, uint64_t *buffer_ret)
 {
     int error;
-    char bytes[8];
+    unsigned char bytes[8];
 
     if (strm == NULL)
         return DRPM_ERR_ARGS;
 
-    if ((error = decompstrm_read(strm, 8, bytes)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read(strm, 8, (char *)bytes)) != DRPM_ERR_OK)
         return error;
 
     *buffer_ret = parse_be64(bytes);
@@ -322,6 +333,9 @@ int readchunk(struct decompstrm *strm)
 
     strm->read_len = strm->data_len;
 
+    if (strm->md5 != NULL && MD5_Update(strm->md5, buffer, in_len) != 1)
+        return DRPM_ERR_OTHER;
+
     return DRPM_ERR_OK;
 }
 
@@ -364,6 +378,9 @@ int readchunk_bzip2(struct decompstrm *strm)
     } while (!strm->stream.bzip2.avail_out);
 
     strm->read_len += in_len;
+
+    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+        return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
 }
@@ -408,6 +425,9 @@ int readchunk_gzip(struct decompstrm *strm)
     } while (!strm->stream.gzip.avail_out);
 
     strm->read_len += in_len;
+
+    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+        return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
 }
@@ -458,6 +478,9 @@ int readchunk_lzma(struct decompstrm *strm)
     } while (!strm->stream.lzma.avail_out);
 
     strm->read_len += in_len;
+
+    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+        return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
 }

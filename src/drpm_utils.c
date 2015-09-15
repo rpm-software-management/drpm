@@ -28,13 +28,11 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <openssl/md5.h>
-#include <openssl/sha.h>//
+#include <openssl/sha.h>
 
 #define ALLOC_SIZE 32
 
-// TODO: decide between char and unsigned char arrays for create_be*
-
-uint32_t parse_be32(const char buffer[4])
+uint32_t parse_be32(const unsigned char buffer[4])
 {
     return (0xFF000000 & (buffer[0] << 24)) |
            (0x00FF0000 & (buffer[1] << 16)) |
@@ -42,7 +40,7 @@ uint32_t parse_be32(const char buffer[4])
            (0x000000FF & buffer[3]);
 }
 
-uint64_t parse_be64(const char buffer[8])
+uint64_t parse_be64(const unsigned char buffer[8])
 {
     return (0xFF00000000000000 & ((uint64_t)buffer[0] << 56)) |
            (0x00FF000000000000 & ((uint64_t)buffer[1] << 48)) |
@@ -54,7 +52,7 @@ uint64_t parse_be64(const char buffer[8])
            (0x00000000000000FF & (uint64_t)buffer[7]);
 }
 
-void create_be32(uint32_t in, char out[4])
+void create_be32(uint32_t in, unsigned char out[4])
 {
     out[0] = in >> 24;
     out[1] = in >> 16;
@@ -62,7 +60,7 @@ void create_be32(uint32_t in, char out[4])
     out[3] = in;
 }
 
-void create_be64(uint64_t in, char out[8])
+void create_be64(uint64_t in, unsigned char out[8])
 {
     out[0] = in >> 56;
     out[1] = in >> 48;
@@ -76,7 +74,7 @@ void create_be64(uint64_t in, char out[8])
 
 int md5_update_be32(MD5_CTX *md5, uint32_t number)
 {
-    char be32[4];
+    unsigned char be32[4];
 
     create_be32(number, be32);
 
@@ -95,7 +93,7 @@ void dump_hex(char *dest, const char *source, size_t count)
     }
 }
 
-ssize_t parse_hex(char *dest, const char *source)
+ssize_t parse_hex(unsigned char *dest, const char *source)
 {
     ssize_t byte;
     size_t count;
@@ -128,12 +126,12 @@ ssize_t parse_hexnum(const char *str, size_t size)
     return ret;
 }
 
-bool parse_md5(char *dest, const char *source)
+bool parse_md5(unsigned char *dest, const char *source)
 {
     return parse_hex(dest, source) == MD5_DIGEST_LENGTH;
 }
 
-bool parse_sha256(char *dest, const char *source)
+bool parse_sha256(unsigned char *dest, const char *source)
 {
     return parse_hex(dest, source) == SHA256_DIGEST_LENGTH;
 }

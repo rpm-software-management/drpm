@@ -234,51 +234,6 @@ void cpio_header_write(const struct cpio_header *cpio_hdr,
             cpio_hdr->rdevminor, cpio_hdr->namesize, 0);
 }
 
-void free_deltarpm(struct deltarpm *delta)
-{
-    switch (delta->type) {
-    case DRPM_TYPE_STANDARD:
-        rpm_destroy(&delta->head.rpm_head); //errval?
-        break;
-    case DRPM_TYPE_RPMONLY:
-        free(delta->head.tgt_nevr);
-        delta->head.tgt_nevr = NULL;
-        break;
-    }
-
-    free(delta->src_nevr);
-    free(delta->sequence);
-    free(delta->tgt_comp_param);
-    free(delta->offadjs);
-    free(delta->tgt_lead);
-    free(delta->int_copies);
-    free(delta->ext_copies);
-    free(delta->add_data);
-    free(delta->int_data);
-
-    delta->src_nevr = NULL;
-    delta->sequence_len = 0;
-    delta->sequence = NULL;
-    delta->tgt_size = 0;
-    delta->tgt_comp_param_len = 0;
-    delta->tgt_comp_param = NULL;
-    delta->tgt_header_len = 0;
-    delta->offadjn = 0;
-    delta->offadjs = NULL;
-    delta->tgt_lead_len = 0;
-    delta->tgt_lead = NULL;
-    delta->payload_fmt_off = 0;
-    delta->inn = 0;
-    delta->outn = 0;
-    delta->int_copies = NULL;
-    delta->ext_copies = NULL;
-    delta->ext_data_len = 0;
-    delta->add_data_len = 0;
-    delta->add_data = NULL;
-    delta->int_data_len = 0;
-    delta->int_data = NULL;
-}
-
 /* For standard deltarpms, the old RPM's CPIO archive is parsed based
  * on filesystem data found in the RPM header. An altered CPIO archive
  * is created: e.g. some files may be skipped, a symlink's file content
@@ -303,7 +258,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
     unsigned files_index;
 
     unsigned short digest_algo;
-    char digest[MAX(MD5_DIGEST_LENGTH, SHA256_DIGEST_LENGTH)] = {0};
+    unsigned char digest[MAX(MD5_DIGEST_LENGTH, SHA256_DIGEST_LENGTH)] = {0};
 
     unsigned char *cpio = NULL;
     size_t cpio_len = 0;
@@ -394,7 +349,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             goto cleanup_fail;
         }
 
-        /* end of archive */
+        /* end of archive? */
         if (strcmp(name, CPIO_TRAILER) == 0)
             break;
 
@@ -408,7 +363,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             goto cleanup_fail;
 
         const size_t cpio_hdrname_len = CPIO_HEADER_SIZE + c_namesize + padding_bytes;
-        const size_t cpio_pos_before_hdrname = cpio_pos;
+        size_t cpio_pos_before_hdrname = cpio_pos;
 
         cpio_pos += cpio_hdrname_len;
 
@@ -471,24 +426,24 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                         offadjs[offadjn * 2] = cpio_len - cpio_len_prev;
                         cpio_len_prev = cpio_len;
 
-                        if (cpio_pos_before_hdrname >= cpio_len) {
-                            offset = cpio_pos_before_hdrname - cpio_len;
-                            if (offset >= (uint32_t)INT32_MIN) {
-                                offadjs[offadjn++ * 2 + 1] = INT32_MAX;
-                                cpio_pos -= INT32_MAX;
-                                continue;
-                            }
-                            offadjs[offadjn++ * 2 + 1] = offset;
-                            break;
-                        } else {
+                        if (cpio_pos_before_hdrname < cpio_len) {
                             offset = cpio_len - cpio_pos_before_hdrname;
                             if (offset >= (uint32_t)INT32_MIN) {
                                 offadjs[offadjn++ * 2 + 1] =
                                     TWOS_COMPLEMENT((uint32_t)INT32_MAX);
-                                cpio_pos += INT32_MAX;
+                                cpio_pos_before_hdrname += INT32_MAX;
                                 continue;
                             }
                             offadjs[offadjn++ * 2 + 1] = TWOS_COMPLEMENT(offset);
+                            break;
+                        } else {
+                            offset = cpio_pos_before_hdrname - cpio_len;
+                            if (offset >= (uint32_t)INT32_MIN) {
+                                offadjs[offadjn++ * 2 + 1] = INT32_MAX;
+                                cpio_pos_before_hdrname -= INT32_MAX;
+                                continue;
+                            }
+                            offadjs[offadjn++ * 2 + 1] = offset;
                             break;
                         }
                     }
@@ -640,50 +595,34 @@ cleanup:
  * only read one RPM file and rpm-only deltarpms take the RPMs' CPIO
  * archives "as is" (i.e. they are not altered based on filesystem data),
  * there is nothing to diff. */
-int write_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename)
+int fill_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename,
+                         bool comp_not_set)
 {
     struct rpm *solo_rpm;
-    MD5_CTX seq_md5;
-    MD5_CTX full_md5;
     char *nevr = NULL;
     int error = DRPM_ERR_OK;
 
-    if ((error = rpm_read(&solo_rpm, rpm_filename, true)) != DRPM_ERR_OK ||
-        (error = rpm_fetch_lead_and_signature(solo_rpm, &delta->tgt_lead, &delta->tgt_lead_len)) != DRPM_ERR_OK)
-        goto cleanup;
-
-    if (MD5_Init(&seq_md5) != 1 || MD5_Init(&full_md5) != 1) {
-        error = DRPM_ERR_OTHER;
-        goto cleanup;
+    if (comp_not_set) {
+        delta->comp = DRPM_COMP_GZIP;
+        delta->comp_level = COMP_LEVEL_DEFAULT;
     }
 
-    if ((error = rpm_add_lead_to_md5(solo_rpm, &full_md5)) != DRPM_ERR_OK ||
-        (error = rpm_add_signature_to_md5(solo_rpm, &seq_md5)) != DRPM_ERR_OK ||
-        (error = rpm_add_signature_to_md5(solo_rpm, &full_md5)) != DRPM_ERR_OK ||
-        (error = rpm_add_header_to_md5(solo_rpm, &seq_md5)) != DRPM_ERR_OK ||
-        (error = rpm_add_header_to_md5(solo_rpm, &full_md5)) != DRPM_ERR_OK ||
-        (error = rpm_add_archive_to_md5(solo_rpm, &seq_md5)) != DRPM_ERR_OK ||
-        (error = rpm_add_archive_to_md5(solo_rpm, &full_md5)) != DRPM_ERR_OK)
-        goto cleanup;
+    delta->tgt_comp = DRPM_COMP_NONE;
 
     if ((delta->sequence = malloc(MD5_DIGEST_LENGTH)) == NULL) {
         error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
-
     delta->sequence_len = MD5_DIGEST_LENGTH;
 
-    if (MD5_Final(delta->sequence, &seq_md5) != 1 ||
-        MD5_Final(delta->tgt_md5, &full_md5) != 1) {
-        error = DRPM_ERR_OTHER;
-        goto cleanup;
-    }
-
-    if ((error = rpm_get_nevr(solo_rpm, &nevr)) != DRPM_ERR_OK)
+    if ((error = rpm_read(&solo_rpm, rpm_filename, RPM_ARCHIVE_READ_UNCOMP,
+                          NULL, delta->sequence, delta->tgt_md5)) != DRPM_ERR_OK ||
+        (error = rpm_fetch_lead_and_signature(solo_rpm, &delta->tgt_lead, &delta->tgt_lead_len)) != DRPM_ERR_OK ||
+        (error = rpm_get_nevr(solo_rpm, &nevr)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if ((delta->src_nevr = malloc(strlen(nevr))) == NULL ||
-        (delta->head.tgt_nevr = malloc(strlen(nevr))) == NULL) {
+    if ((delta->src_nevr = malloc(strlen(nevr) + 1)) == NULL ||
+        (delta->head.tgt_nevr = malloc(strlen(nevr) + 1)) == NULL) {
         error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
@@ -709,12 +648,54 @@ int write_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename)
     delta->int_data_len = 0;
     delta->int_data = NULL;
 
-    error = write_deltarpm(delta);
-
 cleanup:
     free(nevr);
     rpm_destroy(&solo_rpm);
-    free_deltarpm(delta);
 
     return error;
+}
+
+void free_deltarpm(struct deltarpm *delta)
+{
+    switch (delta->type) {
+    case DRPM_TYPE_STANDARD:
+        rpm_destroy(&delta->head.tgt_rpm); // superfluous!!
+        break;
+    case DRPM_TYPE_RPMONLY:
+        free(delta->head.tgt_nevr);
+        delta->head.tgt_nevr = NULL;
+        break;
+    }
+
+    free(delta->src_nevr);
+    free(delta->sequence);
+    free(delta->tgt_comp_param);
+    free(delta->offadjs);
+    free(delta->tgt_lead);
+    free(delta->int_copies);
+    free(delta->ext_copies);
+    free(delta->add_data);
+    free(delta->int_data);
+
+    delta->src_nevr = NULL;
+    delta->sequence_len = 0;
+    delta->sequence = NULL;
+    delta->tgt_size = 0;
+    delta->tgt_comp_param_len = 0;
+    delta->tgt_comp_param = NULL;
+    delta->tgt_header_len = 0;
+    delta->offadjn = 0;
+    delta->offadjs = NULL;
+    delta->tgt_lead_len = 0;
+    delta->tgt_lead = NULL;
+    delta->payload_fmt_off = 0;
+    delta->inn = 0;
+    delta->outn = 0;
+    delta->int_copies = NULL;
+    delta->ext_copies = NULL;
+    delta->ext_data_len = 0;
+    delta->add_data_len = 0;
+    delta->add_data = NULL;
+    delta->int_data_len = 0;
+    delta->int_data = NULL;
 }

@@ -101,7 +101,7 @@ int compstrm_write_be64(struct compstrm *, uint64_t);
 //drpm_decompstrm.c
 int decompstrm_copy_read_len(struct decompstrm *, size_t *);
 int decompstrm_destroy(struct decompstrm **);
-int decompstrm_init(struct decompstrm **, int, uint32_t *);
+int decompstrm_init(struct decompstrm **, int, uint32_t *, MD5_CTX *);
 int decompstrm_read(struct decompstrm *, size_t, char *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
@@ -112,10 +112,11 @@ bool deltarpm_decode_comp(uint32_t, unsigned short *, unsigned short *);
 bool deltarpm_encode_comp(uint32_t *, unsigned short, unsigned short);
 
 //drpm_make.c
+int fill_nodiff_deltarpm(struct deltarpm *, const char *, bool);
 void free_deltarpm(struct deltarpm *);
 int parse_cpio_from_rpm_filedata(struct rpm *, unsigned char **, size_t *,
-    unsigned char **, uint32_t *, uint32_t **, uint32_t *);
-int write_nodiff_deltarpm(struct deltarpm *, const char *);
+                                 unsigned char **, uint32_t *,
+                                 uint32_t **, uint32_t *);
 
 //drpm_read.c
 int read_be32(int, uint32_t *);
@@ -132,6 +133,7 @@ int rpm_add_signature_to_md5(struct rpm *, MD5_CTX *);
 int rpm_archive_read_chunk(struct rpm *, void *, size_t);
 int rpm_archive_rewind(struct rpm *);
 int rpm_destroy(struct rpm **);
+int rpm_fetch_archive(struct rpm *, unsigned char **, size_t *);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
 int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
 int rpm_get_comp(struct rpm *, uint32_t *);
@@ -142,8 +144,8 @@ int rpm_get_nevr(struct rpm *, char **);
 int rpm_get_payload_format(struct rpm *, unsigned short *);
 int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
 int rpm_patch_payload_format(struct rpm *, const char *);
-int rpm_read(struct rpm **, const char *, int);
-int rpm_read_only_comp(const char *, unsigned short *, unsigned short *);
+int rpm_read(struct rpm **, const char *, int, unsigned short *,
+             unsigned char *, unsigned char *);
 int rpm_rewrite_signature(struct rpm *, int);
 int rpm_signature_empty(struct rpm *);
 int rpm_signature_set_headersignatures(struct rpm *, unsigned char *);
@@ -154,16 +156,16 @@ uint32_t rpm_size_header(struct rpm *);
 int rpm_write(struct rpm *, const char *, bool);
 
 //drpm_utils.c
-void create_be32(uint32_t, char *);
-void create_be64(uint64_t, char *);
+void create_be32(uint32_t, unsigned char *);
+void create_be64(uint64_t, unsigned char *);
 void dump_hex(char *, const char *, size_t);
 int md5_update_be32(MD5_CTX *, uint32_t);
-uint32_t parse_be32(const char *);
-uint64_t parse_be64(const char *);
-ssize_t parse_hex(char *, const char *);
+uint32_t parse_be32(const unsigned char *);
+uint64_t parse_be64(const unsigned char *);
+ssize_t parse_hex(unsigned char *, const char *);
 ssize_t parse_hexnum(const char *, size_t);
-bool parse_md5(char *, const char *);
-bool parse_sha256(char *, const char *);
+bool parse_md5(unsigned char *, const char *);
+bool parse_sha256(unsigned char *, const char *);
 bool resize(void **, size_t, size_t);
 
 //drpm_write.c
@@ -178,7 +180,7 @@ struct deltarpm {
     unsigned short comp;
     unsigned short comp_level;
     union {
-        struct rpm *rpm_head;
+        struct rpm *tgt_rpm;
         char *tgt_nevr;
     } head;
     unsigned short version;
