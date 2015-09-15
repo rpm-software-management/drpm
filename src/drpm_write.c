@@ -30,7 +30,7 @@
 
 int write_be32(int filedesc, uint32_t number)
 {
-    char nbo[4];
+    unsigned char nbo[4];
 
     create_be32(number, nbo);
 
@@ -42,7 +42,7 @@ int write_be32(int filedesc, uint32_t number)
 
 int write_be64(int filedesc, uint64_t number)
 {
-    char nbo[8];
+    unsigned char nbo[8];
 
     create_be64(number, nbo);
 
@@ -77,7 +77,7 @@ int write_deltarpm(struct deltarpm *delta)
 
     switch (delta->type) {
     case DRPM_TYPE_STANDARD:
-        if ((error = rpm_fetch_header(delta->head.rpm_head, &header, &header_size)) != DRPM_ERR_OK)
+        if ((error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
             return error;
 
         if (MD5_Init(&md5) != 1 ||
@@ -89,12 +89,12 @@ int write_deltarpm(struct deltarpm *delta)
         create_be32((uint32_t)-3*16, header_signatures + 8);
         create_be32(16, header_signatures + 12);
 
-        if ((error = rpm_signature_empty(delta->head.rpm_head)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_headersignatures(delta->head.rpm_head, header_signatures)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_size(delta->head.rpm_head, 0)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_md5(delta->head.rpm_head, md5_digest)) != DRPM_ERR_OK ||
-            (error = rpm_patch_payload_format(delta->head.rpm_head, "drpm")) != DRPM_ERR_OK ||
-            (error = rpm_write(delta->head.rpm_head, delta->filename, false)) != DRPM_ERR_OK)
+        if ((error = rpm_signature_empty(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_headersignatures(delta->head.tgt_rpm, header_signatures)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_size(delta->head.tgt_rpm, 0)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_md5(delta->head.tgt_rpm, md5_digest)) != DRPM_ERR_OK ||
+            (error = rpm_patch_payload_format(delta->head.tgt_rpm, "drpm")) != DRPM_ERR_OK ||
+            (error = rpm_write(delta->head.tgt_rpm, delta->filename, false)) != DRPM_ERR_OK)
             return error;
 
         if ((filedesc = open(delta->filename, O_WRONLY | O_APPEND)) < 0)
@@ -226,9 +226,9 @@ int write_deltarpm(struct deltarpm *delta)
             error = DRPM_ERR_OTHER;
             goto cleanup;
         }
-        if ((error = rpm_signature_set_size(delta->head.rpm_head, header_size + strm_data_len) != DRPM_ERR_OK) ||
-            (error = rpm_signature_set_md5(delta->head.rpm_head, md5_digest) != DRPM_ERR_OK) ||
-            (error = rpm_rewrite_signature(delta->head.rpm_head, filedesc)) != DRPM_ERR_OK)
+        if ((error = rpm_signature_set_size(delta->head.tgt_rpm, header_size + strm_data_len) != DRPM_ERR_OK) ||
+            (error = rpm_signature_set_md5(delta->head.tgt_rpm, md5_digest) != DRPM_ERR_OK) ||
+            (error = rpm_rewrite_signature(delta->head.tgt_rpm, filedesc)) != DRPM_ERR_OK)
             goto cleanup;
     }
 
@@ -247,36 +247,25 @@ cleanup:
 
 int write_seqfile(struct deltarpm *delta, const char *filename)
 {
-    int filedesc;
-    char *string = NULL;
+    FILE *file;
     char *sequence = NULL;
-    size_t string_len;
     int error = DRPM_ERR_OK;
 
-    if ((filedesc = creat(filename, MODE)) < 0)
+    if ((file = fopen(filename, "w")) == NULL)
         return DRPM_ERR_IO;
 
-    string_len = strlen(delta->src_nevr) + delta->sequence_len * 2 + 2;
-
-    if ((string = malloc(string_len + 1)) == NULL ||
-        (sequence = malloc(delta->sequence_len * 2 + 1)) == NULL) {
+    if ((sequence = malloc(delta->sequence_len * 2 + 1)) == NULL) {
         error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
 
     dump_hex(sequence, (char *)delta->sequence, delta->sequence_len);
 
-    strcpy(string, delta->src_nevr);
-    strcat(string, "-");
-    strcat(string, sequence);
-    strcat(string, "\n");
-
-    if (write(filedesc, string, string_len) != (ssize_t)string_len)
-        error = DRPM_ERR_IO;
+    fprintf(file, "%s-%s\n", delta->src_nevr, sequence);
 
 cleanup:
     free(sequence);
-    close(filedesc);
+    fclose(file);
 
     return error;
 }

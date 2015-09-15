@@ -291,6 +291,8 @@ int compstrm_destroy(struct compstrm **strm)
 
 int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int level)
 {
+    int error;
+
     if (strm == NULL || filedesc < 0 ||
         (level != COMP_LEVEL_DEFAULT && (level < 1 || level > 9)))
         return DRPM_ERR_ARGS;
@@ -307,18 +309,28 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
     case DRPM_COMP_NONE:
         (*strm)->write_chunk = writechunk;
         (*strm)->finish = NULL;
-        return DRPM_ERR_OK;
     case DRPM_COMP_GZIP:
-        return init_gzip(*strm, level);
+        if ((error = init_gzip(*strm, level)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     case DRPM_COMP_BZIP2:
-        return init_bzip2(*strm, level);
+        if ((error = init_bzip2(*strm, level)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     case DRPM_COMP_LZMA:
-        return init_lzma(*strm, level);
+        if ((error = init_lzma(*strm, level)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     case DRPM_COMP_XZ:
-        return init_xz(*strm, level);
+        if ((error = init_xz(*strm, level)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     default:
         return DRPM_ERR_ARGS;
     }
+
+    return DRPM_ERR_OK;
+
+cleanup_fail:
+    free(*strm);
+
+    return error;
 }
 
 int compstrm_copy_data(struct compstrm *strm, char **data, size_t *data_len)
@@ -337,26 +349,26 @@ int compstrm_copy_data(struct compstrm *strm, char **data, size_t *data_len)
 
 int compstrm_write_be32(struct compstrm *strm, uint32_t number)
 {
-    char bytes[4];
+    unsigned char bytes[4];
 
     if (strm == NULL)
         return DRPM_ERR_ARGS;
 
     create_be32(number, bytes);
 
-    return compstrm_write(strm, 4, bytes);
+    return compstrm_write(strm, 4, (char *)bytes);
 }
 
 int compstrm_write_be64(struct compstrm *strm, uint64_t number)
 {
-    char bytes[8];
+    unsigned char bytes[8];
 
     if (strm == NULL)
         return DRPM_ERR_ARGS;
 
     create_be64(number, bytes);
 
-    return compstrm_write(strm, 8, bytes);
+    return compstrm_write(strm, 8, (char *)bytes);
 }
 
 int compstrm_write(struct compstrm *strm, size_t write_len, char *buffer)

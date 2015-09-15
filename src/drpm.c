@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -133,6 +134,26 @@ cleanup:
     close(filedesc);
 
     return error;
+}
+
+int drpm_destroy(struct drpm **delta)
+{
+    if (delta == NULL || *delta == NULL)
+        return DRPM_ERR_ARGS;
+
+    free((*delta)->filename);
+    free((*delta)->src_nevr);
+    free((*delta)->tgt_nevr);
+    free((*delta)->sequence);
+    free((*delta)->tgt_comp_param);
+    free((*delta)->tgt_lead);
+    free((*delta)->adj_elems);
+    free((*delta)->int_copies);
+    free((*delta)->ext_copies);
+    free(*delta);
+    *delta = NULL;
+
+    return DRPM_ERR_OK;
 }
 
 int drpm_get_uint(struct drpm *delta, int tag, unsigned *ret)
@@ -318,45 +339,40 @@ int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array,
     return DRPM_ERR_OK;
 }
 
-int drpm_destroy(struct drpm **delta)
-{
-    if (delta == NULL || *delta == NULL)
-        return DRPM_ERR_ARGS;
-
-    free((*delta)->filename);
-    free((*delta)->src_nevr);
-    free((*delta)->tgt_nevr);
-    free((*delta)->sequence);
-    free((*delta)->tgt_comp_param);
-    free((*delta)->tgt_lead);
-    free((*delta)->adj_elems);
-    free((*delta)->int_copies);
-    free((*delta)->ext_copies);
-    free(*delta);
-    *delta = NULL;
-
-    return DRPM_ERR_OK;
-}
-
-int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm,
-              const char *seqfile, int flags)
+int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
+              const char *deltarpm_name, const char *seqfile_name, int flags)
 {
     int error = DRPM_ERR_OK;
 
     bool rpm_only;
     bool alone;
-    const char *solo_rpm = NULL;
     unsigned short version;
-    unsigned short comp;
+    unsigned short comp = USHRT_MAX;
     unsigned short comp_level;
+    bool comp_from_rpm = false;
+
+    const char *solo_rpm_name = NULL;
+    struct rpm *solo_rpm = NULL;
+    struct rpm *old_rpm = NULL;
+    struct rpm *new_rpm = NULL;
+
+    unsigned char *old_cpio = NULL;
+    size_t old_cpio_len;
+    unsigned char *new_cpio = NULL;
+    size_t new_cpio_len;
+
+    unsigned char *old_header = NULL;
+    uint32_t old_header_len;
+    unsigned char *new_header = NULL;
+    uint32_t new_header_len;
 
     struct deltarpm delta = {0};
 
-    if (delta_rpm == NULL || (old_rpm == NULL && new_rpm == NULL))
+    if (deltarpm_name == NULL || (old_rpm_name == NULL && new_rpm_name == NULL))
         return DRPM_ERR_ARGS;
 
-    if ((alone = (old_rpm == NULL || new_rpm == NULL)))
-        solo_rpm = (old_rpm == NULL) ? new_rpm : old_rpm;
+    if ((alone = (old_rpm_name == NULL || new_rpm_name == NULL)))
+        solo_rpm_name = (old_rpm_name == NULL) ? new_rpm_name : old_rpm_name;
 
     rpm_only = FLAG_SET(flags, DRPM_FLAG_RPMONLY);
 
@@ -370,6 +386,29 @@ int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm,
     case DRPM_FLAG_VERSION_3:
     case DRPM_FLAG_NONE:
         version = 3;
+        break;
+    default:
+        return DRPM_ERR_ARGS;
+    }
+
+    switch (MASK_FLAGS(flags, COMP_FLAGS)) {
+    case DRPM_FLAG_COMP_NONE:
+        comp = DRPM_COMP_NONE;
+        break;
+    case DRPM_FLAG_COMP_GZIP:
+        comp = DRPM_COMP_GZIP;
+        break;
+    case DRPM_FLAG_COMP_BZIP2:
+        comp = DRPM_COMP_BZIP2;
+        break;
+    case DRPM_FLAG_COMP_LZMA:
+        comp = DRPM_COMP_LZMA;
+        break;
+    case DRPM_FLAG_COMP_XZ:
+        comp = DRPM_COMP_XZ;
+        break;
+    case DRPM_FLAG_NONE:
+        comp_from_rpm = true;
         break;
     default:
         return DRPM_ERR_ARGS;
@@ -410,56 +449,110 @@ int drpm_make(const char *old_rpm, const char *new_rpm, const char *delta_rpm,
         return DRPM_ERR_ARGS;
     }
 
-    switch (MASK_FLAGS(flags, COMP_FLAGS)) {
-    case DRPM_FLAG_COMP_NONE:
-        comp = DRPM_COMP_NONE;
-        break;
-    case DRPM_FLAG_COMP_GZIP:
-        comp = DRPM_COMP_GZIP;
-        break;
-    case DRPM_FLAG_COMP_BZIP2:
-        comp = DRPM_COMP_BZIP2;
-        break;
-    case DRPM_FLAG_COMP_LZMA:
-        comp = DRPM_COMP_LZMA;
-        break;
-    case DRPM_FLAG_COMP_XZ:
-        comp = DRPM_COMP_XZ;
-        break;
-    case DRPM_FLAG_NONE:
-        if ((error = rpm_read_only_comp(alone ? solo_rpm : new_rpm,
-                                        &comp, &comp_level)) != DRPM_ERR_OK)
-            return error;
-        if (comp == DRPM_COMP_LZIP) { // deltarpm does not support lzip
-            comp = DRPM_COMP_XZ;
-            comp_level = COMP_LEVEL_DEFAULT;
-        }
-        break;
-    default:
-        return DRPM_ERR_ARGS;
-    }
-
     if (rpm_only && version < 3)
         return DRPM_ERR_ARGS;
 
-    delta.filename = delta_rpm;
+    delta.filename = deltarpm_name;
     delta.type = rpm_only ? DRPM_TYPE_RPMONLY : DRPM_TYPE_STANDARD;
     delta.version = version;
-    delta.comp = comp;
-    delta.comp_level = comp_level;
+
+    if (!comp_from_rpm) {
+        delta.comp = comp;
+        delta.comp_level = comp_level;
+    }
 
     if (alone && rpm_only) {
-        error = write_nodiff_deltarpm(&delta, solo_rpm);
-        goto write_seq;
+        if ((error = fill_nodiff_deltarpm(&delta, solo_rpm_name, comp_from_rpm)) != DRPM_ERR_OK)
+            goto cleanup;
+        goto write_files;
+    }
+
+    if (alone) {
+        if ((error = rpm_read(&solo_rpm, solo_rpm_name, RPM_ARCHIVE_READ_DECOMP,
+                              comp_from_rpm ? &delta.comp : NULL, NULL, delta.tgt_md5)) != DRPM_ERR_OK)
+            goto cleanup;
+    } else {
+        if (rpm_only) {
+            if ((delta.sequence = malloc(MD5_DIGEST_LENGTH)) == NULL) {
+                error = DRPM_ERR_MEMORY;
+                goto cleanup;
+            }
+            delta.sequence_len = MD5_DIGEST_LENGTH;
+        }
+        if ((error = rpm_read(&old_rpm, old_rpm_name, RPM_ARCHIVE_READ_DECOMP,
+                              NULL, rpm_only ? delta.sequence : NULL, NULL)) != DRPM_ERR_OK ||
+            (error = rpm_read(&new_rpm, new_rpm_name, RPM_ARCHIVE_READ_DECOMP,
+                              comp_from_rpm ? &delta.comp : NULL, NULL, delta.tgt_md5)) != DRPM_ERR_OK)
+            goto cleanup;
+    }
+
+    if (comp_from_rpm &&
+        (error = rpm_get_comp_level(alone ? solo_rpm : new_rpm, &delta.comp_level)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if (!rpm_only) {
+        delta.head.tgt_rpm = alone ? solo_rpm : new_rpm;
+        if ((error = rpm_get_payload_format_offset(delta.head.tgt_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
+            goto cleanup;
+    }
+
+    if ((error = rpm_get_nevr(alone ? solo_rpm : old_rpm, &delta.src_nevr)) != DRPM_ERR_OK ||
+        (rpm_only && (error = rpm_get_nevr(new_rpm, &delta.head.tgt_nevr)) != DRPM_ERR_OK))
+        goto cleanup;
+
+    delta.tgt_size = rpm_size_full(alone ? solo_rpm : new_rpm);
+
+    if (rpm_only) {
+        if ((error = rpm_fetch_header(old_rpm, &old_header, &old_header_len)) != DRPM_ERR_OK ||
+            (error = rpm_fetch_header(new_rpm, &new_header, &new_header_len)) != DRPM_ERR_OK ||
+            (error = rpm_fetch_archive(old_rpm, &old_cpio, &old_cpio_len)) != DRPM_ERR_OK ||
+            (error = rpm_fetch_archive(new_rpm, &new_cpio, &new_cpio_len)) != DRPM_ERR_OK)
+            goto cleanup;
+
+        if ((old_cpio = realloc(old_cpio, old_header_len + old_cpio_len)) == NULL ||
+            (new_cpio = realloc(old_cpio, new_header_len + new_cpio_len)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+
+        memmove(old_cpio + old_header_len, old_cpio, old_cpio_len);
+        memmove(new_cpio + new_header_len, new_cpio, new_cpio_len);
+        memcpy(old_cpio, old_header, old_header_len);
+        memcpy(new_cpio, new_header, new_header_len);
+        old_cpio_len += old_header_len;
+        new_cpio_len += new_header_len;
+
+        delta.tgt_header_len = new_header_len;
+    } else {
+        if ((error = parse_cpio_from_rpm_filedata(alone ? solo_rpm : old_rpm,
+                                                  &old_cpio, &old_cpio_len,
+                                                  &delta.sequence, &delta.sequence_len,
+                                                  (version >= 3) ? &delta.offadjs : NULL,
+                                                  (version >= 3) ? &delta.offadjn : NULL)) != DRPM_ERR_OK ||
+            (error = rpm_fetch_archive(alone ? solo_rpm : new_rpm, &new_cpio, &new_cpio_len)) != DRPM_ERR_OK)
+            goto cleanup;
     }
 
     //...
 
-write_seq:
-    if (seqfile != NULL)
-        error = write_seqfile(&delta, seqfile);
+write_files:
+    if ((error = write_deltarpm(&delta)) != DRPM_ERR_OK)
+        goto cleanup;
 
-//cleanup:
+    if (seqfile_name != NULL)
+        error = write_seqfile(&delta, seqfile_name);
+
+cleanup:
+    free_deltarpm(&delta);
+
+    rpm_destroy(&solo_rpm);
+    rpm_destroy(&old_rpm);
+    rpm_destroy(&new_rpm);
+
+    free(old_cpio);
+    free(new_cpio);
+    free(old_header);
+    free(new_header);
 
     return error;
 }

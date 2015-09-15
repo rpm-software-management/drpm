@@ -36,7 +36,7 @@
 
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
-    char buffer[4];
+    unsigned char buffer[4];
 
     switch (read(filedesc, buffer, 4)) {
     case 4:
@@ -54,7 +54,7 @@ int read_be32(int filedesc, uint32_t *buffer_ret)
 
 int read_be64(int filedesc, uint64_t *buffer_ret)
 {
-    char buffer[8];
+    unsigned char buffer[8];
 
     switch (read(filedesc, buffer, 8)) {
     case 8:
@@ -91,7 +91,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     char *lead = NULL;
     int error = DRPM_ERR_OK;
 
-    if ((error = decompstrm_init(&stream, filedesc, &delta->comp)) != DRPM_ERR_OK)
+    if ((error = decompstrm_init(&stream, filedesc, &delta->comp, NULL)) != DRPM_ERR_OK)
         return error;
 
     if ((error = decompstrm_read_be32(stream, &delta->version)) != DRPM_ERR_OK)
@@ -341,7 +341,7 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     struct rpm *rpmst;
     int error;
 
-    if ((error = rpm_read(&rpmst, delta->filename, false)) != DRPM_ERR_OK)
+    if ((error = rpm_read(&rpmst, delta->filename, RPM_ARCHIVE_DONT_READ, NULL, NULL, NULL)) != DRPM_ERR_OK)
         return error;
 
     if ((error = rpm_get_nevr(rpmst, &delta->tgt_nevr)) != DRPM_ERR_OK ||
