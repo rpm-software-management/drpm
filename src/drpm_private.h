@@ -126,10 +126,6 @@ int readdelta_rpmonly(int, struct drpm *);
 int readdelta_standard(int, struct drpm *);
 
 //drpm_rpm.c
-int rpm_add_archive_to_md5(struct rpm *, MD5_CTX *);
-int rpm_add_header_to_md5(struct rpm *, MD5_CTX *);
-int rpm_add_lead_to_md5(struct rpm *, MD5_CTX *);
-int rpm_add_signature_to_md5(struct rpm *, MD5_CTX *);
 int rpm_archive_read_chunk(struct rpm *, void *, size_t);
 int rpm_archive_rewind(struct rpm *);
 int rpm_destroy(struct rpm **);
