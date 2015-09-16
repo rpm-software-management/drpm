@@ -66,7 +66,7 @@ int write_deltarpm(struct deltarpm *delta)
     MD5_CTX md5;
     unsigned char header_signatures[16] = {0};
     unsigned char md5_digest[MD5_DIGEST_LENGTH] = {0};
-    char *strm_data = NULL;
+    unsigned char *strm_data = NULL;
     size_t strm_data_len;
 
     version[0] = 'D';
@@ -138,8 +138,8 @@ int write_deltarpm(struct deltarpm *delta)
         (error = compstrm_write_be32(stream, src_nevr_len)) != DRPM_ERR_OK ||
         (error = compstrm_write(stream, src_nevr_len, delta->src_nevr)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, delta->sequence_len)) != DRPM_ERR_OK ||
-        (error = compstrm_write(stream, delta->sequence_len, (char *)delta->sequence)) != DRPM_ERR_OK ||
-        (error = compstrm_write(stream, MD5_DIGEST_LENGTH, (char *)delta->tgt_md5)) != DRPM_ERR_OK)
+        (error = compstrm_write(stream, delta->sequence_len, delta->sequence)) != DRPM_ERR_OK ||
+        (error = compstrm_write(stream, MD5_DIGEST_LENGTH, delta->tgt_md5)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (delta->version >= 2) {
@@ -147,7 +147,7 @@ int write_deltarpm(struct deltarpm *delta)
             !deltarpm_encode_comp(&tgt_comp, delta->tgt_comp, COMP_LEVEL_DEFAULT) ||
             (error = compstrm_write_be32(stream, tgt_comp)) != DRPM_ERR_OK ||
             (error = compstrm_write_be32(stream, delta->tgt_comp_param_len)) != DRPM_ERR_OK ||
-            (error = compstrm_write(stream, delta->tgt_comp_param_len, (char *)delta->tgt_comp_param)) != DRPM_ERR_OK)
+            (error = compstrm_write(stream, delta->tgt_comp_param_len, delta->tgt_comp_param)) != DRPM_ERR_OK)
             goto cleanup;
 
         if (delta->version >= 3) {
@@ -166,7 +166,7 @@ int write_deltarpm(struct deltarpm *delta)
     }
 
     if ((error = compstrm_write_be32(stream, delta->tgt_lead_len)) != DRPM_ERR_OK ||
-        (error = compstrm_write(stream, delta->tgt_lead_len, (char *)delta->tgt_lead)) != DRPM_ERR_OK ||
+        (error = compstrm_write(stream, delta->tgt_lead_len, delta->tgt_lead)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, delta->payload_fmt_off)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, delta->inn)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, delta->outn)) != DRPM_ERR_OK)
@@ -200,7 +200,7 @@ int write_deltarpm(struct deltarpm *delta)
 
     if (delta->type == DRPM_TYPE_STANDARD) {
         if ((error = compstrm_write_be32(stream, delta->add_data_len)) != DRPM_ERR_OK ||
-            (error = compstrm_write(stream, delta->add_data_len, (char *)delta->add_data)) != DRPM_ERR_OK)
+            (error = compstrm_write(stream, delta->add_data_len, delta->add_data)) != DRPM_ERR_OK)
             goto cleanup;
     } else {
         if ((error = compstrm_write_be32(stream, 0)) != DRPM_ERR_OK)
@@ -215,11 +215,11 @@ int write_deltarpm(struct deltarpm *delta)
             goto cleanup;
     }
 
-    if ((error = compstrm_write(stream, delta->int_data_len, (char *)delta->int_data)) != DRPM_ERR_OK)
+    if ((error = compstrm_write(stream, delta->int_data_len, delta->int_data)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (delta->type == DRPM_TYPE_STANDARD) {
-        if ((error = compstrm_copy_data(stream, &strm_data, &strm_data_len)) != DRPM_ERR_OK)
+        if ((error = compstrm_finish(stream, &strm_data, &strm_data_len)) != DRPM_ERR_OK)
             goto cleanup;
         if (MD5_Update(&md5, strm_data, strm_data_len) != 1 ||
             MD5_Final(md5_digest, &md5) != 1) {
@@ -259,7 +259,7 @@ int write_seqfile(struct deltarpm *delta, const char *filename)
         goto cleanup;
     }
 
-    dump_hex(sequence, (char *)delta->sequence, delta->sequence_len);
+    dump_hex(sequence, delta->sequence, delta->sequence_len);
 
     fprintf(file, "%s-%s\n", delta->src_nevr, sequence);
 

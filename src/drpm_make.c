@@ -298,7 +298,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
     if (rpm_file == NULL || cpio_ret == NULL || cpio_len_ret == NULL ||
         sequence_ret == NULL || sequence_len_ret == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     *cpio_ret = NULL;
     *cpio_len_ret = 0;

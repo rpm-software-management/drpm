@@ -81,7 +81,7 @@ int md5_update_be32(MD5_CTX *md5, uint32_t number)
     return MD5_Update(md5, be32, 4);
 }
 
-void dump_hex(char *dest, const char *source, size_t count)
+void dump_hex(char *dest, const unsigned char *source, size_t count)
 {
     char digits[] = "0123456789abcdef";
 

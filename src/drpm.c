@@ -63,6 +63,10 @@ const char *drpm_strerror(int error)
         return "misconfigured external library";
     case DRPM_ERR_OTHER:
         return "unspecified/unknown error";
+    case DRPM_ERR_OVERFLOW:
+        return "overflow";
+    case DRPM_ERR_PROG:
+        return "internal programming error";
     default:
         return NULL;
     }

@@ -44,7 +44,8 @@
 #define DRPM_ERR_FORMAT 4   /**< wrong file format */
 #define DRPM_ERR_CONFIG 5   /**< misconfigured external library */
 #define DRPM_ERR_OTHER 6    /**< unspecified/unknown error */
-#define DRPM_ERR_OVERFLOW 7 // TODO
+#define DRPM_ERR_OVERFLOW 7 /**< overflow */
+#define DRPM_ERR_PROG 8     /**< internal programming error */
 /**@}*/
 
 /** @name Delta Types */
