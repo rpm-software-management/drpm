@@ -104,7 +104,7 @@ int rpm_read_archive(struct rpm *rpmst, const char *filename,
             md5 = NULL;
 
         if ((error = decompstrm_init(&stream, filedesc, &comp, md5)) != DRPM_ERR_OK ||
-            (error = decompstrm_read_until_eof(stream, &rpmst->archive_size, (char **)&rpmst->archive)) != DRPM_ERR_OK ||
+            (error = decompstrm_read_until_eof(stream, &rpmst->archive_size, &rpmst->archive)) != DRPM_ERR_OK ||
             (error = decompstrm_copy_read_len(stream, &rpmst->archive_size_on_disk)) != DRPM_ERR_OK ||
             (error = decompstrm_destroy(&stream)) != DRPM_ERR_OK)
             goto cleanup;
@@ -162,7 +162,7 @@ int rpm_read(struct rpm **rpmst, const char *filename,
     int error = DRPM_ERR_OK;
 
     if (rpmst == NULL || filename == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     switch (archive_mode) {
     case RPM_ARCHIVE_DONT_READ:
@@ -177,7 +177,7 @@ int rpm_read(struct rpm **rpmst, const char *filename,
         decomp_archive = true;
         break;
     default:
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
     }
 
     if ((*rpmst = malloc(sizeof(struct rpm))) == NULL)
@@ -259,7 +259,7 @@ cleanup:
 int rpm_destroy(struct rpm **rpmst)
 {
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     rpm_free(*rpmst);
     free(*rpmst);
@@ -271,7 +271,7 @@ int rpm_destroy(struct rpm **rpmst)
 int rpm_archive_read_chunk(struct rpm *rpmst, void *buffer, size_t count)
 {
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if (rpmst->archive_offset + count >= rpmst->archive_size)
         return DRPM_ERR_FORMAT;
@@ -287,7 +287,7 @@ int rpm_archive_read_chunk(struct rpm *rpmst, void *buffer, size_t count)
 int rpm_archive_rewind(struct rpm *rpmst)
 {
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     rpmst->archive_offset = 0;
 
@@ -322,7 +322,7 @@ int rpm_fetch_lead_and_signature(struct rpm *rpmst,
     int error = DRPM_ERR_OK;
 
     if (rpmst == NULL || lead_sig == NULL || len == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     *lead_sig = NULL;
     *len = 0;
@@ -350,7 +350,7 @@ int rpm_fetch_header(struct rpm *rpmst, unsigned char **header_ret, uint32_t *le
     int error = DRPM_ERR_OK;
 
     if (rpmst == NULL || header_ret == NULL || len == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     *header_ret = NULL;
     *len = 0;
@@ -373,7 +373,7 @@ cleanup:
 int rpm_fetch_archive(struct rpm *rpmst, unsigned char **archive_ret, size_t *len)
 {
     if (rpmst == NULL || archive_ret == NULL || len == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if ((*archive_ret = malloc(rpmst->archive_size)) == NULL)
         return DRPM_ERR_MEMORY;
@@ -393,7 +393,7 @@ int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive)
     int error = DRPM_ERR_OK;
 
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if ((file = Fopen(filename, "wb")) == NULL)
         return DRPM_ERR_IO;
@@ -441,7 +441,7 @@ cleanup:
 int rpm_get_nevr(struct rpm *rpmst, char **nevr)
 {
     if (rpmst == NULL || nevr == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if ((*nevr = headerGetAsString(rpmst->header, RPMTAG_NEVR)) == NULL)
         return DRPM_ERR_MEMORY;
@@ -454,7 +454,7 @@ int rpm_get_comp(struct rpm *rpmst, uint32_t *comp)
     const char *payload_comp;
 
     if (rpmst == NULL || comp == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if ((payload_comp = headerGetString(rpmst->header, RPMTAG_PAYLOADCOMPRESSOR)) == NULL)
         return DRPM_ERR_FORMAT;
@@ -481,7 +481,7 @@ int rpm_get_comp_level(struct rpm *rpmst, unsigned short *level)
     const char *payload_flags;
 
     if (rpmst == NULL || level == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if ((payload_flags = headerGetString(rpmst->header, RPMTAG_PAYLOADFLAGS)) == NULL)
         return DRPM_ERR_FORMAT;
@@ -502,7 +502,7 @@ int rpm_get_digest_algo(struct rpm *rpmst, unsigned short *digestalgo)
     uint32_t *digest_algo;
 
     if (rpmst == NULL || digestalgo == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     digest_algo_array = rpmtdNew();
 
@@ -540,7 +540,7 @@ int rpm_get_payload_format(struct rpm *rpmst, unsigned short *payfmt)
     const char *payload_format;
 
     if (rpmst == NULL || payfmt == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if ((payload_format = headerGetString(rpmst->header, RPMTAG_PAYLOADFORMAT)) == NULL)
         return DRPM_ERR_MEMORY;
@@ -559,7 +559,7 @@ int rpm_get_payload_format(struct rpm *rpmst, unsigned short *payfmt)
 int rpm_patch_payload_format(struct rpm *rpmst, const char *new_payfmt)
 {
     if (rpmst == NULL || new_payfmt == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if (headerPutString(rpmst->header, RPMTAG_PAYLOADFORMAT, new_payfmt) != 1)
         return DRPM_ERR_FORMAT;
@@ -595,7 +595,7 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret,
     uint32_t *color = NULL;
 
     if (rpmst == NULL || files_ret == NULL || count_ret == NULL || colors_ret == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     filenames = rpmtdNew();
     fileflags = rpmtdNew();
@@ -724,7 +724,7 @@ int rpm_get_payload_format_offset(struct rpm *rpmst, uint32_t *offset)
     int error = DRPM_ERR_FORMAT;
 
     if (rpmst == NULL || offset == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     if ((header = headerExport(rpmst->header, &header_size)) == NULL)
         return DRPM_ERR_MEMORY;
@@ -749,7 +749,7 @@ cleanup:
 int rpm_signature_empty(struct rpm *rpmst)
 {
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     headerFree(rpmst->signature);
     rpmst->signature = headerNew();
@@ -762,7 +762,7 @@ int rpm_signature_set_size(struct rpm *rpmst, uint32_t size)
     rpmtd tag_data = rpmtdNew();
 
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     tag_data->tag = RPMSIGTAG_SIZE;
     tag_data->type = RPM_INT32_TYPE;
@@ -781,7 +781,7 @@ int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[16])
     rpmtd tag_data = rpmtdNew();
 
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     tag_data->tag = RPMSIGTAG_MD5;
     tag_data->type = RPM_BIN_TYPE;
@@ -800,7 +800,7 @@ int rpm_signature_set_headersignatures(struct rpm *rpmst, unsigned char hdrsig[1
     rpmtd tag_data = rpmtdNew();
 
     if (rpmst == NULL)
-        return DRPM_ERR_ARGS;
+        return DRPM_ERR_PROG;
 
     tag_data->tag = RPMTAG_HEADERSIGNATURES;
     tag_data->type = RPM_BIN_TYPE;

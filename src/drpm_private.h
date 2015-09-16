@@ -91,21 +91,21 @@ struct decompstrm;
 struct rpm;
 
 //drpm_compstrm.c
-int compstrm_copy_data(struct compstrm *, char **, size_t *);
 int compstrm_destroy(struct compstrm **);
+int compstrm_finish(struct compstrm *, unsigned char **, size_t *);
 int compstrm_init(struct compstrm **, int, unsigned short, int);
-int compstrm_write(struct compstrm *, size_t, char *);
+int compstrm_write(struct compstrm *, size_t, void *);
 int compstrm_write_be32(struct compstrm *, uint32_t);
 int compstrm_write_be64(struct compstrm *, uint64_t);
 
 //drpm_decompstrm.c
-int decompstrm_copy_read_len(struct decompstrm *, size_t *);
+int decompstrm_copy_read_len(struct decompstrm *, size_t *); // TODO: rename
 int decompstrm_destroy(struct decompstrm **);
 int decompstrm_init(struct decompstrm **, int, uint32_t *, MD5_CTX *);
-int decompstrm_read(struct decompstrm *, size_t, char *);
+int decompstrm_read(struct decompstrm *, size_t, void *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
-int decompstrm_read_until_eof(struct decompstrm *, size_t *, char **);
+int decompstrm_read_until_eof(struct decompstrm *, size_t *, unsigned char **);
 
 //drpm_deltarpm.c
 bool deltarpm_decode_comp(uint32_t, unsigned short *, unsigned short *);
@@ -154,7 +154,7 @@ int rpm_write(struct rpm *, const char *, bool);
 //drpm_utils.c
 void create_be32(uint32_t, unsigned char *);
 void create_be64(uint64_t, unsigned char *);
-void dump_hex(char *, const char *, size_t);
+void dump_hex(char *, const unsigned char *, size_t);
 int md5_update_be32(MD5_CTX *, uint32_t);
 uint32_t parse_be32(const unsigned char *);
 uint64_t parse_be64(const unsigned char *);

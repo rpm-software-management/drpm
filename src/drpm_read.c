@@ -85,10 +85,10 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     uint32_t ext_data_32;
     uint32_t add_data_size;
     uint32_t int_data_32;
-    char *sequence = NULL;
-    char md5[MD5_DIGEST_LENGTH];
-    char *comp_param = NULL;
-    char *lead = NULL;
+    unsigned char *sequence = NULL;
+    unsigned char md5[MD5_DIGEST_LENGTH];
+    unsigned char *comp_param = NULL;
+    unsigned char *lead = NULL;
     int error = DRPM_ERR_OK;
 
     if ((error = decompstrm_init(&stream, filedesc, &delta->comp, NULL)) != DRPM_ERR_OK)
