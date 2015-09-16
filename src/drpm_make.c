@@ -634,21 +634,6 @@ int fill_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename,
     delta->tgt_size = rpm_size_full(solo_rpm);
     delta->tgt_header_len = rpm_size_header(solo_rpm);
 
-    delta->tgt_comp_param_len = 0;
-    delta->tgt_comp_param = NULL;
-    delta->offadjn = 0;
-    delta->offadjs = NULL;
-    delta->payload_fmt_off = 0;
-    delta->inn = 0;
-    delta->outn = 0;
-    delta->int_copies = NULL;
-    delta->ext_copies = NULL;
-    delta->ext_data_len = 0;
-    delta->add_data_len = 0;
-    delta->add_data = NULL;
-    delta->int_data_len = 0;
-    delta->int_data = NULL;
-
 cleanup:
     free(nevr);
     rpm_destroy(&solo_rpm);

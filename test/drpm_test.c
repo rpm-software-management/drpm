@@ -44,7 +44,7 @@ int __real_read_be32(int, uint32_t *);
 int __real_readdelta_rpmonly(int, drpm *);
 int __real_readdelta_standard(int, drpm *);
 int __real_readdelta_rest(int, drpm *);
-int __real_decompstrm_init(struct decompstrm **, int, uint32_t *);
+int __real_decompstrm_init(struct decompstrm **, int, uint32_t *, MD5_CTX *);
 int __real_decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int __real_decompstrm_read(struct decompstrm *, size_t, char *);
 int __real_decompstrm_destroy(struct decompstrm **);
@@ -136,7 +136,7 @@ int __wrap_readdelta_rest(int filedesc, drpm *delta)
     }
 }
 
-int __wrap_decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp)
+int __wrap_decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp, MD5_CTX *md5)
 {
     switch (test_no) {
     case 11:
@@ -146,7 +146,7 @@ int __wrap_decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *com
     case 15:
         return (int)mock();
     default:
-        return __real_decompstrm_init(strm, filedesc, comp);
+        return __real_decompstrm_init(strm, filedesc, comp, md5);
     }
 }
 
