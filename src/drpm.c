@@ -366,6 +366,8 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     unsigned char *new_header = NULL;
     uint32_t new_header_len;
 
+    unsigned short payload_format;
+
     struct deltarpm delta = {0};
 
     if (deltarpm_name == NULL || (old_rpm_name == NULL && new_rpm_name == NULL))
@@ -486,9 +488,22 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             goto cleanup;
     }
 
-    if (comp_from_rpm &&
-        (error = rpm_get_comp_level(alone ? solo_rpm : new_rpm, &delta.comp_level)) != DRPM_ERR_OK)
+    if ((error = rpm_get_payload_format(alone ? solo_rpm : new_rpm, &payload_format)) != DRPM_ERR_OK)
         goto cleanup;
+
+    if (payload_format != PAYLOAD_FORMAT_CPIO) { // deltarpm doesn't support xar
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    if (comp_from_rpm) {
+        if (delta.comp == DRPM_COMP_LZIP) { // deltarpm doesn't support lzip
+            delta.comp = DRPM_COMP_XZ;
+            delta.comp_level = COMP_LEVEL_DEFAULT;
+        } else if ((error = rpm_get_comp_level(alone ? solo_rpm : new_rpm, &delta.comp_level)) != DRPM_ERR_OK) {
+            goto cleanup;
+        }
+    }
 
     if (!rpm_only) {
         delta.head.tgt_rpm = alone ? solo_rpm : new_rpm;
