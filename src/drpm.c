@@ -374,6 +374,8 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
 
     struct deltarpm delta = {0};
 
+    /* parsing arguments */
+
     if (deltarpm_name == NULL || (old_rpm_name == NULL && new_rpm_name == NULL))
         return DRPM_ERR_ARGS;
 
@@ -467,12 +469,14 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         delta.comp_level = comp_level;
     }
 
+    /* no diff to perform for identity rpm-only deltarpms */
     if (alone && rpm_only) {
         if ((error = fill_nodiff_deltarpm(&delta, solo_rpm_name, comp_from_rpm)) != DRPM_ERR_OK)
             goto cleanup;
         goto write_files;
     }
 
+    /* reading RPM(s) (also creating MD5 sums and reading compressor from archive) */
     if (alone) {
         if ((error = rpm_read(&solo_rpm, solo_rpm_name, RPM_ARCHIVE_READ_DECOMP,
                               comp_from_rpm ? &delta.comp : NULL, NULL, delta.tgt_md5)) != DRPM_ERR_OK)
@@ -492,14 +496,15 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             goto cleanup;
     }
 
+    /* checking if archive is in CPIO format */
     if ((error = rpm_get_payload_format(alone ? solo_rpm : new_rpm, &payload_format)) != DRPM_ERR_OK)
         goto cleanup;
-
     if (payload_format != PAYLOAD_FORMAT_CPIO) { // deltarpm doesn't support xar
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
 
+    /* determining delta compression type and level from target RPM */
     if (comp_from_rpm) {
         if (delta.comp == DRPM_COMP_LZIP) { // deltarpm doesn't support lzip
             delta.comp = DRPM_COMP_XZ;
@@ -511,17 +516,22 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
 
     if (!rpm_only) {
         delta.head.tgt_rpm = alone ? solo_rpm : new_rpm;
-        if ((error = rpm_get_payload_format_offset(delta.head.tgt_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
+        /* storing offset of payload format tag in header for compatibility with deltarpm */
+        if ((error = rpm_find_payload_format_offset(delta.head.tgt_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
             goto cleanup;
     }
 
+    /* reading source and target NEVRs */
     if ((error = rpm_get_nevr(alone ? solo_rpm : old_rpm, &delta.src_nevr)) != DRPM_ERR_OK ||
         (rpm_only && (error = rpm_get_nevr(new_rpm, &delta.head.tgt_nevr)) != DRPM_ERR_OK))
         goto cleanup;
 
+    /* storing size of target RPM file */
     delta.tgt_size = rpm_size_full(alone ? solo_rpm : new_rpm);
 
+    /* creating old_cpio and new_cpio for binary diff */
     if (rpm_only) {
+    /* rpm-only deltarpms include RPM headers in diff */
         if ((error = rpm_fetch_header(old_rpm, &old_header, &old_header_len)) != DRPM_ERR_OK ||
             (error = rpm_fetch_header(new_rpm, &new_header, &new_header_len)) != DRPM_ERR_OK ||
             (error = rpm_fetch_archive(old_rpm, &old_cpio, &old_cpio_len)) != DRPM_ERR_OK ||
@@ -541,8 +551,10 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         old_cpio_len += old_header_len;
         new_cpio_len += new_header_len;
 
+        /* storing size of target header included in diff */
         delta.tgt_header_len = new_header_len;
     } else {
+    /* standard deltarpms parse archive of old RPM based on filesystem data */
         if ((error = parse_cpio_from_rpm_filedata(alone ? solo_rpm : old_rpm,
                                                   &old_cpio, &old_cpio_len,
                                                   &delta.sequence, &delta.sequence_len,

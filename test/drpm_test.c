@@ -186,7 +186,7 @@ int __wrap_decompstrm_destroy(struct decompstrm **strm)
 
 static void test_drpm_read_err_mock(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
 
     char *delta_file;
     LargestIntegralType ret_vals[MOCK_TESTS] = {
@@ -272,7 +272,7 @@ static void test_drpm_read_err_mock(void **state)
 
 static void test_drpm_read_err_input(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     assert_int_equal(DRPM_ERR_ARGS, drpm_read(&delta, NULL));
@@ -286,7 +286,7 @@ static void test_drpm_read_err_input(void **state)
 
 static void test_drpm_read_ok(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     for (int i = 0; i < DELTAS; i++) {
@@ -296,7 +296,7 @@ static void test_drpm_read_ok(void **state)
 
 static void test_drpm_get_uint(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     unsigned version;
@@ -354,7 +354,7 @@ static void test_drpm_get_uint(void **state)
 
 static void test_drpm_get_ulong(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     unsigned long version;
@@ -420,7 +420,7 @@ static void test_drpm_get_ulong(void **state)
 
 static void test_drpm_get_ullong(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     unsigned long long version;
@@ -487,7 +487,7 @@ static void test_drpm_get_ullong(void **state)
 
 static void test_drpm_get_string(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     char *filename;
@@ -551,7 +551,7 @@ static void test_drpm_get_string(void **state)
 
 static void test_drpm_get_ulong_array(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     unsigned long *adj_elems;
@@ -612,7 +612,7 @@ static void test_drpm_get_ulong_array(void **state)
 
 static void test_drpm_destroy_err(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     drpm *null_delta = NULL;
@@ -623,7 +623,7 @@ static void test_drpm_destroy_err(void **state)
 
 static void test_drpm_destroy_ok(void **state)
 {
-    (void) state; /* unused */
+    (void)state;
     test_no = 0;
 
     for (int i = 0; i < DELTAS; i++) {

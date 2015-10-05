@@ -50,7 +50,7 @@ struct decompstrm {
     } stream;
     int (*read_chunk)(struct decompstrm *);
     void (*finish)(struct decompstrm *);
-    size_t read_len;
+    size_t comp_size;
     MD5_CTX *md5;
 };
 
@@ -180,7 +180,7 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp, MD5_
     (*strm)->data_len = 0;
     (*strm)->data_pos = 0;
     (*strm)->filedesc = filedesc;
-    (*strm)->read_len = 0;
+    (*strm)->comp_size = 0;
     (*strm)->md5 = md5;
 
     if (MAGIC_GZIP(magic)) {
@@ -218,12 +218,12 @@ cleanup_fail:
     return error;
 }
 
-int decompstrm_copy_read_len(struct decompstrm *strm, size_t *read_len)
+int decompstrm_get_comp_size(struct decompstrm *strm, size_t *size)
 {
-    if (strm == NULL || read_len == NULL)
+    if (strm == NULL || size == NULL)
         return DRPM_ERR_PROG;
 
-    *read_len = strm->read_len;
+    *size = strm->comp_size;
 
     return DRPM_ERR_OK;
 }
@@ -332,7 +332,7 @@ int readchunk(struct decompstrm *strm)
     memcpy(strm->data + strm->data_len, buffer, in_len);
     strm->data_len += in_len;
 
-    strm->read_len = strm->data_len;
+    strm->comp_size = strm->data_len;
 
     if (strm->md5 != NULL && MD5_Update(strm->md5, buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
@@ -378,7 +378,7 @@ int readchunk_bzip2(struct decompstrm *strm)
         strm->data_len += out_len;
     } while (!strm->stream.bzip2.avail_out);
 
-    strm->read_len += in_len;
+    strm->comp_size += in_len;
 
     if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
@@ -425,7 +425,7 @@ int readchunk_gzip(struct decompstrm *strm)
         strm->data_len += out_len;
     } while (!strm->stream.gzip.avail_out);
 
-    strm->read_len += in_len;
+    strm->comp_size += in_len;
 
     if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
@@ -478,7 +478,7 @@ int readchunk_lzma(struct decompstrm *strm)
         strm->data_len += out_len;
     } while (!strm->stream.lzma.avail_out);
 
-    strm->read_len += in_len;
+    strm->comp_size += in_len;
 
     if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;

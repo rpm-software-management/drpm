@@ -99,8 +99,8 @@ int compstrm_write_be32(struct compstrm *, uint32_t);
 int compstrm_write_be64(struct compstrm *, uint64_t);
 
 //drpm_decompstrm.c
-int decompstrm_copy_read_len(struct decompstrm *, size_t *); // TODO: rename
 int decompstrm_destroy(struct decompstrm **);
+int decompstrm_get_comp_size(struct decompstrm *, size_t *);
 int decompstrm_init(struct decompstrm **, int, uint32_t *, MD5_CTX *);
 int decompstrm_read(struct decompstrm *, size_t, void *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
@@ -132,13 +132,13 @@ int rpm_destroy(struct rpm **);
 int rpm_fetch_archive(struct rpm *, unsigned char **, size_t *);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
 int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
+int rpm_find_payload_format_offset(struct rpm *, uint32_t *);
 int rpm_get_comp(struct rpm *, uint32_t *);
 int rpm_get_comp_level(struct rpm *, unsigned short *);
 int rpm_get_digest_algo(struct rpm *, unsigned short *);
 int rpm_get_file_info(struct rpm *, struct file_info **, size_t *, bool *);
 int rpm_get_nevr(struct rpm *, char **);
 int rpm_get_payload_format(struct rpm *, unsigned short *);
-int rpm_get_payload_format_offset(struct rpm *, uint32_t *);
 int rpm_patch_payload_format(struct rpm *, const char *);
 int rpm_read(struct rpm **, const char *, int, unsigned short *,
              unsigned char *, unsigned char *);
