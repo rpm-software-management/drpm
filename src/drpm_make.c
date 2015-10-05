@@ -28,7 +28,6 @@
 #include <string.h>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
-// TODO: figure out RPM includes
 #include <rpm/rpmfi.h>
 #include <rpm/rpmvf.h>
 #include <rpm/rpmfc.h>
@@ -193,7 +192,7 @@ int cpio_header_read(struct cpio_header *cpio_hdr,
     ssize_t rdevminor_ret;
     ssize_t namesize_ret;
 
-    if (strcmp(buffer, CPIO_MAGIC) != 0 ||
+    if (strncmp(buffer, CPIO_MAGIC, 6) != 0 ||
         (ino_ret = parse_hexnum((buffer += 6), 8)) < 0 ||
         (mode_ret = parse_hexnum((buffer += 8), 8)) < 0 ||
         (uid_ret = parse_hexnum((buffer += 8), 8)) < 0 ||
@@ -460,7 +459,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                 (error = cpio_extend(&cpio, &cpio_len, "./", 2)) != DRPM_ERR_OK ||
                 (error = cpio_extend(&cpio, &cpio_len, name, name_len + 1)) != DRPM_ERR_OK ||
                 (error = cpio_extend(&cpio, &cpio_len, "\0\0\0",
-                                     CPIO_PADDING(CPIO_HEADER_SIZE + name_len + 1))) != DRPM_ERR_OK)
+                                     CPIO_PADDING(CPIO_HEADER_SIZE + 2 + name_len + 1))) != DRPM_ERR_OK)
                 goto cleanup_fail;
 
             if (MD5_Update(&seq_md5, name, name_len) != 1 ||

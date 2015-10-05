@@ -45,7 +45,7 @@ struct rpm {
     unsigned char *archive;
     size_t archive_size;
     size_t archive_offset;
-    size_t archive_size_on_disk;
+    size_t archive_comp_size;
 };
 
 static void rpm_init(struct rpm *);
@@ -61,7 +61,7 @@ void rpm_init(struct rpm *rpmst)
     rpmst->archive = NULL;
     rpmst->archive_size = 0;
     rpmst->archive_offset = 0;
-    rpmst->archive_size_on_disk = 0;
+    rpmst->archive_comp_size = 0;
 }
 
 void rpm_free(struct rpm *rpmst)
@@ -105,7 +105,7 @@ int rpm_read_archive(struct rpm *rpmst, const char *filename,
 
         if ((error = decompstrm_init(&stream, filedesc, &comp, md5)) != DRPM_ERR_OK ||
             (error = decompstrm_read_until_eof(stream, &rpmst->archive_size, &rpmst->archive)) != DRPM_ERR_OK ||
-            (error = decompstrm_copy_read_len(stream, &rpmst->archive_size_on_disk)) != DRPM_ERR_OK ||
+            (error = decompstrm_get_comp_size(stream, &rpmst->archive_comp_size)) != DRPM_ERR_OK ||
             (error = decompstrm_destroy(&stream)) != DRPM_ERR_OK)
             goto cleanup;
 
@@ -131,7 +131,7 @@ int rpm_read_archive(struct rpm *rpmst, const char *filename,
             error = DRPM_ERR_IO;
             goto cleanup;
         }
-        rpmst->archive_size_on_disk = rpmst->archive_size;
+        rpmst->archive_comp_size = rpmst->archive_size;
     }
 
 cleanup:
@@ -303,7 +303,7 @@ uint32_t rpm_size_full(struct rpm *rpmst)
 
     return RPMLEAD_SIZE + sig_size + RPMSIG_PADDING(sig_size) +
            headerSizeof(rpmst->header, HEADER_MAGIC_YES) +
-           rpmst->archive_size_on_disk;
+           rpmst->archive_comp_size;
 }
 
 uint32_t rpm_size_header(struct rpm *rpmst)
@@ -716,7 +716,7 @@ cleanup:
     return error;
 }
 
-int rpm_get_payload_format_offset(struct rpm *rpmst, uint32_t *offset)
+int rpm_find_payload_format_offset(struct rpm *rpmst, uint32_t *offset)
 {
     unsigned char *header;
     unsigned header_size;
