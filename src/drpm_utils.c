@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 #include <ctype.h>
 #include <sys/types.h>
 #include <openssl/md5.h>

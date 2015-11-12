@@ -50,6 +50,8 @@ struct rpm {
 
 static void rpm_init(struct rpm *);
 static void rpm_free(struct rpm *);
+static int rpm_export_header(struct rpm *, unsigned char **, size_t *);
+static int rpm_export_signature(struct rpm *, unsigned char **, size_t *);
 static int rpm_read_archive(struct rpm *, const char *, off_t, bool,
                             unsigned short *, MD5_CTX *, MD5_CTX *);
 
@@ -71,6 +73,66 @@ void rpm_free(struct rpm *rpmst)
     free(rpmst->archive);
 
     rpm_init(rpmst);
+}
+
+int rpm_export_header(struct rpm *rpmst, unsigned char **header_ret, size_t *len_ret)
+{
+    unsigned char *header;
+    unsigned header_size;
+
+    *header_ret = NULL;
+    *len_ret = 0;
+
+    if ((header = headerExport(rpmst->header, &header_size)) == NULL ||
+        (*header_ret = malloc(sizeof(rpm_header_magic) + header_size)) == NULL) {
+        free(header);
+        return DRPM_ERR_MEMORY;
+    }
+
+    memcpy(*header_ret, rpm_header_magic, sizeof(rpm_header_magic));
+    memcpy(*header_ret + sizeof(rpm_header_magic), header, header_size);
+
+    *len_ret = sizeof(rpm_header_magic) + header_size;
+
+    free(header);
+
+    return DRPM_ERR_OK;
+}
+
+int rpm_export_signature(struct rpm *rpmst, unsigned char **signature_ret, size_t *len_ret)
+{
+    unsigned char *signature;
+    unsigned signature_size;
+    size_t len;
+    unsigned char padding[7] = {0};
+    unsigned short padding_bytes;
+
+    *signature_ret = NULL;
+    *len_ret = 0;
+
+    if ((signature = headerExport(rpmst->signature, &signature_size)) == NULL) {
+        free(signature);
+        return DRPM_ERR_MEMORY;
+    }
+
+    len = sizeof(rpm_header_magic) + signature_size;
+    padding_bytes = RPMSIG_PADDING(len);
+    len += padding_bytes;
+
+    if ((*signature_ret = malloc(len)) == NULL) {
+        free(signature);
+        return DRPM_ERR_MEMORY;
+    }
+
+    memcpy(*signature_ret, rpm_header_magic, sizeof(rpm_header_magic));
+    memcpy(*signature_ret + sizeof(rpm_header_magic), signature, signature_size);
+    memcpy(*signature_ret + sizeof(rpm_header_magic) + signature_size, padding, padding_bytes);
+
+    *len_ret = len;
+
+    free(signature);
+
+    return DRPM_ERR_OK;
 }
 
 int rpm_read_archive(struct rpm *rpmst, const char *filename,
@@ -95,13 +157,8 @@ int rpm_read_archive(struct rpm *rpmst, const char *filename,
     }
 
     if (decompress) {
-        // hack: never updating two MD5s when decompressing
-        if (seq_md5 != NULL)
-            md5 = seq_md5;
-        else if (full_md5 != NULL)
-            md5 = full_md5;
-        else
-            md5 = NULL;
+        // hack: never updating both MD5s when decompressing
+        md5 = (seq_md5 == NULL) ? full_md5 : seq_md5;
 
         if ((error = decompstrm_init(&stream, filedesc, &comp, md5)) != DRPM_ERR_OK ||
             (error = decompstrm_read_until_eof(stream, &rpmst->archive_size, &rpmst->archive)) != DRPM_ERR_OK ||
@@ -155,10 +212,10 @@ int rpm_read(struct rpm **rpmst, const char *filename,
     bool decomp_archive = false;
     MD5_CTX seq_md5;
     MD5_CTX full_md5;
-    void *signature = NULL;
-    unsigned signature_len;
-    void *header = NULL;
-    unsigned header_len;
+    unsigned char *signature = NULL;
+    size_t signature_len;
+    unsigned char *header = NULL;
+    size_t header_len;
     int error = DRPM_ERR_OK;
 
     if (rpmst == NULL || filename == NULL)
@@ -185,7 +242,8 @@ int rpm_read(struct rpm **rpmst, const char *filename,
 
     rpm_init(*rpmst);
 
-    if ((file = Fopen(filename, "rb")) == NULL)
+    // hack: extra '\0' to prevent rpmlib from compressing (see rpmio.c)
+    if ((file = Fopen(filename, "rb\0")) == NULL)
         return DRPM_ERR_IO;
 
     if (Fread((*rpmst)->lead, 1, RPMLEAD_SIZE, file) != RPMLEAD_SIZE ||
@@ -199,10 +257,8 @@ int rpm_read(struct rpm **rpmst, const char *filename,
     }
 
     if (seq_md5_digest != NULL) {
-        if ((header = headerExport((*rpmst)->header, &header_len)) == NULL) {
-            error = DRPM_ERR_MEMORY;
+        if ((error = rpm_export_header(*rpmst, &header, &header_len)) != DRPM_ERR_OK)
             goto cleanup_fail;
-        }
         if (MD5_Init(&seq_md5) != 1 ||
             MD5_Update(&seq_md5, header, header_len) != 1) {
             error = DRPM_ERR_OTHER;
@@ -211,11 +267,9 @@ int rpm_read(struct rpm **rpmst, const char *filename,
     }
 
     if (full_md5_digest != NULL) {
-        if ((signature = headerExport((*rpmst)->signature, &signature_len)) == NULL ||
-            (header = headerExport((*rpmst)->header, &header_len)) == NULL) {
-            error = DRPM_ERR_MEMORY;
+        if ((error = rpm_export_signature(*rpmst, &signature, &signature_len)) != DRPM_ERR_OK ||
+            (header == NULL && (error = rpm_export_header(*rpmst, &header, &header_len)) != DRPM_ERR_OK))
             goto cleanup_fail;
-        }
         if (MD5_Init(&full_md5) != 1 ||
             MD5_Update(&full_md5, (*rpmst)->lead, RPMLEAD_SIZE) != 1 ||
             MD5_Update(&full_md5, signature, signature_len) != 1 ||
@@ -258,12 +312,39 @@ cleanup:
 
 int rpm_destroy(struct rpm **rpmst)
 {
-    if (rpmst == NULL)
+    if (rpmst == NULL || *rpmst == NULL)
         return DRPM_ERR_PROG;
 
     rpm_free(*rpmst);
     free(*rpmst);
     *rpmst = NULL;
+
+    return DRPM_ERR_OK;
+}
+
+int rpm_copy(struct rpm **rpmst_dst, struct rpm *rpmst_src, bool include_archive)
+{
+    if (rpmst_dst == NULL || rpmst_src == NULL)
+        return DRPM_ERR_PROG;
+
+    if ((*rpmst_dst = malloc(sizeof(struct rpm))) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    rpm_init(*rpmst_dst);
+
+    memcpy((*rpmst_dst)->lead, rpmst_src->lead, RPMLEAD_SIZE);
+    (*rpmst_dst)->signature = headerCopy(rpmst_src->signature);
+    (*rpmst_dst)->header = headerCopy(rpmst_src->header);
+
+    if (include_archive && rpmst_src->archive_size > 0) {
+        if (((*rpmst_dst)->archive = malloc(rpmst_src->archive_size)) == NULL) {
+            free(*rpmst_dst);
+            return DRPM_ERR_MEMORY;
+        }
+        memcpy((*rpmst_dst)->archive, rpmst_src->archive, rpmst_src->archive_size);
+        (*rpmst_dst)->archive_size = rpmst_src->archive_size;
+        (*rpmst_dst)->archive_comp_size = rpmst_src->archive_comp_size;
+    }
 
     return DRPM_ERR_OK;
 }
@@ -315,27 +396,30 @@ uint32_t rpm_size_header(struct rpm *rpmst)
 }
 
 int rpm_fetch_lead_and_signature(struct rpm *rpmst,
-                                 unsigned char **lead_sig, uint32_t *len)
+                                 unsigned char **lead_sig, uint32_t *len_ret)
 {
-    void *signature;
-    unsigned signature_size;
+    unsigned char *signature;
+    size_t signature_size;
     int error = DRPM_ERR_OK;
 
-    if (rpmst == NULL || lead_sig == NULL || len == NULL)
+    if (rpmst == NULL || lead_sig == NULL || len_ret == NULL)
         return DRPM_ERR_PROG;
 
     *lead_sig = NULL;
-    *len = 0;
+    *len_ret = 0;
 
-    if ((signature = headerExport(rpmst->signature, &signature_size)) == NULL ||
-        (*lead_sig = malloc(RPMLEAD_SIZE + signature_size)) == NULL) {
+    if ((error = rpm_export_signature(rpmst, &signature, &signature_size)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if ((*lead_sig = malloc(RPMLEAD_SIZE + signature_size)) == NULL) {
         error = DRPM_ERR_MEMORY;
         goto cleanup;
     }
 
     memcpy(*lead_sig, rpmst->lead, RPMLEAD_SIZE);
     memcpy(*lead_sig + RPMLEAD_SIZE, signature, signature_size);
-    *len = RPMLEAD_SIZE + signature_size;
+
+    *len_ret = RPMLEAD_SIZE + signature_size;
 
 cleanup:
     free(signature);
@@ -343,31 +427,17 @@ cleanup:
     return error;
 }
 
-int rpm_fetch_header(struct rpm *rpmst, unsigned char **header_ret, uint32_t *len)
+int rpm_fetch_header(struct rpm *rpmst, unsigned char **header_ret, uint32_t *len_ret)
 {
-    void *header;
-    unsigned header_size;
-    int error = DRPM_ERR_OK;
+    int error;
+    size_t header_size;
 
-    if (rpmst == NULL || header_ret == NULL || len == NULL)
-        return DRPM_ERR_PROG;
+    if ((error = rpm_export_header(rpmst, header_ret, &header_size)) != DRPM_ERR_OK)
+        return error;
 
-    *header_ret = NULL;
-    *len = 0;
+    *len_ret = header_size;
 
-    if ((header = headerExport(rpmst->header, &header_size)) == NULL ||
-        (*header_ret = malloc(header_size)) == NULL) {
-        error = DRPM_ERR_MEMORY;
-        goto cleanup;
-    }
-
-    memcpy(*header_ret, header, header_size);
-    *len = header_size;
-
-cleanup:
-    free(header);
-
-    return error;
+    return DRPM_ERR_OK;
 }
 
 int rpm_fetch_archive(struct rpm *rpmst, unsigned char **archive_ret, size_t *len)
@@ -395,7 +465,8 @@ int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive)
     if (rpmst == NULL)
         return DRPM_ERR_PROG;
 
-    if ((file = Fopen(filename, "wb")) == NULL)
+    // hack: extra '\0' to prevent rpmlib from compressing (see rpmio.c)
+    if ((file = Fopen(filename, "wb\0")) == NULL)
         return DRPM_ERR_IO;
 
     if (Fwrite(rpmst->lead, 1, RPMLEAD_SIZE, file) != RPMLEAD_SIZE) {
@@ -507,7 +578,7 @@ int rpm_get_digest_algo(struct rpm *rpmst, unsigned short *digestalgo)
     digest_algo_array = rpmtdNew();
 
     if (headerGet(rpmst->header, RPMTAG_FILEDIGESTALGO, digest_algo_array,
-         HEADERGET_EXT | HEADERGET_MINMEM) != 1) {
+                  HEADERGET_EXT | HEADERGET_MINMEM) != 1) {
         *digestalgo = DIGESTALGO_MD5;
     } else {
         if ((digest_algo = rpmtdNextUint32(digest_algo_array)) == NULL) {
@@ -639,10 +710,10 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret,
         goto cleanup;
     }
 
-    for (unsigned i = 0; i < count; i++)
+    for (size_t i = 0; i < count; i++)
         files[i] = file_info_init;
 
-    for (unsigned i = 0; i < count; i++) {
+    for (size_t i = 0; i < count; i++) {
         if ((name = rpmtdNextString(filenames)) == NULL ||
             (flags = rpmtdNextUint32(fileflags)) == NULL ||
             (md5 = rpmtdNextString(filemd5s)) == NULL ||
@@ -658,9 +729,9 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret,
             goto cleanup_files;
         }
 
-        if ((files[i].name = malloc(strlen(name))) == NULL ||
-            (files[i].md5 = malloc(strlen(md5))) == NULL ||
-            (files[i].linkto = malloc(strlen(linkto))) == NULL) {
+        if ((files[i].name = malloc(strlen(name) + 1)) == NULL ||
+            (files[i].md5 = malloc(strlen(md5) + 1)) == NULL ||
+            (files[i].linkto = malloc(strlen(linkto) + 1)) == NULL) {
             error = DRPM_ERR_MEMORY;
             goto cleanup_files;
         }
@@ -719,15 +790,17 @@ cleanup:
 int rpm_find_payload_format_offset(struct rpm *rpmst, uint32_t *offset)
 {
     unsigned char *header;
-    unsigned header_size;
+    size_t header_size;
     uint32_t index_count;
-    int error = DRPM_ERR_FORMAT;
+    int error;
 
     if (rpmst == NULL || offset == NULL)
         return DRPM_ERR_PROG;
 
-    if ((header = headerExport(rpmst->header, &header_size)) == NULL)
-        return DRPM_ERR_MEMORY;
+    if ((error = rpm_export_header(rpmst, &header, &header_size)) != DRPM_ERR_OK)
+        return error;
+
+    error = DRPM_ERR_FORMAT;
 
     index_count = parse_be32(header + 8);
 
@@ -759,14 +832,16 @@ int rpm_signature_empty(struct rpm *rpmst)
 
 int rpm_signature_set_size(struct rpm *rpmst, uint32_t size)
 {
-    rpmtd tag_data = rpmtdNew();
+    rpmtd tag_data;
 
     if (rpmst == NULL)
         return DRPM_ERR_PROG;
 
+    tag_data = rpmtdNew();
+
     tag_data->tag = RPMSIGTAG_SIZE;
     tag_data->type = RPM_INT32_TYPE;
-    tag_data->data = &size; //
+    tag_data->data = &size;
     tag_data->count = 1;
 
     headerPut(rpmst->signature, tag_data, HEADERPUT_DEFAULT);
@@ -778,10 +853,12 @@ int rpm_signature_set_size(struct rpm *rpmst, uint32_t size)
 
 int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[16])
 {
-    rpmtd tag_data = rpmtdNew();
+    rpmtd tag_data;
 
     if (rpmst == NULL)
         return DRPM_ERR_PROG;
+
+    tag_data = rpmtdNew();
 
     tag_data->tag = RPMSIGTAG_MD5;
     tag_data->type = RPM_BIN_TYPE;
@@ -795,51 +872,9 @@ int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[16])
     return DRPM_ERR_OK;
 }
 
-int rpm_signature_set_headersignatures(struct rpm *rpmst, unsigned char hdrsig[16])
+int rpm_signature_reload(struct rpm *rpmst)
 {
-    rpmtd tag_data = rpmtdNew();
-
-    if (rpmst == NULL)
-        return DRPM_ERR_PROG;
-
-    tag_data->tag = RPMTAG_HEADERSIGNATURES;
-    tag_data->type = RPM_BIN_TYPE;
-    tag_data->data = hdrsig;
-    tag_data->count = 16;
-
-    headerPut(rpmst->signature, tag_data, HEADERPUT_DEFAULT);
-
-    rpmtdFree(tag_data);
+    rpmst->signature = headerReload(rpmst->signature, RPMTAG_HEADERSIGNATURES);
 
     return DRPM_ERR_OK;
-}
-
-int rpm_rewrite_signature(struct rpm *rpmst, int filedesc)
-{
-    int error = DRPM_ERR_OK;
-    void *signature = NULL;
-    unsigned signature_size = 0;
-    off_t offset;
-
-    if ((offset = lseek(filedesc, 0, SEEK_CUR)) == (off_t)-1 ||
-        lseek(filedesc, RPMLEAD_SIZE, SEEK_SET) != RPMLEAD_SIZE)
-        return DRPM_ERR_IO;
-
-    if ((signature = headerExport(rpmst->signature, &signature_size)) == NULL) {
-        error = DRPM_ERR_MEMORY;
-        goto cleanup;
-    }
-
-    if (write(filedesc, signature, signature_size) != (ssize_t)signature_size) {
-        error = DRPM_ERR_IO;
-        goto cleanup;
-    }
-
-cleanup:
-    if (lseek(filedesc, offset, SEEK_SET) == offset)
-        error = DRPM_ERR_IO;
-
-    free(signature);
-
-    return error;
 }

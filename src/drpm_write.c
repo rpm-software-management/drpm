@@ -64,10 +64,12 @@ int write_deltarpm(struct deltarpm *delta)
     unsigned char *header = NULL;
     uint32_t header_size;
     MD5_CTX md5;
-    unsigned char header_signatures[16] = {0};
     unsigned char md5_digest[MD5_DIGEST_LENGTH] = {0};
     unsigned char *strm_data = NULL;
     size_t strm_data_len;
+
+    if (delta->type != DRPM_TYPE_STANDARD && delta->type != DRPM_TYPE_RPMONLY)
+        return DRPM_ERR_PROG;
 
     version[0] = 'D';
     version[1] = 'L';
@@ -75,65 +77,9 @@ int write_deltarpm(struct deltarpm *delta)
     version[3] = '0' + delta->version;
     version[4] = '\0';
 
-    switch (delta->type) {
-    case DRPM_TYPE_STANDARD:
-        if ((error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
-            return error;
+    src_nevr_len = strlen(delta->src_nevr) + 1;
 
-        if (MD5_Init(&md5) != 1 ||
-            MD5_Update(&md5, header, header_size) != 1)
-            return DRPM_ERR_OTHER;
-
-        create_be32(RPMTAG_HEADERSIGNATURES, header_signatures);
-        create_be32(RPM_BIN_TYPE, header_signatures + 4);
-        create_be32((uint32_t)-3*16, header_signatures + 8);
-        create_be32(16, header_signatures + 12);
-
-        if ((error = rpm_signature_empty(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_headersignatures(delta->head.tgt_rpm, header_signatures)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_size(delta->head.tgt_rpm, 0)) != DRPM_ERR_OK ||
-            (error = rpm_signature_set_md5(delta->head.tgt_rpm, md5_digest)) != DRPM_ERR_OK ||
-            (error = rpm_patch_payload_format(delta->head.tgt_rpm, "drpm")) != DRPM_ERR_OK ||
-            (error = rpm_write(delta->head.tgt_rpm, delta->filename, false)) != DRPM_ERR_OK)
-            return error;
-
-        if ((filedesc = open(delta->filename, O_WRONLY | O_APPEND)) < 0)
-            return DRPM_ERR_IO;
-        break;
-
-    case DRPM_TYPE_RPMONLY:
-        if ((filedesc = creat(delta->filename, MODE)) < 0)
-            return DRPM_ERR_IO;
-
-        if (write(filedesc, "drpm", 4) != 4 ||
-            write(filedesc, version, 4) != 4) {
-            error = DRPM_ERR_IO;
-            goto cleanup;
-        }
-
-        tgt_nevr_len = strlen(delta->head.tgt_nevr);
-        if ((error = write_be32(filedesc, tgt_nevr_len)) != DRPM_ERR_OK)
-            goto cleanup;
-        if (write(filedesc, delta->head.tgt_nevr, tgt_nevr_len) != (ssize_t)tgt_nevr_len) {
-            error = DRPM_ERR_IO;
-            goto cleanup;
-        }
-
-        if ((error = write_be32(filedesc, delta->add_data_len)) != DRPM_ERR_OK)
-            goto cleanup;
-        if (write(filedesc, delta->add_data, delta->add_data_len) != (ssize_t)delta->add_data_len) {
-            error = DRPM_ERR_IO;
-            goto cleanup;
-        }
-        break;
-
-    default:
-        return DRPM_ERR_FORMAT;   
-    }
-
-    src_nevr_len = strlen(delta->src_nevr);
-
-    if ((error = compstrm_init(&stream, filedesc /* or -1? */, delta->comp, (int)delta->comp_level)) != DRPM_ERR_OK ||
+    if ((error = compstrm_init(&stream, -1, delta->comp, (int)delta->comp_level)) != DRPM_ERR_OK ||
         (error = compstrm_write(stream, 4, version)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, src_nevr_len)) != DRPM_ERR_OK ||
         (error = compstrm_write(stream, src_nevr_len, delta->src_nevr)) != DRPM_ERR_OK ||
@@ -143,8 +89,12 @@ int write_deltarpm(struct deltarpm *delta)
         goto cleanup;
 
     if (delta->version >= 2) {
+        if (!deltarpm_encode_comp(&tgt_comp, delta->tgt_comp, delta->tgt_comp_level)) {
+            error = DRPM_ERR_PROG;
+            goto cleanup;
+        }
+
         if ((error = compstrm_write_be32(stream, delta->tgt_size)) != DRPM_ERR_OK ||
-            !deltarpm_encode_comp(&tgt_comp, delta->tgt_comp, COMP_LEVEL_DEFAULT) ||
             (error = compstrm_write_be32(stream, tgt_comp)) != DRPM_ERR_OK ||
             (error = compstrm_write_be32(stream, delta->tgt_comp_param_len)) != DRPM_ERR_OK ||
             (error = compstrm_write(stream, delta->tgt_comp_param_len, delta->tgt_comp_param)) != DRPM_ERR_OK)
@@ -165,27 +115,42 @@ int write_deltarpm(struct deltarpm *delta)
         }
     }
 
+    printf("tgt_lead_len = %u (0x%x)\n", delta->tgt_lead_len, delta->tgt_lead_len);
+    printf("payload_fmt_off = %u (0x%x)\n", delta->payload_fmt_off, delta->payload_fmt_off);
+    printf("int_copies_size = %u (0x%x)\n", delta->int_copies_size, delta->int_copies_size);
+    printf("ext_copies_size = %u (0x%x)\n", delta->ext_copies_size, delta->ext_copies_size);
+
+    printf("int_copies: ");
+    for (uint32_t i = 1; i < delta->int_copies_size * 2; i += 2)
+        printf(" %08x %08x", delta->int_copies[i-1], delta->int_copies[i]);
+    putchar('\n');
+
+    printf("ext_copies: ");
+    for (uint32_t i = 1; i < delta->ext_copies_size * 2; i += 2)
+        printf(" %08x %08x", delta->ext_copies[i-1], delta->ext_copies[i]);
+    putchar('\n');
+
     if ((error = compstrm_write_be32(stream, delta->tgt_lead_len)) != DRPM_ERR_OK ||
         (error = compstrm_write(stream, delta->tgt_lead_len, delta->tgt_lead)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, delta->payload_fmt_off)) != DRPM_ERR_OK ||
-        (error = compstrm_write_be32(stream, delta->inn)) != DRPM_ERR_OK ||
-        (error = compstrm_write_be32(stream, delta->outn)) != DRPM_ERR_OK)
+        (error = compstrm_write_be32(stream, delta->int_copies_size)) != DRPM_ERR_OK ||
+        (error = compstrm_write_be32(stream, delta->ext_copies_size)) != DRPM_ERR_OK)
         goto cleanup;
 
-    for (uint32_t i = 0; i < delta->inn; i += 2) {
+    for (uint32_t i = 0; i < delta->int_copies_size * 2; i += 2) {
         if ((error = compstrm_write_be32(stream, delta->int_copies[i])) != DRPM_ERR_OK)
             goto cleanup;
     }
-    for (uint32_t j = 1; j < delta->inn; j += 2) {
+    for (uint32_t j = 1; j < delta->int_copies_size * 2; j += 2) {
         if ((error = compstrm_write_be32(stream, delta->int_copies[j])) != DRPM_ERR_OK)
             goto cleanup;
     }
 
-    for (uint32_t i = 0; i < delta->outn; i += 2) {
+    for (uint32_t i = 0; i < delta->ext_copies_size * 2; i += 2) {
         if ((error = compstrm_write_be32(stream, delta->ext_copies[i])) != DRPM_ERR_OK)
             goto cleanup;
     }
-    for (uint32_t j = 1; j < delta->outn; j += 2) {
+    for (uint32_t j = 1; j < delta->ext_copies_size * 2; j += 2) {
         if ((error = compstrm_write_be32(stream, delta->ext_copies[j])) != DRPM_ERR_OK)
             goto cleanup;
     }
@@ -215,26 +180,72 @@ int write_deltarpm(struct deltarpm *delta)
             goto cleanup;
     }
 
-    if ((error = compstrm_write(stream, delta->int_data_len, delta->int_data)) != DRPM_ERR_OK)
-        goto cleanup;
+    if (delta->int_data_as_ptrs) {
+        for (uint32_t i = 0; i < delta->int_copies_size; i++) {
+            if ((error = compstrm_write(stream, delta->int_copies[i * 2 + 1],
+                                                delta->int_data.ptrs[i])) != DRPM_ERR_OK)
+                goto cleanup;
+        }
+    } else {
+        if ((error = compstrm_write(stream, delta->int_data_len, delta->int_data.bytes)) != DRPM_ERR_OK)
+            goto cleanup;
+    }
 
     if ((error = compstrm_finish(stream, &strm_data, &strm_data_len)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if (delta->type == DRPM_TYPE_STANDARD) {
-        if (MD5_Update(&md5, strm_data, strm_data_len) != 1 ||
-            MD5_Final(md5_digest, &md5) != 1) {
-            error = DRPM_ERR_OTHER;
+    switch (delta->type) {
+    case DRPM_TYPE_STANDARD:
+        if ((error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
+            return error;
+
+        if (MD5_Init(&md5) != 1 ||
+            MD5_Update(&md5, header, header_size) != 1 ||
+            MD5_Update(&md5, strm_data, strm_data_len) != 1 ||
+            MD5_Final(md5_digest, &md5) != 1)
+            return DRPM_ERR_OTHER;
+
+        if ((error = rpm_signature_empty(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_size(delta->head.tgt_rpm, header_size + strm_data_len)) != DRPM_ERR_OK ||
+            (error = rpm_signature_set_md5(delta->head.tgt_rpm, md5_digest)) != DRPM_ERR_OK ||
+            (error = rpm_signature_reload(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
+            (error = rpm_patch_payload_format(delta->head.tgt_rpm, "drpm")) != DRPM_ERR_OK ||
+            (error = rpm_write(delta->head.tgt_rpm, delta->filename, false)) != DRPM_ERR_OK)
+            return error;
+
+        if ((filedesc = open(delta->filename, O_WRONLY | O_APPEND)) < 0)
+            return DRPM_ERR_IO;
+        break;
+
+    case DRPM_TYPE_RPMONLY:
+        if ((filedesc = creat(delta->filename, MODE)) < 0)
+            return DRPM_ERR_IO;
+
+        if (write(filedesc, "drpm", 4) != 4 ||
+            write(filedesc, version, 4) != 4) {
+            error = DRPM_ERR_IO;
             goto cleanup;
         }
-        if ((error = rpm_signature_set_size(delta->head.tgt_rpm, header_size + strm_data_len) != DRPM_ERR_OK) ||
-            (error = rpm_signature_set_md5(delta->head.tgt_rpm, md5_digest) != DRPM_ERR_OK) ||
-            /* remove? */(error = rpm_rewrite_signature(delta->head.tgt_rpm, filedesc)) != DRPM_ERR_OK)
+
+        tgt_nevr_len = strlen(delta->head.tgt_nevr) + 1;
+        if ((error = write_be32(filedesc, tgt_nevr_len)) != DRPM_ERR_OK)
             goto cleanup;
+        if (write(filedesc, delta->head.tgt_nevr, tgt_nevr_len) != (ssize_t)tgt_nevr_len) {
+            error = DRPM_ERR_IO;
+            goto cleanup;
+        }
+
+        if ((error = write_be32(filedesc, delta->add_data_len)) != DRPM_ERR_OK)
+            goto cleanup;
+        if (write(filedesc, delta->add_data, delta->add_data_len) != (ssize_t)delta->add_data_len) {
+            error = DRPM_ERR_IO;
+            goto cleanup;
+        }
+        break;
     }
 
-//    if (write(filedesc, strm_data, strm_data_len) != (ssize_t)strm_data_len)
-//        error = DRPM_ERR_IO;
+    if (write(filedesc, strm_data, strm_data_len) != (ssize_t)strm_data_len)
+        error = DRPM_ERR_IO;
 
 cleanup:
     if (error == DRPM_ERR_OK)

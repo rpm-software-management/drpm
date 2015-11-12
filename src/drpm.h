@@ -108,6 +108,7 @@
 #define DRPM_FLAG_COMP_LEVEL_7 (1<<15)  /**< compression level 7 */
 #define DRPM_FLAG_COMP_LEVEL_8 (1<<16)  /**< compression level 8 */
 #define DRPM_FLAG_COMP_LEVEL_9 (1<<17)  /**< compression level 9 */
+// TODO: add block flags,...
 /**@}*/
 
 typedef struct drpm drpm; /**< deltarpm package info */

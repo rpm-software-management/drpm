@@ -40,7 +40,7 @@ struct compstrm {
         bz_stream bzip2;
         lzma_stream lzma;
     } stream;
-    int (*write_chunk)(struct compstrm *, size_t, void *);
+    int (*write_chunk)(struct compstrm *, size_t, const void *);
     int (*finish)(struct compstrm *);
     bool finished;
 };
@@ -52,10 +52,10 @@ static int init_bzip2(struct compstrm *, int);
 static int init_gzip(struct compstrm *, int);
 static int init_lzma(struct compstrm *, int);
 static int init_xz(struct compstrm *, int);
-static int writechunk(struct compstrm *, size_t, void *);
-static int writechunk_bzip2(struct compstrm *, size_t, void *);
-static int writechunk_gzip(struct compstrm *, size_t, void *);
-static int writechunk_lzma(struct compstrm *, size_t, void *);
+static int writechunk(struct compstrm *, size_t, const void *);
+static int writechunk_bzip2(struct compstrm *, size_t, const void *);
+static int writechunk_gzip(struct compstrm *, size_t, const void *);
+static int writechunk_lzma(struct compstrm *, size_t, const void *);
 
 int finish_bzip2(struct compstrm *strm)
 {
@@ -297,18 +297,23 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
     case DRPM_COMP_NONE:
         (*strm)->write_chunk = writechunk;
         (*strm)->finish = NULL;
+        break;
     case DRPM_COMP_GZIP:
         if ((error = init_gzip(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
+        break;
     case DRPM_COMP_BZIP2:
         if ((error = init_bzip2(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
+        break;
     case DRPM_COMP_LZMA:
         if ((error = init_lzma(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
+        break;
     case DRPM_COMP_XZ:
         if ((error = init_xz(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
+        break;
     default:
         return DRPM_ERR_PROG;
     }
@@ -381,12 +386,18 @@ int compstrm_write_be64(struct compstrm *strm, uint64_t number)
     return compstrm_write(strm, 8, bytes);
 }
 
-int compstrm_write(struct compstrm *strm, size_t write_len, void *buffer)
+int compstrm_write(struct compstrm *strm, size_t write_len, const void *buffer)
 {
     int error;
-    ssize_t comp_write_len;
+    size_t comp_write_len;
 
-    if (strm == NULL || buffer == NULL || strm->finished)
+    if (strm == NULL || strm->finished)
+        return DRPM_ERR_PROG;
+
+    if (write_len == 0)
+        return DRPM_ERR_OK;
+
+    if (buffer == NULL)
         return DRPM_ERR_PROG;
 
     if ((error = strm->write_chunk(strm, write_len, buffer)) != DRPM_ERR_OK)
@@ -396,7 +407,7 @@ int compstrm_write(struct compstrm *strm, size_t write_len, void *buffer)
 
     if (strm->filedesc >= 0 && comp_write_len > 0) {
         if (write(strm->filedesc, strm->data + strm->data_pos,
-                  comp_write_len) != comp_write_len)
+                  comp_write_len) != (ssize_t)comp_write_len)
             return DRPM_ERR_IO;
     }
 
@@ -405,7 +416,7 @@ int compstrm_write(struct compstrm *strm, size_t write_len, void *buffer)
     return DRPM_ERR_OK;
 }
 
-int writechunk(struct compstrm *strm, size_t in_len, void *in_buffer)
+int writechunk(struct compstrm *strm, size_t in_len, const void *in_buffer)
 {
     unsigned char *data_tmp;
 
@@ -419,7 +430,7 @@ int writechunk(struct compstrm *strm, size_t in_len, void *in_buffer)
     return DRPM_ERR_OK;
 }
 
-int writechunk_bzip2(struct compstrm *strm, size_t in_len, void *in_buffer)
+int writechunk_bzip2(struct compstrm *strm, size_t in_len, const void *in_buffer)
 {
     unsigned char *data_tmp;
     char out_buffer[CHUNK_SIZE];
@@ -445,7 +456,7 @@ int writechunk_bzip2(struct compstrm *strm, size_t in_len, void *in_buffer)
     return DRPM_ERR_OK;
 }
 
-int writechunk_gzip(struct compstrm *strm, size_t in_len, void *in_buffer)
+int writechunk_gzip(struct compstrm *strm, size_t in_len, const void *in_buffer)
 {
     unsigned char *data_tmp;
     unsigned char out_buffer[CHUNK_SIZE];
@@ -471,7 +482,7 @@ int writechunk_gzip(struct compstrm *strm, size_t in_len, void *in_buffer)
     return DRPM_ERR_OK;
 }
 
-int writechunk_lzma(struct compstrm *strm, size_t in_len, void *in_buffer)
+int writechunk_lzma(struct compstrm *strm, size_t in_len, const void *in_buffer)
 {
     unsigned char *data_tmp;
     unsigned char out_buffer[CHUNK_SIZE];

@@ -54,6 +54,8 @@
 
 #define PADDING(offset, align) ((((align) - ((offset) % (align))) % (align)))
 
+#define TWOS_COMPLEMENT(x) (((unsigned long long)(x)) * 2 + 1)
+
 struct drpm {
     char *filename;
     uint32_t version;
@@ -89,12 +91,14 @@ struct compstrm;
 struct decompstrm;
 //drpm_rpm.c
 struct rpm;
+//drpm_search.c
+struct sfxsrt;
 
 //drpm_compstrm.c
 int compstrm_destroy(struct compstrm **);
 int compstrm_finish(struct compstrm *, unsigned char **, size_t *);
 int compstrm_init(struct compstrm **, int, unsigned short, int);
-int compstrm_write(struct compstrm *, size_t, void *);
+int compstrm_write(struct compstrm *, size_t, const void *);
 int compstrm_write_be32(struct compstrm *, uint32_t);
 int compstrm_write_be64(struct compstrm *, uint64_t);
 
@@ -110,6 +114,12 @@ int decompstrm_read_until_eof(struct decompstrm *, size_t *, unsigned char **);
 //drpm_deltarpm.c
 bool deltarpm_decode_comp(uint32_t, unsigned short *, unsigned short *);
 bool deltarpm_encode_comp(uint32_t *, unsigned short, unsigned short);
+
+//drpm_diff.c
+int make_diff(const unsigned char *, size_t, const unsigned char *, size_t,
+              const unsigned char ***, uint64_t *, uint32_t **, uint32_t *,
+              uint32_t **, uint32_t *, unsigned char **, uint32_t *,
+              unsigned short, int);
 
 //drpm_make.c
 int fill_nodiff_deltarpm(struct deltarpm *, const char *, bool);
@@ -128,6 +138,7 @@ int readdelta_standard(int, struct drpm *);
 //drpm_rpm.c
 int rpm_archive_read_chunk(struct rpm *, void *, size_t);
 int rpm_archive_rewind(struct rpm *);
+int rpm_copy(struct rpm **, struct rpm *, bool);
 int rpm_destroy(struct rpm **);
 int rpm_fetch_archive(struct rpm *, unsigned char **, size_t *);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
@@ -142,14 +153,19 @@ int rpm_get_payload_format(struct rpm *, unsigned short *);
 int rpm_patch_payload_format(struct rpm *, const char *);
 int rpm_read(struct rpm **, const char *, int, unsigned short *,
              unsigned char *, unsigned char *);
-int rpm_rewrite_signature(struct rpm *, int);
 int rpm_signature_empty(struct rpm *);
-int rpm_signature_set_headersignatures(struct rpm *, unsigned char *);
+int rpm_signature_reload(struct rpm *);
 int rpm_signature_set_md5(struct rpm *, unsigned char *);
 int rpm_signature_set_size(struct rpm *, uint32_t);
 uint32_t rpm_size_full(struct rpm *);
 uint32_t rpm_size_header(struct rpm *);
 int rpm_write(struct rpm *, const char *, bool);
+
+//drpm_search.c
+int sfxsrt_create(struct sfxsrt **, const unsigned char *, size_t);
+void sfxsrt_free(struct sfxsrt **);
+size_t sfxsrt_search(struct sfxsrt *, const unsigned char *, size_t,
+                     const unsigned char *, size_t, size_t, size_t, size_t *, size_t *);
 
 //drpm_utils.c
 void create_be32(uint32_t, unsigned char *);
@@ -195,15 +211,19 @@ struct deltarpm {
     uint32_t tgt_lead_len;
     unsigned char *tgt_lead;
     uint32_t payload_fmt_off;
-    uint32_t inn;
-    uint32_t outn;
+    uint32_t int_copies_size;
+    uint32_t ext_copies_size;
     uint32_t *int_copies;
     uint32_t *ext_copies;
     uint64_t ext_data_len;
     uint32_t add_data_len;
     unsigned char *add_data;
     uint64_t int_data_len;
-    unsigned char *int_data;
+    bool int_data_as_ptrs;
+    union {
+        unsigned char *bytes;
+        unsigned char **ptrs;
+    } int_data;
 };
 
 struct file_info {

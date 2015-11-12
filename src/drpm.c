@@ -46,6 +46,43 @@
                           | DRPM_FLAG_COMP_LEVEL_7 | DRPM_FLAG_COMP_LEVEL_8 \
                           | DRPM_FLAG_COMP_LEVEL_9)
 
+#ifdef DRPM_DEBUG
+
+#include <stdio.h>
+
+const char *type2str(unsigned short type)
+{
+    switch (type) {
+    case DRPM_TYPE_RPMONLY:
+        return "rpm-only";
+    case DRPM_TYPE_STANDARD:
+        return "standard";
+    default:
+        return "!!!unknown type!!!";
+    }
+}
+
+const char *comp2str(unsigned short comp)
+{
+    switch (comp) {
+    case DRPM_COMP_NONE:
+        return "uncompressed";
+    case DRPM_COMP_GZIP:
+        return "gzip";
+    case DRPM_COMP_BZIP2:
+        return "bzip2";
+    case DRPM_COMP_LZMA:
+        return "lzma";
+    case DRPM_COMP_XZ:
+        return "xz";
+    case DRPM_COMP_LZIP:
+        return "lzip";
+    default:
+        return "!!!unknown compression!!!";
+    }
+}
+#endif
+
 const char *drpm_strerror(int error)
 {
     switch (error) {
@@ -476,10 +513,10 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         goto write_files;
     }
 
-    /* reading RPM(s) (also creating MD5 sums and reading compressor from archive) */
+    /* reading RPM(s) (also creating MD5 sums and determining compressor from archive) */
     if (alone) {
         if ((error = rpm_read(&solo_rpm, solo_rpm_name, RPM_ARCHIVE_READ_DECOMP,
-                              comp_from_rpm ? &delta.comp : NULL, NULL, delta.tgt_md5)) != DRPM_ERR_OK)
+                              &delta.tgt_comp, NULL, delta.tgt_md5)) != DRPM_ERR_OK)
             goto cleanup;
     } else {
         if (rpm_only) {
@@ -492,9 +529,11 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         if ((error = rpm_read(&old_rpm, old_rpm_name, RPM_ARCHIVE_READ_DECOMP,
                               NULL, rpm_only ? delta.sequence : NULL, NULL)) != DRPM_ERR_OK ||
             (error = rpm_read(&new_rpm, new_rpm_name, RPM_ARCHIVE_READ_DECOMP,
-                              comp_from_rpm ? &delta.comp : NULL, NULL, delta.tgt_md5)) != DRPM_ERR_OK)
+                              &delta.tgt_comp, NULL, delta.tgt_md5)) != DRPM_ERR_OK)
             goto cleanup;
     }
+
+    printf("read RPM(s)\n");
 
     /* checking if archive is in CPIO format */
     if ((error = rpm_get_payload_format(alone ? solo_rpm : new_rpm, &payload_format)) != DRPM_ERR_OK)
@@ -504,30 +543,55 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         goto cleanup;
     }
 
-    /* determining delta compression type and level from target RPM */
+    printf("archive is in CPIO format\n");
+
+    /* reading compression level of target RPM */
+    if ((error = rpm_get_comp_level(alone ? solo_rpm : new_rpm, &delta.tgt_comp_level)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    /* matching RPM compression if no compression specified by user */
     if (comp_from_rpm) {
-        if (delta.comp == DRPM_COMP_LZIP) { // deltarpm doesn't support lzip
+        if (delta.tgt_comp == DRPM_COMP_LZIP) { // deltarpm doesn't support lzip
             delta.comp = DRPM_COMP_XZ;
             delta.comp_level = COMP_LEVEL_DEFAULT;
-        } else if ((error = rpm_get_comp_level(alone ? solo_rpm : new_rpm, &delta.comp_level)) != DRPM_ERR_OK) {
-            goto cleanup;
+        } else {
+            delta.comp = delta.tgt_comp;
+            delta.comp_level = delta.tgt_comp_level;
         }
+        printf("determined delta compression type and level from RPM\n");
     }
 
-    if (!rpm_only) {
-        delta.head.tgt_rpm = alone ? solo_rpm : new_rpm;
-        /* storing offset of payload format tag in header for compatibility with deltarpm */
-        if ((error = rpm_find_payload_format_offset(delta.head.tgt_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
-            goto cleanup;
-    }
+    printf("delta compression type and level: %s (%u)\n", comp2str(delta.comp), delta.comp_level);
+    printf("RPM compression type and level: %s (%u)\n", comp2str(delta.tgt_comp), delta.tgt_comp_level);
+
+    if (!rpm_only && rpm_copy(&delta.head.tgt_rpm, alone ? solo_rpm : new_rpm, false) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if (!rpm_only)
+        printf("copied RPM header\n");
+
+    /* storing offset of payload format tag in header for compatibility with deltarpm */
+    if ((error = rpm_find_payload_format_offset(alone ? solo_rpm : new_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("stored payload format offset\n");
 
     /* reading source and target NEVRs */
     if ((error = rpm_get_nevr(alone ? solo_rpm : old_rpm, &delta.src_nevr)) != DRPM_ERR_OK ||
         (rpm_only && (error = rpm_get_nevr(new_rpm, &delta.head.tgt_nevr)) != DRPM_ERR_OK))
         goto cleanup;
 
+    printf("copied NEVRs\n");
+
+    if ((error = rpm_fetch_lead_and_signature(alone ? solo_rpm : new_rpm, &delta.tgt_lead, &delta.tgt_lead_len)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("copied RPM lead and signature\n");
+
     /* storing size of target RPM file */
     delta.tgt_size = rpm_size_full(alone ? solo_rpm : new_rpm);
+
+    printf("stored RPM size\n");
 
     /* creating old_cpio and new_cpio for binary diff */
     if (rpm_only) {
@@ -564,9 +628,25 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             goto cleanup;
     }
 
-    //...
+    printf("prepared byte sequences (old = %zu, new = %zu)\n", old_cpio_len, new_cpio_len);
+
+    /* diff algorithm, creating deltarpm diff data */
+    if ((error = make_diff(old_cpio, old_cpio_len, new_cpio, new_cpio_len,
+                           &delta.int_data.ptrs, &delta.int_data_len,
+                           &delta.ext_copies, &delta.ext_copies_size,
+                           &delta.int_copies, &delta.int_copies_size,
+                           &delta.add_data, &delta.add_data_len,
+                           DRPM_COMP_BZIP2, COMP_LEVEL_DEFAULT)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("completed diff\n");
+
+    delta.int_data_as_ptrs = true;
+    delta.ext_data_len = old_cpio_len;
 
 write_files:
+    printf("writing files\n");
+
     if ((error = write_deltarpm(&delta)) != DRPM_ERR_OK)
         goto cleanup;
 
@@ -574,6 +654,8 @@ write_files:
         error = write_seqfile(&delta, seqfile_name);
 
 cleanup:
+    printf("cleaning up\n");
+
     free_deltarpm(&delta);
 
     rpm_destroy(&solo_rpm);
