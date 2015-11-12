@@ -34,8 +34,6 @@
 
 #define BUFFER_SIZE 4096
 
-#define TWOS_COMPLEMENT(x) ((x) * 2 + 1)
-
 #define UNSIGNED_SUM_OVERFLOWS(x,y) ((x) + (y) < (y))
 
 #define IN_LIB_DIR(path) (strstr((path), "lib/") != NULL ||\
@@ -203,7 +201,7 @@ int cpio_header_read(struct cpio_header *cpio_hdr,
         (devminor_ret = parse_hexnum((buffer += 8), 8)) < 0 ||
         (rdevmajor_ret = parse_hexnum((buffer += 8), 8)) < 0 ||
         (rdevminor_ret = parse_hexnum((buffer += 8), 8)) < 0 ||
-        (namesize_ret = parse_hexnum(buffer, 8)) < 0)
+        (namesize_ret = parse_hexnum((buffer += 8), 8)) < 0)
         return DRPM_ERR_FORMAT;
 
     cpio_hdr->ino = ino_ret;
@@ -402,7 +400,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
         if (!skip) {
             cpio_hdr.mode = file.mode;
-            cpio_hdr.namesize = name_len + 1;
+            cpio_hdr.namesize = name_len + 3; // including "./" prefix
             cpio_hdr.nlink = 1;
 
             /* offset adjustment */
@@ -434,7 +432,6 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                                 continue;
                             }
                             offadjs[offadjn++ * 2 + 1] = TWOS_COMPLEMENT(offset);
-                            break;
                         } else {
                             offset = cpio_pos_before_hdrname - cpio_len;
                             if (offset >= (uint32_t)INT32_MIN) {
@@ -443,8 +440,9 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                                 continue;
                             }
                             offadjs[offadjn++ * 2 + 1] = offset;
-                            break;
                         }
+
+                        break;
                     }
                 }
                 cpio_pos = cpio_len + cpio_hdrname_len;
@@ -641,13 +639,14 @@ cleanup:
 
 void free_deltarpm(struct deltarpm *delta)
 {
+    struct deltarpm delta_init = {0};
+
     switch (delta->type) {
     case DRPM_TYPE_STANDARD:
-        rpm_destroy(&delta->head.tgt_rpm); // superfluous!!
+        rpm_destroy(&delta->head.tgt_rpm);
         break;
     case DRPM_TYPE_RPMONLY:
         free(delta->head.tgt_nevr);
-        delta->head.tgt_nevr = NULL;
         break;
     }
 
@@ -659,27 +658,11 @@ void free_deltarpm(struct deltarpm *delta)
     free(delta->int_copies);
     free(delta->ext_copies);
     free(delta->add_data);
-    free(delta->int_data);
 
-    delta->src_nevr = NULL;
-    delta->sequence_len = 0;
-    delta->sequence = NULL;
-    delta->tgt_size = 0;
-    delta->tgt_comp_param_len = 0;
-    delta->tgt_comp_param = NULL;
-    delta->tgt_header_len = 0;
-    delta->offadjn = 0;
-    delta->offadjs = NULL;
-    delta->tgt_lead_len = 0;
-    delta->tgt_lead = NULL;
-    delta->payload_fmt_off = 0;
-    delta->inn = 0;
-    delta->outn = 0;
-    delta->int_copies = NULL;
-    delta->ext_copies = NULL;
-    delta->ext_data_len = 0;
-    delta->add_data_len = 0;
-    delta->add_data = NULL;
-    delta->int_data_len = 0;
-    delta->int_data = NULL;
+    if (delta->int_data_as_ptrs)
+        free(delta->int_data.ptrs);
+    else
+        free(delta->int_data.bytes);
+
+    *delta = delta_init;
 }

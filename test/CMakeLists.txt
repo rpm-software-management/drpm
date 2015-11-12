@@ -1,4 +1,4 @@
-set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_compstrm.c ../src/drpm_decompstrm.c ../src/drpm_deltarpm.c ../src/drpm_make.c ../src/drpm_read.c ../src/drpm_rpm.c ../src/drpm_utils.c ../src/drpm_write.c)
+set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_compstrm.c ../src/drpm_decompstrm.c ../src/drpm_deltarpm.c ../src/drpm_diff.c ../src/drpm_make.c ../src/drpm_read.c ../src/drpm_rpm.c ../src/drpm_search.c ../src/drpm_utils.c ../src/drpm_write.c)
 
 set(DRPM_TEST_FILES drpm_test_file_1.drpm drpm_test_file_2.drpm drpm_test_file_3.rpm drpm_test_file_4)
 set(DRPM_TEST_ARGS ${DRPM_TEST_FILES} drpm_test_file_5)
@@ -14,7 +14,7 @@ set_source_files_properties(${DRPM_TEST_SOURCES} PROPERTIES
    COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra -DHAVE_CONFIG_H -I${CMAKE_BINARY_DIR}"
 )
 
-target_link_libraries(drpm_test z bz2 lzma rpm rpmio crypto cmocka)
+target_link_libraries(drpm_test z bz2 lzma rpm rpmio crypto divsufsort cmocka)
 
 set_target_properties(drpm_test PROPERTIES
    LINK_FLAGS "-Wl,--wrap,read_be32 -Wl,--wrap,readdelta_rpmonly -Wl,--wrap,readdelta_standard -Wl,--wrap,readdelta_rest -Wl,--wrap,decompstrm_init -Wl,--wrap,decompstrm_read_be32 -Wl,--wrap,decompstrm_read -Wl,--wrap,decompstrm_destroy"
