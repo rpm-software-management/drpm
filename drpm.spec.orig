@@ -4,7 +4,7 @@ Name:           drpm
 Version:        0.3.0
 Release:        1%{?dist}
 Summary:        A small library for fetching information from deltarpm packages
-License:        LGPLv3+ and BSD
+License:        LGPLv3+
 URL:            http://fedorahosted.org/%{name}
 Source:         http://fedorahosted.org/released/%{name}/%{name}-%{version}.tar.bz2
 
@@ -50,7 +50,7 @@ make check %{?_smp_mflags}
 
 %files
 %{_libdir}/libdrpm.so.*
-%license COPYING COPYING.LESSER LICENSE.BSD
+%license COPYING COPYING.LESSER
 
 %files devel
 %{_libdir}/libdrpm.so
