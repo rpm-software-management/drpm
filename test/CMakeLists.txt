@@ -14,7 +14,7 @@ set_source_files_properties(${DRPM_TEST_SOURCES} PROPERTIES
    COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra -DHAVE_CONFIG_H -I${CMAKE_BINARY_DIR}"
 )
 
-target_link_libraries(drpm_test z bz2 lzma rpm rpmio crypto divsufsort cmocka)
+target_link_libraries(drpm_test ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${LIBLZMA_LIBRARIES} ${RPM_LIBRARIES} ${LIBCRYPTO_LIBRARIES} ${LIBDIVSUFSORT_LIBRARIES} ${CMOCKA_LIBRARIES})
 
 set_target_properties(drpm_test PROPERTIES
    LINK_FLAGS "-Wl,--wrap,read_be32 -Wl,--wrap,readdelta_rpmonly -Wl,--wrap,readdelta_standard -Wl,--wrap,readdelta_rest -Wl,--wrap,decompstrm_init -Wl,--wrap,decompstrm_read_be32 -Wl,--wrap,decompstrm_read -Wl,--wrap,decompstrm_destroy"

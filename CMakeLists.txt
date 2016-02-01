@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 2.8)
 
 project(drpm)
 
+find_package(ZLIB REQUIRED)
+find_package(BZip2 REQUIRED)
+find_package(LibLZMA REQUIRED)
+
+find_package(PkgConfig)
+pkg_check_modules(RPM rpm REQUIRED)
+pkg_check_modules(LIBCRYPTO libcrypto REQUIRED)
+pkg_check_modules(LIBDIVSUFSORT libdivsufsort REQUIRED)
+pkg_check_modules(CMOCKA cmocka REQUIRED)
+
 add_custom_target(dist COMMAND ${CMAKE_MAKE_PROGRAM} package_source)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure)
 
