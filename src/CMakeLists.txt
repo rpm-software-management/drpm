@@ -21,10 +21,11 @@ set_source_files_properties(${DRPM_SOURCES} PROPERTIES
    COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra -DHAVE_CONFIG_H -I${CMAKE_BINARY_DIR}"
 )
 
+target_link_libraries(drpm ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${LIBLZMA_LIBRARIES} ${RPM_LIBRARIES} ${LIBCRYPTO_LIBRARIES} ${LIBDIVSUFSORT_LIBRARIES})
+
 set_target_properties(drpm PROPERTIES
    VERSION ${DRPM_VERSION}
    SOVERSION ${DRPM_SOVERSION}
-   LINK_FLAGS "-lz -lbz2 -llzma -lrpm -lrpmio -lcrypto -ldivsufsort"
 )
 
 install(TARGETS drpm DESTINATION ${LIB_INSTALL_DIR})
