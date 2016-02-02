@@ -44,16 +44,15 @@
 #include "drpm.h"
 #include "drpm_private.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
-#include <divsufsort.h>
 
 #define MIN_MISMATCHES 32
 
 static size_t match_len(const unsigned char *, size_t, const unsigned char *, size_t);
-static size_t suffix_search(const int *, const unsigned char *, size_t,
+static int bucketsort(long long *, long long *, size_t, size_t);
+static void suffix_split(long long *, long long *, size_t, size_t, size_t);
+static size_t suffix_search(const long long *, const unsigned char *, size_t,
                             const unsigned char *, size_t, size_t, size_t, size_t *);
 
 size_t match_len(const unsigned char *old, size_t old_len,
@@ -72,44 +71,114 @@ size_t match_len(const unsigned char *old, size_t old_len,
 /**************************** suffix sort ****************************/
 
 struct sfxsrt {
-    int *I;         // suffix array
+    long long *I;   // suffix array
     size_t F[257];  // min. number of preceding suffixes for each byte value
 };
 
 int sfxsrt_create(struct sfxsrt **suf, const unsigned char *old, size_t old_len)
 {
-    int *I;
+    int error = DRPM_ERR_OK;
+    long long *I = NULL;
+    long long *V = NULL;
+    size_t h;
+    size_t bucket_len;
+    size_t len;
+    size_t val;
+    size_t l;
+    size_t i;
+    uint32_t oldv;
     size_t F[257] = {0};
 
     if (suf == NULL || old == NULL)
         return DRPM_ERR_PROG;
 
-    if (old_len > INT_MAX)
-        return DRPM_ERR_OVERFLOW;
-
     if ((*suf = malloc(sizeof(struct sfxsrt))) == NULL ||
-        (I = malloc((old_len + 3) * sizeof(int))) == NULL) // TODO
-        return DRPM_ERR_MEMORY;
-
-    if (divsufsort(old, I, (int)old_len) != 0) {
-        free(I);
-        free(*suf);
-        return DRPM_ERR_OTHER;
+        (I = malloc(sizeof(long long) * (old_len + 3))) == NULL ||
+        (V = malloc(sizeof(long long) * (old_len + 3))) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup_fail;
     }
 
-    for (size_t i = 0; i < old_len; i++)
-        F[old[i]]++;
-    for (size_t i = 1; i < 257; i++)
-        F[i] += F[i-1];
-    for (size_t i = 256; i > 0; i--)
-        F[i] = F[i-1];
-    F[0] = 0;
+    if (old_len > 0xFFFFFF) {
+        bucket_len = 0x1000002;
+        h = 3;
+
+        F[old[0]]++;
+        F[old[1]]++;
+        oldv = old[0] << 8 | old[1];
+        for (size_t i = 2; i < old_len; i++) {
+            F[old[i]]++;
+            oldv = (oldv & 0xFFFF) << 8 | old[i];
+            V[i - 2] = oldv + 2;
+        }
+        oldv = (oldv & 0xFFFF) << 8;
+        V[old_len - 2] = oldv + 2;
+        oldv = (oldv & 0xFFFF) << 8;
+        V[old_len - 1] = oldv + 2;
+        len = old_len + 2;
+        V[len - 2] = 1;
+        V[len - 1] = 0;
+    } else {
+        bucket_len = 0x10001;
+        h = 2;
+
+        F[old[0]]++;
+        oldv = old[0];
+        for (size_t i = 1; i < old_len; i++) {
+            F[old[i]]++;
+            oldv = (oldv & 0xFF) << 8 | old[i];
+            V[i - 1] = oldv + 1;
+        }
+        oldv = (oldv & 0xFF) << 8;
+        V[old_len - 1] = oldv + 1;
+        len = old_len + 1;
+        V[len - 1] = 0;
+    }
+
+    val = len;
+    for (unsigned short i = 256; i > 0; val -= F[--i])
+        F[i] = val;
+    F[0] = val;
+
+    if ((error = bucketsort(I, V, len, bucket_len)) != DRPM_ERR_OK)
+        goto cleanup_fail;
+
+    len++;
+    for ( ; I[0] != -(long long)len; h += h) {
+        l = 0;
+        for (i = 0; i < len; ) {
+            if (I[i] < 0) {
+                l -= I[i];
+                i -= I[i];
+            } else {
+                if (l > 0)
+                    I[i - l] = -(long long)l;
+                l = V[I[i]] + 1 - i;
+                suffix_split(I, V, i, l, h);
+                i += l;
+                l = 0;
+            }
+        }
+        if (l > 0)
+            I[i - l] = -(long long)l;
+    }
+
+    for (i = 0; i < len; i++)
+        I[V[i]] = i;
 
     (*suf)->I = I;
-    for (size_t i = 0; i < 257; i++)
-        (*suf)->F[i] = F[i];
+    memcpy((*suf)->F, F, sizeof(size_t) * 257);
 
-    return DRPM_ERR_OK;
+    goto cleanup;
+
+cleanup_fail:
+    free(*suf);
+    free(I);
+
+cleanup:
+    free(V);
+
+    return error;
 }
 
 void sfxsrt_free(struct sfxsrt **suf)
@@ -130,7 +199,7 @@ size_t sfxsrt_search(struct sfxsrt *suf,
 
     while (scan < new_len) {
         len = suffix_search(suf->I, old, old_len, new, new_len,
-                            suf->F[new[scan]] + 1, suf->F[new[scan] + 1], // TODO
+                            suf->F[new[scan]] + 1, suf->F[new[scan] + 1],
                             pos_ret);
 
         const size_t miniscan_limit = MIN(scan + len, old_len - last_offset);
@@ -161,7 +230,122 @@ size_t sfxsrt_search(struct sfxsrt *suf,
     return scan;
 }
 
-size_t suffix_search(const int *sfxar,
+int bucketsort(long long *I, long long *V, size_t len, size_t bucket_len)
+{
+    size_t *B;
+    size_t c, d, i, j, g;
+
+    if ((B = calloc(bucket_len, sizeof(size_t))) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    for (i = len; i > 0; i--) {
+        c = V[i - 1];
+        V[i - 1] = B[c];
+        B[c] = i;
+    }
+
+    for (j = bucket_len - 1, i = len; i > 0; j--) {
+        for (d = B[j], g = i; d > 0; i--) {
+            c = d - 1;
+            d = V[c];
+            V[c] = g;
+            I[i] = (d == 0 && g == i) ? -1 : (long long)c;
+        }
+    }
+
+    V[len] = 0;
+    I[0] = -1;
+
+    free(B);
+
+    return DRPM_ERR_OK;
+}
+
+void suffix_split(long long *I, long long *V, size_t start, size_t len, size_t h)
+{
+    size_t i, j, k, jj, kk;
+    long long x, tmp;
+    const size_t end = start + len;
+
+    if (len < 16) {
+        for (k = start; k < end; k += j) {
+            j = 1;
+            x = V[I[k] + h];
+            for (i = 1; k + i < end; i++) {
+                if (V[I[k+i] + h] < x) {
+                    x = V[I[k+i] + h];
+                    j = 0;
+                }
+                if (V[I[k+i] + h] == x) {
+                    tmp = I[k+j];
+                    I[k+j] = I[k+i];
+                    I[k+i] = tmp;
+                    j++;
+                }
+            }
+            for (i = 0; i < j; i++)
+                V[I[k + i]] = k + j - 1;
+            if (j == 1)
+                I[k] = -1;
+        }
+        return;
+    }
+
+    x = V[I[start + len/2] + h];
+    jj = 0;
+    kk = 0;
+    for (i = start; i < end; i++) {
+        if (V[I[i] + h] < x)
+            jj++;
+        if (V[I[i] + h] == x)
+            kk++;
+    }
+    jj += start;
+    kk += jj;
+
+    i = start;
+    j = 0;
+    k = 0;
+    while (i < jj) {
+        if (V[I[i] + h] < x) {
+            i++;
+        } else if (V[I[i] + h] == x) {
+            tmp = I[i];
+            I[i] = I[jj + j];
+            I[jj + j] = tmp;
+            j++;
+        } else {
+            tmp = I[i];
+            I[i] = I[kk + k];
+            I[kk + k] = tmp;
+            k++;
+        }
+    }
+
+    while (jj + j < kk) {
+        if (V[I[jj+j] + h] == x) {
+            j++;
+        } else {
+            tmp = I[jj + j];
+            I[jj + j] = I[kk + k];
+            I[kk + k] = tmp;
+            k++;
+        }
+    }
+
+    if(jj > start)
+        suffix_split(I, V, start, jj - start, h);
+
+    for (i = 0; i < kk - jj; i++)
+        V[I[jj + i]] = kk - 1;
+    if (jj == kk - 1)
+        I[jj] = -1;
+
+    if (end > kk)
+        suffix_split(I, V, kk, end - kk, h);
+}
+
+size_t suffix_search(const long long *sfxar,
                      const unsigned char *old, size_t old_len,
                      const unsigned char *new, size_t new_len,
                      size_t start, size_t end,
