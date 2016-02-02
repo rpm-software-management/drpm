@@ -8,6 +8,7 @@ License:        LGPLv3+
 URL:            http://fedorahosted.org/%{name}
 Source:         http://fedorahosted.org/released/%{name}/%{name}-%{version}.tar.bz2
 
+BuildRequires:  pkgconfig
 BuildRequires:  rpm-devel
 BuildRequires:  zlib-devel
 BuildRequires:  bzip2-devel
