@@ -21,12 +21,11 @@
 #include "drpm.h"
 #include "drpm_private.h"
 
+#include <stdio.h>
 #include <stdint.h>
 #include <fcntl.h>
 #include <openssl/md5.h>
 #include <rpm/rpmlib.h>
-
-#define MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 
 int write_be32(int filedesc, uint32_t number)
 {
@@ -55,7 +54,7 @@ int write_be64(int filedesc, uint64_t number)
 int write_deltarpm(struct deltarpm *delta)
 {
     int error = DRPM_ERR_OK;
-    int filedesc;
+    int filedesc = -1;
     struct compstrm *stream = NULL;
     uint32_t tgt_nevr_len;
     uint32_t src_nevr_len;
@@ -196,7 +195,8 @@ int write_deltarpm(struct deltarpm *delta)
 
     switch (delta->type) {
     case DRPM_TYPE_STANDARD:
-        if ((error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
+        if ((error = rpm_patch_payload_format(delta->head.tgt_rpm, "drpm")) != DRPM_ERR_OK ||
+            (error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
             return error;
 
         if (MD5_Init(&md5) != 1 ||
@@ -209,16 +209,22 @@ int write_deltarpm(struct deltarpm *delta)
             (error = rpm_signature_set_size(delta->head.tgt_rpm, header_size + strm_data_len)) != DRPM_ERR_OK ||
             (error = rpm_signature_set_md5(delta->head.tgt_rpm, md5_digest)) != DRPM_ERR_OK ||
             (error = rpm_signature_reload(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
-            (error = rpm_patch_payload_format(delta->head.tgt_rpm, "drpm")) != DRPM_ERR_OK ||
             (error = rpm_write(delta->head.tgt_rpm, delta->filename, false)) != DRPM_ERR_OK)
             return error;
+
+        char md5str[16 * 2 + 1];
+        dump_hex(md5str, md5_digest, 16);
+        printf("signature: header_size = %u (0x%x)\n", header_size, header_size);
+        printf("           strm_data_len = %zu (0x%zx)\n", strm_data_len, strm_data_len);
+        printf("           == %zu (0x%zx)\n", header_size + strm_data_len, header_size + strm_data_len);
+        printf("signature: md5str = %s\n", md5str);
 
         if ((filedesc = open(delta->filename, O_WRONLY | O_APPEND)) < 0)
             return DRPM_ERR_IO;
         break;
 
     case DRPM_TYPE_RPMONLY:
-        if ((filedesc = creat(delta->filename, MODE)) < 0)
+        if ((filedesc = creat(delta->filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)) < 0)
             return DRPM_ERR_IO;
 
         if (write(filedesc, "drpm", 4) != 4 ||

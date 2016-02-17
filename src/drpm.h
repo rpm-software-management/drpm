@@ -20,10 +20,10 @@
 */
 
 /**
- * @file drpm.h
+ * @file
  * @author Pavel Tobias <ptobias@redhat.com>
  * @author Matej Chalk <mchalk@redhat.com>
- * @date 2014-2015
+ * @date 2014-2016
  * @copyright Copyright &copy; 2014 Red Hat, Inc.
  * This project is released under the GNU Lesser Public License.
  */
@@ -35,8 +35,35 @@
 #include <config.h>
 #endif
 
-/** @name Errors */
-/**@{*/
+/**
+ * @defgroup drpmMake DeltaRPM Creation
+ * Tools for creating a DeltaRPM file from two RPM files,
+ * providing the same functionality as
+ * [makedeltarpm(8)](http://linux.die.net/man/8/makedeltarpm).
+ * @{
+ * @defgroup drpmMakeOptions DeltaRPM Creation Options
+ * Tools for customizing DeltaRPM creation.
+ * @}
+ *
+ * @defgroup drpmApply DeltaRPM Application
+ * Tools for applying a DeltaRPM file to re-create a new RPM file
+ * (from an old RPM file or from filesystem data),
+ * providing the same functionality as
+ * [applydeltarpm(8)](http://linux.die.net/man/8/applydeltarpm).
+ * @{
+ * @defgroup drpmCheck DeltaRPM Reconstruction Checking
+ * Tools for checking if the reconstruction is possible
+ * (like <tt>applydeltarpm { -c | -C }</tt>).
+ * @}
+ *
+ * @defgroup drpmRead DeltaRPM Info Extraction
+ * Tools for reading DeltaRPM files.
+ */
+
+/**
+ * @name Errors / Return values
+ * @{
+ */
 #define DRPM_ERR_OK 0       /**< no error */
 #define DRPM_ERR_MEMORY 1   /**< memory allocation error */
 #define DRPM_ERR_ARGS 2     /**< bad arguments */
@@ -46,26 +73,32 @@
 #define DRPM_ERR_OTHER 6    /**< unspecified/unknown error */
 #define DRPM_ERR_OVERFLOW 7 /**< overflow */
 #define DRPM_ERR_PROG 8     /**< internal programming error */
-/**@}*/
+/** @} */
 
-/** @name Delta Types */
-/**@{*/
+/**
+ * @name Delta Types
+ * @{
+ */
 #define DRPM_TYPE_STANDARD 0    /**< standard deltarpm */
 #define DRPM_TYPE_RPMONLY 1     /**< rpm-only deltarpm */
-/**@}*/
+/** @} */
 
-/** @name Compression Types */
-/**@{*/
+/**
+ * @name Compression Types
+ * @{
+ */
 #define DRPM_COMP_NONE 0    /**< no compression */
 #define DRPM_COMP_GZIP 1    /**< gzip */
 #define DRPM_COMP_BZIP2 2   /**< bzip2 */
 #define DRPM_COMP_LZMA 3    /**< lzma */
 #define DRPM_COMP_XZ 4      /**< xz */
 #define DRPM_COMP_LZIP 5    /**< lzip */
-/**@}*/
+/** @} */
 
-/** @name Info Tags */
-/**@{*/
+/**
+ * @name Info Tags
+ * @{
+ */
 #define DRPM_TAG_FILENAME 0         /**< file name */
 #define DRPM_TAG_VERSION 1          /**< version */
 #define DRPM_TAG_TYPE 2             /**< delta type */
@@ -85,86 +118,293 @@
 #define DRPM_TAG_EXTCOPIES 16       /**< copies from external data (offset adjustment of external copy + length of external copy) */
 #define DRPM_TAG_EXTDATALEN 17      /**< length of external data */
 #define DRPM_TAG_INTDATALEN 18      /**< length of internal data */
-/**@}*/
-
-/** @name Delta Creation Flags */
-/**@{*/
-#define DRPM_FLAG_NONE 0                /**< no additional flags */
-#define DRPM_FLAG_RPMONLY (1<<0)        /**< "rpm-only" deltarpm */
-#define DRPM_FLAG_VERSION_1 (1<<1)      /**< V1 deltarpm */
-#define DRPM_FLAG_VERSION_2 (1<<2)      /**< V2 deltarpm */
-#define DRPM_FLAG_VERSION_3 (1<<3)      /**< V3 deltarpm */
-#define DRPM_FLAG_COMP_NONE (1<<4)      /**< uncompressed deltarpm */
-#define DRPM_FLAG_COMP_GZIP (1<<5)      /**< gzip compressed deltarpm */
-#define DRPM_FLAG_COMP_BZIP2 (1<<6)     /**< bzip2 compressed deltarpm */
-#define DRPM_FLAG_COMP_LZMA (1<<7)      /**< lzma compressed deltarpm */
-#define DRPM_FLAG_COMP_XZ (1<<8)        /**< xz compressed deltarpm */
-#define DRPM_FLAG_COMP_LEVEL_1 (1<<9)   /**< compression level 1 */
-#define DRPM_FLAG_COMP_LEVEL_2 (1<<10)  /**< compression level 2 */
-#define DRPM_FLAG_COMP_LEVEL_3 (1<<11)  /**< compression level 3 */
-#define DRPM_FLAG_COMP_LEVEL_4 (1<<12)  /**< compression level 4 */
-#define DRPM_FLAG_COMP_LEVEL_5 (1<<13)  /**< compression level 5 */
-#define DRPM_FLAG_COMP_LEVEL_6 (1<<14)  /**< compression level 6 */
-#define DRPM_FLAG_COMP_LEVEL_7 (1<<15)  /**< compression level 7 */
-#define DRPM_FLAG_COMP_LEVEL_8 (1<<16)  /**< compression level 8 */
-#define DRPM_FLAG_COMP_LEVEL_9 (1<<17)  /**< compression level 9 */
-// TODO: add block flags,...
-/**@}*/
-
-typedef struct drpm drpm; /**< deltarpm package info */
+/** @} */
 
 /**
+ * @name Compression Levels
+ * @{
+ */
+#define DRPM_COMP_LEVEL_DEFAULT 0   /**< default compression level for given compression type */
+/** @} */
+
+/**
+ * @name Check Modes
+ * @{
+ */
+#define DRPM_CHECK_FULL 0           /**< full (i.e.\ slow) on-disk checking */
+#define DRPM_CHECK_FILESIZES 1      /**< only checking if filesizes have changed */
+/** @} */
+
+/**
+ * @brief DeltaRPM package info
+ * @ingroup drpmRead
+ */
+typedef struct drpm drpm;
+
+/**
+ * @brief Options for drpm_make()
+ * @ingroup drpmMakeOptions
+ */
+typedef struct drpm_make_options drpm_make_options;
+
+/**
+ * @ingroup drpmApply
+ * @brief Applies a DeltaRPM to an old RPM or on-disk data to re-create a new RPM.
+ * @param [in]  oldrpm      Name of old RPM file (if @c NULL, filesystem data is used).
+ * @param [in]  deltarpm    Name of DeltaRPM file.
+ * @param [in]  newrpm      Name of new RPM file to be (re-)created.
+ * @return Error code.
+ */
+int drpm_apply(const char *oldrpm, const char *deltarpm, const char *newrpm);
+
+/**
+ * @ingroup drpmCheck
+ * @brief Checks if the reconstruction is possible based on DeltaRPM file.
+ * @param [in]  deltarpm    Name of DeltaRPM file.
+ * @param [in]  checkmode   Full check or filesize changes only.
+ * @return Error code.
+ * @see DRPM_CHECK_FULL, DRPM_CHECK_FILESIZES
+ */
+int drpm_check(const char *deltarpm, int checkmode);
+
+/**
+ * @ingroup drpmCheck
+ * @brief Checks if the reconstruction is possible based on sequence ID.
+ * @param [in]  sequence    Sequence ID of the DeltaRPM.
+ * @param [in]  checkmode   Full check or filesize changes only.
+ * @return Error code.
+ * @see DRPM_CHECK_FULL, DRPM_CHECK_FILESIZES
+ */
+int drpm_check_sequence(const char *sequence, int checkmode);
+
+/**
+ * @ingroup drpmMake
  * @brief Creates a deltarpm from two rpms.
+ * The deltarpm can later be used to recreate the new rpm from either
+ * filesystem data or the old rpm.
  *
  * Does the same thing as the
  * [makedeltarpm(8)](http://linux.die.net/man/8/makedeltarpm)
  * command-line utility.
  *
- * Examples of function calls:
+ * Examples of function calls (without error handling):
  * @code
  * // makedeltarpm foo.rpm goo.rpm fg.drpm
- * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_NONE)
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL);
  * @endcode
  * @code
- * // makedeltarpm -r -s seqfile.txt foo.rpm goo.rpm fg.drpm
- * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", "seqfile.txt", DRPM_FLAG_RPMONLY)
+ * // makedeltarpm -r -z xz.6 -s seqfile.txt foo.rpm goo.rpm fg.drpm
+ *
+ * drpm_make_options *opts;
+ *
+ * drpm_make_options_init(&opts);
+ * drpm_make_options_set_type(opts, DRPM_TYPE_RPMONLY);
+ * drpm_make_options_set_seqfile(opts, "seqfile.txt");
+ * drpm_make_options_set_delta_comp(opts, DRPM_COMP_XZ, 6);
+ *
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", &opts);
+ *
+ * drpm_make_options_destroy(&opts);
  * @endcode
  * @code
- * // makedeltarpm -V 3 -z uncompressed foo.rpm goo.rpm fg.drpm
- * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_VERSION_3 | DRPM_FLAG_COMP_NONE)
+ * // makedeltarpm -V 2 -z gzip,off -p foo-print.rpml foo-patch.rpml foo.rpm goo.rpm fg.drpm
+ *
+ * drpm_make_options *opts;
+ *
+ * drpm_make_options_init(&opts);
+ * drpm_make_options_set_version(opts, 2);
+ * drpm_make_options_set_delta_comp(opts, DRPM_COMP_GZIP, DRPM_COMP_LEVEL_DEFAULT);
+ * drpm_make_options_forbid_addblk(opts);
+ * drpm_make_options_add_patches(opts, "foo-print.rpml", "foo-patch.rpml");
+ *
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", &opts);
+ *
+ * drpm_make_options_destroy(&opts);
  * @endcode
  * @code
- * // makedeltarpm -z xz.6 foo.rpm goo.rpm fg.drpm
- * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", NULL, DRPM_FLAG_COMP_XZ | DRPM_FLAG_COMP_LEVEL_6)
+ * // makedeltarpm -m 8 -z uncompressed,bzip2.9 foo.rpm goo.rpm fg.drpm
+ *
+ * drpm_make_options *opts;
+ *
+ * drpm_make_options_init(&opts);
+ * drpm_make_options_set_memlimit(opts, 8);
+ * drpm_make_options_set_delta_comp(opts, DRPM_COMP_NONE, 0);
+ * drpm_make_options_set_addblk_comp(opts, DRPM_COMP_BZIP2, 9);
+ *
+ * drpm_make("foo.rpm", "goo.rpm", "fg.drpm", &opts);
+ *
+ * drpm_make_options_destroy(&opts);
  * @endcode
  * @code
- * // makedeltarpm -u -z bzip2 foo.rpm foo.drpm
- * drpm_make("foo.rpm", NULL, "foo.drpm", NULL, DRPM_FLAG_COMP_BZIP2)
+ * // makedeltarpm -u foo.rpm foo.drpm
+ * drpm_make("foo.rpm", NULL, "foo.drpm", NULL);
  * @endcode
  * @param [in]  oldrpm      Name of old RPM file.
  * @param [in]  newrpm      Name of new RPM file.
  * @param [in]  deltarpm    Name of DeltaRPM file to be created.
- * @param [in]  seqfile     Name of file to which to write out @p deltarpm sequence.
- * @param [in]  flags       Bitwise OR of macros specifying options.
- * @return error number
- * @note Sequence is only written to file if @p seqfile is not @c NULL.
+ * @param [in]  opts        Options (if @c NULL, defaults used).
+ * @return Error code.
  * @note If either @p old_rpm or @p new_rpm is @c NULL, an "identity"
- * deltarpm is created.
- * @see DRPM_FLAG_NONE
- * @see DRPM_FLAG_RPMONLY
- * @see DRPM_FLAG_VERSION_1, DRPM_FLAG_VERSION_2, DRPM_FLAG_VERSION_3
- * @see DRPM_FLAG_COMP_NONE, DRPM_FLAG_COMP_GZIP, DRPM_FLAG_COMP_BZIP2,
- * DRPM_FLAG_COMP_LZMA, DRPM_FLAG_COMP_XZ
- * @see DRPM_FLAG_COMP_LEVEL_1, DRPM_FLAG_COMP_LEVEL_2,
- * DRPM_FLAG_COMP_LEVEL_3, DRPM_FLAG_COMP_LEVEL_4,
- * DRPM_FLAG_COMP_LEVEL_5, DRPM_FLAG_COMP_LEVEL_6,
- * DRPM_FLAG_COMP_LEVEL_7, DRPM_FLAG_COMP_LEVEL_8, DRPM_FLAG_COMP_LEVEL_9
+ * deltarpm is created (may be useful to just replace the signature
+ * of an RPM or to reconstruct an RPM from the filesystem).
+ * @warning If not @c NULL, @p opts should have been initialized with
+ * drpm_make_options_defaults(), otherwise behaviour is undefined.
  */
-int drpm_make(const char *oldrpm, const char *newrpm, const char *deltarpm, const char *seqfile, int flags);
+int drpm_make(const char *oldrpm, const char *newrpm, const char *deltarpm, const drpm_make_options *opts);
+
+/**
+ * @addtogroup drpmMakeOptions
+ * @{
+ */
+
+/**
+ * @brief Initializes ::drpm_make_options with default options.
+ * Passing @p *opts to drpm_make() immediately after would have the same
+ * effect as passing @c NULL instead.
+ * @param [out] opts    Address of options structure pointer.
+ * @return Error code.
+ */
+int drpm_make_options_init(drpm_make_options **opts);
+
+/**
+ * @brief Frees ::drpm_make_options.
+ * @param [out] opts    Address of options structure pointer.
+ * @return Error code.
+ */
+int drpm_make_options_destroy(drpm_make_options **opts);
+
+/**
+ * @brief Resets options to default values.
+ * Passing @p opts to drpm_make() immediately after would have the same
+ * effect as passing @c NULL instead.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @return Error code.
+ */
+int drpm_make_options_defaults(drpm_make_options *opts);
+
+/**
+ * @brief Creates a copy of ::drpm_make_options.
+ * Copies data from @p src to @p dst.
+ * @param [out] dst Destination options.
+ * @param [in]  src Source options.
+ * @return Error code.
+ */
+int drpm_make_options_copy(drpm_make_options *dst, const drpm_make_options *src);
+
+/**
+ * @brief Sets deltarpm type.
+ * There are two types of deltarpms: standard and "rpm-only".
+ * The latter does not work with filesystem data but is smaller and
+ * faster to combine.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @param [in]  type    Type of deltarpm.
+ * @return Error code.
+ * @see DRPM_TYPE_STANDARD, DRPM_TYPE_RPMONLY
+ */
+int drpm_make_options_set_type(drpm_make_options *opts, unsigned short type);
+
+/**
+ * @brief Sets deltarpm version.
+ * The default deltarpm format is V3, but an older version may also be
+ * specified.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @param [in]  version Version (1-3).
+ * @return Error code.
+ */
+int drpm_make_options_set_version(drpm_make_options *opts, unsigned short version);
+
+/**
+ * @brief Sets deltarpm compression type and level.
+ * By default, the compression method is the same as used in the new rpm.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @param [in]  comp    Compression type.
+ * @param [in]  level   Compression level (1-9 or default).
+ * @return Error code.
+ * @see DRPM_COMP_NONE, DRPM_COMP_GZIP, DRPM_COMP_BZIP2,
+ * DRPM_COMP_LZMA, DRPM_COMP_XZ
+ * @see DRPM_COMP_LEVEL_DEFAULT
+ */
+int drpm_make_options_set_delta_comp(drpm_make_options *opts, unsigned short comp, unsigned short level);
+
+/**
+ * @brief DeltaRPM compression method is the same as used in the new rpm.
+ * May be used to reset deltarpm compression option after previously
+ * calling drpm_make_options_delta_comp().
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @return Error code.
+ */
+int drpm_make_options_get_delta_comp_from_rpm(drpm_make_options *opts);
+
+/**
+ * @brief Forbids add block creation.
+ * An "add block" is a highly compressible block used to store
+ * bytewise subtractions of segments where less than half the bytes
+ * have changed.
+ *
+ * Calling this function tells drpm_make() not to create an add block.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @return Error code.
+ */
+int drpm_make_options_forbid_addblk(drpm_make_options *opts);
+
+/**
+ * @brief Sets add block compression type and level.
+ * The default add block compression type is bzip2, which gives the best
+ * results.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @param [in]  comp    Compression type.
+ * @param [in]  level   Compression level (1-9 or default).
+ * @return Error code.
+ * @see DRPM_COMP_NONE, DRPM_COMP_GZIP, DRPM_COMP_BZIP2,
+ * DRPM_COMP_LZMA, DRPM_COMP_XZ
+ * @see DRPM_COMP_LEVEL_DEFAULT
+ */
+int drpm_make_options_set_addblk_comp(drpm_make_options *opts, unsigned short comp, unsigned short level);
+
+/**
+ * @brief Specifies file to which to write DeltaRPM sequence ID.
+ * If a valid file name is given, drpm_make() will write out
+ * the sequence ID to the file @p seqfile.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @param [in]  seqfile Name of file to which to write out sequence.
+ * @return Error code.
+ * @note If @p seqfile is @c NULL, sequence ID shall not be written.
+ */
+int drpm_make_options_set_seqfile(drpm_make_options *opts, const char *seqfile);
+
+/**
+ * @brief Requests incorporation of rpm patch files for old rpm.
+ * This option enables the usage of patch rpms, telling drpm_make() to
+ * exclude all files that were not included in the patch rpm but are not
+ * bytewise identical to the ones in the old rpm.
+ * @param [out] opts        Structure specifying options for drpm_make().
+ * @param [in]  oldrpmprint The rpm-print of the old rpm.
+ * @param [in]  oldpatchrpm The created patch rpm.
+ * @return Error code.
+ */
+int drpm_make_options_add_patches(drpm_make_options *opts, const char *oldrpmprint, const char *oldpatchrpm);
+
+/**
+ * @brief Limits memory usage.
+ * As drpm_make() normally needs about three to four times the size of
+ * the rpm's uncompressed payload, this option may be used to enable
+ * a sliding block algorithm that needs @p megabytes of memory.
+ * This trades memory usage with the size of the created deltarpm.
+ * @param [out] opts    Structure specifying options for drpm_make().
+ * @param [in]  mbytes  Permitted memory usage in megabytes.
+ * @return Error code.
+ */
+int drpm_make_options_set_memlimit(drpm_make_options *opts, unsigned mbytes);
+
+/** @} */
+
+/**
+ * @addtogroup drpmRead
+ * @{
+ */
 
 /**
  * @brief Reads information from deltarpm package @p filename into @p *delta.
- * 
  * Example of usage:
  * @code
  * drpm *delta = NULL;
@@ -186,10 +426,9 @@ int drpm_read(drpm **delta, const char *filename);
 
 /**
  * @brief Fetches information representable as an unsigned integer.
- * 
- * Fetches information identified by @p tag from @p delta and copies it 
+ * Fetches information identified by @p tag from @p delta and copies it
  * to address pointed to by @p target.
- * 
+ *
  * Example of usage:
  * @code
  * unsigned type;
@@ -218,7 +457,6 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
 
 /**
  * @brief Fetches information representable as an unsigned long integer.
- *
  * Fetches information identified by @p tag from @p delta and copies it
  * to address pointed to by @p target.
  *
@@ -253,7 +491,6 @@ int drpm_get_ulong(drpm *delta, int tag, unsigned long *target);
 
 /**
  * @brief Fetches information representable as an unsigned long long integer.
- *
  * Fetches information identified by @p tag from @p delta and copies it
  * to address pointed to by @p target.
  *
@@ -290,9 +527,8 @@ int drpm_get_ullong(drpm *delta, int tag, unsigned long long *target);
 
 /**
  * @brief Fetches information representable as a string.
- * 
- * Fetches string-type information identified by @p tag from @p delta, 
- * copies it to space previously allocated by the function itself and 
+ * Fetches string-type information identified by @p tag from @p delta,
+ * copies it to space previously allocated by the function itself and
  * saves the address to @p *target.
  *
  * Example of usage:
@@ -329,7 +565,6 @@ int drpm_get_string(drpm *delta, int tag, char **target);
 
 /**
  * @brief Fetches information representable as an array of unsigned long integers.
- *
  * Fetches information identified by @p tag from @p delta,
  * copies it to space previously allocated by the function itself,
  * saves the address to @p *target and stores size in @p *size.
@@ -367,7 +602,6 @@ int drpm_get_ulong_array(drpm *delta, int tag, unsigned long **target, unsigned 
 
 /**
  * @brief Frees memory pointed to by @p *delta and sets @p *delta to @c NULL.
- * 
  * Example of usage:
  * @code
  * int error = drpm_destroy(&delta);
@@ -384,9 +618,10 @@ int drpm_get_ulong_array(drpm *delta, int tag, unsigned long **target, unsigned 
  */
 int drpm_destroy(drpm **delta);
 
+/** @} */
+
 /**
  * @brief Returns description of error code as a string.
- *
  * Works very similarly to
  * [strerror(3)](http://linux.die.net/man/3/strerror).
  * @param [in]  error   error code

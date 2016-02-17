@@ -31,8 +31,6 @@
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 
-#define ALLOC_SIZE 32
-
 uint32_t parse_be32(const unsigned char buffer[4])
 {
     return (0xFF000000 & (buffer[0] << 24)) |
@@ -137,11 +135,22 @@ bool parse_sha256(unsigned char *dest, const char *source)
     return parse_hex(dest, source) == SHA256_DIGEST_LENGTH;
 }
 
-bool resize(void **buffer, size_t members_count, size_t member_size)
+bool resize16(void **buffer, size_t members_count, size_t member_size)
 {
-    if (members_count % ALLOC_SIZE == 0) {
+    if (members_count % 16 == 0) {
         if ((*buffer = realloc(*buffer,
-             member_size * (members_count + ALLOC_SIZE))) == NULL)
+             member_size * (members_count + 16))) == NULL)
+            return false;
+    }
+
+    return true;
+}
+
+bool resize32(void **buffer, size_t members_count, size_t member_size)
+{
+    if (members_count % 32 == 0) {
+        if ((*buffer = realloc(*buffer,
+             member_size * (members_count + 32))) == NULL)
             return false;
     }
 

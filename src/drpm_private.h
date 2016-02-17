@@ -26,6 +26,8 @@
 #include <config.h>
 #endif
 
+#include <stdio.h> // DEBUG
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -34,27 +36,23 @@
 
 #define CHUNK_SIZE 1024
 
-#define COMP_LEVEL_DEFAULT 0
-
 #define DIGESTALGO_MD5 0
 #define DIGESTALGO_SHA256 1
 
-#define PAYLOAD_FORMAT_CPIO 0
-#define PAYLOAD_FORMAT_XAR 1
+#define RPM_PAYLOAD_FORMAT_DRPM 0
+#define RPM_PAYLOAD_FORMAT_CPIO 1
+#define RPM_PAYLOAD_FORMAT_XAR 2
 
 #define RPM_ARCHIVE_DONT_READ 0
 #define RPM_ARCHIVE_READ_UNCOMP 1
 #define RPM_ARCHIVE_READ_DECOMP 2
 
-#define FLAG_SET(flags, flag) (((flags) & (flag)) != 0)
-#define MASK_FLAGS(flags, mask) ((flags) & (mask))
-
 #define MIN(x,y) (((x) < (y)) ? (x) : (y))
 #define MAX(x,y) (((x) > (y)) ? (x) : (y))
 
-#define PADDING(offset, align) ((((align) - ((offset) % (align))) % (align)))
-
 #define TWOS_COMPLEMENT(x) (((unsigned long long)(x)) * 2 + 1)
+
+#define PADDING(offset, align) ((((align) - ((offset) % (align))) % (align)))
 
 struct drpm {
     char *filename;
@@ -82,6 +80,21 @@ struct drpm {
     uint32_t ext_copies_size;
 };
 
+struct drpm_make_options {
+    bool rpm_only;
+    unsigned short version;
+    bool comp_from_rpm;
+    unsigned short comp;
+    unsigned short comp_level;
+    bool addblk;
+    unsigned short addblk_comp;
+    unsigned short addblk_comp_level;
+    char *seqfile;
+    char *oldrpmprint;
+    char *oldpatchrpm;
+    unsigned mbytes;
+};
+
 struct deltarpm;
 struct file_info;
 
@@ -93,6 +106,10 @@ struct decompstrm;
 struct rpm;
 //drpm_search.c
 struct sfxsrt;
+
+// DEBUG
+const char *type2str(unsigned short type);
+const char *comp2str(unsigned short comp);
 
 //drpm_compstrm.c
 int compstrm_destroy(struct compstrm **);
@@ -178,7 +195,8 @@ ssize_t parse_hex(unsigned char *, const char *);
 ssize_t parse_hexnum(const char *, size_t);
 bool parse_md5(unsigned char *, const char *);
 bool parse_sha256(unsigned char *, const char *);
-bool resize(void **, size_t, size_t);
+bool resize16(void **, size_t, size_t);
+bool resize32(void **, size_t, size_t);
 
 //drpm_write.c
 int write_be32(int, uint32_t);
@@ -211,7 +229,7 @@ struct deltarpm {
     uint32_t tgt_lead_len;
     unsigned char *tgt_lead;
     uint32_t payload_fmt_off;
-    uint32_t int_copies_size;
+    uint32_t int_copies_size; // TODO: inn vs. 2*inn
     uint32_t ext_copies_size;
     uint32_t *int_copies;
     uint32_t *ext_copies;
@@ -222,7 +240,7 @@ struct deltarpm {
     bool int_data_as_ptrs;
     union {
         unsigned char *bytes;
-        unsigned char **ptrs;
+        const unsigned char **ptrs;
     } int_data;
 };
 

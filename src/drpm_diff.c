@@ -49,16 +49,16 @@
 
 #define BUFFER_SIZE 4096
 
-struct diff_data {
-    size_t copy_in;
-    size_t copy_out;
-    size_t copy_in_off;
-    size_t copy_out_off;
+struct diff_copy {
+    size_t old_off;
+    size_t old_len;
+    size_t new_off;
+    size_t new_len;
 };
 
-static int create_diff_copies(const struct diff_data *, size_t,
+static int create_diff_copies(const struct diff_copy *, size_t,
                               uint32_t **, uint32_t *, uint32_t **, uint32_t *);
-static int create_int_data_array(const struct diff_data *, const unsigned char *,
+static int create_int_data_array(const struct diff_copy *, const unsigned char *,
                                  const uint32_t *, uint32_t,
                                  const unsigned char ***, uint64_t *);
 
@@ -76,8 +76,8 @@ int make_diff(const unsigned char *old, size_t old_len,
     size_t add_block_len;
     struct compstrm *stream;
 
-    struct diff_data *data = NULL;
-    size_t data_len = 0;
+    struct diff_copy *diff_copies = NULL;
+    size_t diff_copies_len = 0;
 
     struct sfxsrt *suffix;
 
@@ -120,6 +120,8 @@ int make_diff(const unsigned char *old, size_t old_len,
         new_pos = sfxsrt_search(suffix, old, old_len, new, new_len,
                                 addblk ? old_pos_prev - new_pos_prev : old_len,
                                 new_pos + len, &old_pos, &len);
+
+        printf("old_pos = %zu, new_pos = %zu, len = %zu\n", new_pos, old_pos, len);
 
         max_len = MIN(old_len - old_pos_prev, new_pos - new_pos_prev);
         if (addblk) {
@@ -173,37 +175,45 @@ int make_diff(const unsigned char *old, size_t old_len,
             len_back -= len_split;
         }
 
-        if (!resize((void **)&data, data_len, sizeof(struct diff_data))) {
+        if (!resize32((void **)&diff_copies, diff_copies_len, sizeof(struct diff_copy))) {
             error = DRPM_ERR_MEMORY;
             goto cleanup;
         }
 
-        data[data_len].copy_in = new_pos_prev + len_forward;
-        data[data_len].copy_in_off = (new_pos - len_back) - (new_pos_prev + len_forward);
-        data[data_len].copy_out = len_forward;
-        data[data_len].copy_out_off = old_pos_prev;
-        data_len++;
+        diff_copies[diff_copies_len].new_off = new_pos_prev + len_forward;
+        diff_copies[diff_copies_len].new_len = (new_pos - len_back) - (new_pos_prev + len_forward);
+        diff_copies[diff_copies_len].old_off = old_pos_prev;
+        diff_copies[diff_copies_len].old_len = len_forward;
+        printf("[%zu] %zu %zu %zu %zu\n", diff_copies_len, diff_copies[diff_copies_len].new_off, diff_copies[diff_copies_len].new_len, diff_copies[diff_copies_len].old_off, diff_copies[diff_copies_len].old_len);
+        diff_copies_len++;
 
         if (addblk) {
+            printf("add block:");
             while (len_forward > 0) {
                 write_len = MIN(len_forward, BUFFER_SIZE);
-                for (i = 0; i < write_len; i++)
+                for (i = 0; i < write_len; i++) {
                     buffer[i] = new[new_pos_prev + i] - old[old_pos_prev + i];
+                    if (buffer[i])
+                        printf("%d,", buffer[i]);
+                    else
+                        printf(".");
+                }
                 if ((error = compstrm_write(stream, write_len, buffer)) != DRPM_ERR_OK)
                     goto cleanup_fail;
                 old_pos_prev += write_len;
                 new_pos_prev += write_len;
                 len_forward -= write_len;
             }
+            printf("\n");
         }
 
         old_pos_prev = old_pos;
         new_pos_prev = new_pos;
     }
 
-    if ((error = create_diff_copies(data, data_len, ext_copies_ret, ext_copies_size_ret,
+    if ((error = create_diff_copies(diff_copies, diff_copies_len, ext_copies_ret, ext_copies_size_ret,
                                     int_copies_ret, int_copies_size_ret)) != DRPM_ERR_OK ||
-        (error = create_int_data_array(data, new, *int_copies_ret, *int_copies_size_ret,
+        (error = create_int_data_array(diff_copies, new, *int_copies_ret, *int_copies_size_ret,
                                        int_data_array_ret, int_data_len_ret)) != DRPM_ERR_OK ||
         (addblk && (error = compstrm_finish(stream, add_block_ret, &add_block_len)) != DRPM_ERR_OK))
         goto cleanup_fail;
@@ -214,12 +224,13 @@ int make_diff(const unsigned char *old, size_t old_len,
     goto cleanup;
 
 cleanup_fail:
-    free(data);
-
     if (addblk)
         free(*add_block_ret);
 
 cleanup:
+    free(diff_copies);
+    sfxsrt_free(&suffix);
+
     if (addblk) {
         if (error == DRPM_ERR_OK)
             error = compstrm_destroy(&stream);
@@ -230,7 +241,7 @@ cleanup:
     return error;
 }
 
-int create_diff_copies(const struct diff_data *data, size_t data_len,
+int create_diff_copies(const struct diff_copy *diff_copies, size_t diff_copies_len,
                        uint32_t **ext_copies_ret, uint32_t *ext_copies_size_ret,
                        uint32_t **int_copies_ret, uint32_t *int_copies_size_ret)
 {
@@ -241,32 +252,32 @@ int create_diff_copies(const struct diff_data *data, size_t data_len,
     uint32_t *out = NULL;
     uint32_t outn = 0;
 
-    size_t copy_in;
-    size_t copy_out;
-    size_t copy_out_off;
+    size_t new_len;
+    size_t old_len;
+    size_t old_off;
 
     uint32_t last_outn = 0;
     size_t offset = 0;
 
-    for (size_t i = 0; i < data_len; i++) {
-        copy_in = data[i].copy_in;
-        copy_out = data[i].copy_out;
-        copy_out_off = data[i].copy_out_off;
+    for (size_t i = 0; i < diff_copies_len; i++) {
+        new_len = diff_copies[i].new_len;
+        old_len = diff_copies[i].old_len;
+        old_off = diff_copies[i].old_off;
 
-        if (copy_out) {
+        if (old_len) {
             while (true) {
-                if (!resize((void **)&out, outn * 2, 4)) {
+                if (!resize16((void **)&out, outn * 2, 4)) {
                     error = DRPM_ERR_MEMORY;
                     goto cleanup_fail;
                 }
 
-                if (copy_out_off > offset && copy_out_off - offset >= (uint32_t)INT32_MIN) {
+                if (old_off > offset && old_off - offset >= (uint32_t)INT32_MIN) {
                     out[outn * 2] = INT32_MAX;
                     out[outn * 2 + 1] = 0;
                     outn++;
                     offset += INT32_MAX;
                     continue;
-                } else if (copy_out_off < offset && offset - copy_out_off >= (uint32_t)INT32_MIN) {
+                } else if (old_off < offset && offset - old_off >= (uint32_t)INT32_MIN) {
                     out[outn * 2] = TWOS_COMPLEMENT(INT32_MAX);
                     out[outn * 2 + 1] = 0;
                     outn++;
@@ -274,24 +285,24 @@ int create_diff_copies(const struct diff_data *data, size_t data_len,
                     continue;
                 }
 
-                out[outn * 2] = (int32_t)(copy_out_off - offset);
+                out[outn * 2] = (int32_t)(old_off - offset);
 
-                if (copy_out >= (uint32_t)INT32_MIN) {
+                if (old_len >= (uint32_t)INT32_MIN) {
                     out[outn++ * 2 + 1] = INT32_MAX;
-                    copy_out -= INT32_MAX;
-                    copy_out_off = offset += INT32_MAX;
+                    old_len -= INT32_MAX;
+                    old_off = offset += INT32_MAX;
                     continue;
                 }
 
-                out[outn++ * 2 + 1] = copy_out;
-                offset = copy_out_off + copy_out;
+                out[outn++ * 2 + 1] = old_len;
+                offset = old_off + old_len;
                 break;
             }
         }
 
-        if (copy_in) {
+        if (new_len) {
             while (true) {
-                if (!resize((void **)&in, inn * 2, 4)) {
+                if (!resize16((void **)&in, inn * 2, 4)) {
                     error = DRPM_ERR_MEMORY;
                     goto cleanup_fail;
                 }
@@ -299,20 +310,20 @@ int create_diff_copies(const struct diff_data *data, size_t data_len,
                 in[inn * 2] = outn - last_outn;
                 last_outn = outn;
 
-                if (copy_in >= (uint32_t)INT32_MIN) {
+                if (new_len >= (uint32_t)INT32_MIN) {
                     in[inn++ * 2 + 1] = INT32_MAX;
-                    copy_in -= INT32_MAX;
+                    new_len -= INT32_MAX;
                     continue;
                 }
 
-                in[inn++ * 2 + 1] = copy_in;
+                in[inn++ * 2 + 1] = new_len;
                 break;
             }
         }
     }
 
     if (outn - last_outn > 0) {
-        if (!resize((void **)&in, inn * 2, 4)) {
+        if (!resize16((void **)&in, inn * 2, 4)) {
             error = DRPM_ERR_MEMORY;
             goto cleanup_fail;
         }
@@ -335,7 +346,7 @@ cleanup_fail:
     return error;
 }
 
-int create_int_data_array(const struct diff_data *data, //size_t data_len,
+int create_int_data_array(const struct diff_copy *diff_copies, //size_t diff_copies_len,
                           const unsigned char *new,
                           const uint32_t *int_copies, uint32_t int_copies_size,
                           const unsigned char ***int_data_array_ret, uint64_t *int_data_len_ret)
@@ -353,8 +364,8 @@ int create_int_data_array(const struct diff_data *data, //size_t data_len,
         todo = int_copies[i * 2 + 1];
         if (todo > 0) {
             while (left == 0) {
-                left = data[j].copy_in;
-                offset = data[j].copy_in_off;
+                left = diff_copies[j].new_len;
+                offset = diff_copies[j].new_off;
                 j++;
             }
         }
