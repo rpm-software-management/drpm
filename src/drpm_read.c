@@ -104,6 +104,8 @@ int readdelta_rest(int filedesc, struct drpm *delta)
 
     delta->version = delta->version % 256 - '0';
 
+    printf("delta version: %u\n", delta->version);
+
     if (delta->version < 3 && delta->type == DRPM_TYPE_RPMONLY) {
         error = DRPM_ERR_FORMAT;
         goto cleanup;
@@ -121,6 +123,8 @@ int readdelta_rest(int filedesc, struct drpm *delta)
         goto cleanup;
 
     delta->src_nevr[src_nevr_len] = '\0';
+
+    printf("source NEVR: %s\n", delta->src_nevr);
 
     if ((error = decompstrm_read_be32(stream, &sequence_len)) != DRPM_ERR_OK)
         goto cleanup;
@@ -142,22 +146,31 @@ int readdelta_rest(int filedesc, struct drpm *delta)
 
     dump_hex(delta->sequence, sequence, sequence_len);
 
+    printf("sequence: %s\n", delta->sequence);
+
     if ((error = decompstrm_read(stream, MD5_DIGEST_LENGTH, md5)) != DRPM_ERR_OK)
         goto cleanup;
 
     dump_hex(delta->tgt_md5, md5, MD5_DIGEST_LENGTH);
+
+    printf("target MD5: %s\n", delta->tgt_md5);
 
     if (delta->version >= 2) {
         if ((error = decompstrm_read_be32(stream, &delta->tgt_size)) != DRPM_ERR_OK ||
             (error = decompstrm_read_be32(stream, &deltarpm_comp)) != DRPM_ERR_OK)
             goto cleanup;
 
-        if (!deltarpm_decode_comp(deltarpm_comp, &tgt_comp, NULL)) {
+        printf("target size: %u\n", delta->tgt_size);
+
+        unsigned short level; //
+        if (!deltarpm_decode_comp(deltarpm_comp, &tgt_comp, &level)) { // 3rd arg = NULL
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
 
         delta->tgt_comp = tgt_comp;
+
+        printf("target compression: %s (%u)\n", comp2str(tgt_comp), level);
 
         if ((error = decompstrm_read_be32(stream, &comp_param_len)) != DRPM_ERR_OK)
             goto cleanup;
@@ -175,10 +188,14 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             dump_hex(delta->tgt_comp_param, comp_param, comp_param_len);
         }
 
+        printf("target compression parameter block: %s\n", delta->tgt_comp_param);
+
         if (delta->version == 3) {
             if ((error = decompstrm_read_be32(stream, &delta->tgt_header_len)) != DRPM_ERR_OK ||
                 (error = decompstrm_read_be32(stream, &offadjn)) != DRPM_ERR_OK)
                 goto cleanup;
+
+            printf("target header length: %u\n", delta->tgt_header_len);
 
             delta->adj_elems_size = 2 * offadjn;
 
@@ -194,6 +211,11 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                     if ((error = decompstrm_read_be32(stream, delta->adj_elems + j)) != DRPM_ERR_OK)
                         goto cleanup;
             }
+
+            printf("offset adjustment elements:");
+            for (uint32_t i = 0; i < delta->adj_elems_size; i++)
+                printf(" %u", delta->adj_elems[i]);
+            printf("\n");
         }
     }
 
@@ -221,10 +243,14 @@ int readdelta_rest(int filedesc, struct drpm *delta)
 
     dump_hex(delta->tgt_lead, lead, leadlen);
 
+    printf("target lead: %.50s... (length: %u)\n", delta->tgt_lead, leadlen);
+
     if ((error = decompstrm_read_be32(stream, &delta->payload_fmt_off)) != DRPM_ERR_OK ||
         (error = decompstrm_read_be32(stream, &inn)) != DRPM_ERR_OK ||
         (error = decompstrm_read_be32(stream, &outn)) != DRPM_ERR_OK)
         goto cleanup;
+
+    printf("payload format offset: %u\n", delta->payload_fmt_off);
 
     delta->int_copies_size = 2 * inn;
     delta->ext_copies_size = 2 * outn;
@@ -242,6 +268,11 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                 goto cleanup;
     }
 
+    printf("internal copies:");
+    for (uint32_t i = 0; i < delta->int_copies_size; i++)
+        printf(" %u", delta->int_copies[i]);
+    printf("\n");
+
     if (delta->ext_copies_size > 0) {
         if ((delta->ext_copies = malloc(delta->ext_copies_size * 4)) == NULL) {
             error = DRPM_ERR_MEMORY;
@@ -255,6 +286,11 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                 goto cleanup;
     }
 
+    printf("external copies:");
+    for (uint32_t i = 0; i < delta->ext_copies_size; i++)
+        printf(" %u", delta->ext_copies[i]);
+    printf("\n");
+
     if (delta->version == 3) {
         if ((error = decompstrm_read_be64(stream, &delta->ext_data_len)) != DRPM_ERR_OK)
             goto cleanup;
@@ -264,6 +300,8 @@ int readdelta_rest(int filedesc, struct drpm *delta)
         delta->ext_data_len = ext_data_32;
     }
 
+    printf("length of external data: %lu\n", delta->ext_data_len);
+
     if ((error = decompstrm_read_be32(stream, &add_data_size)) != DRPM_ERR_OK)
         goto cleanup;
 
@@ -272,8 +310,17 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
-        if ((error = decompstrm_read(stream, add_data_size, NULL)) != DRPM_ERR_OK)
+        unsigned char *add_data;
+        if ((add_data = malloc(add_data_size)) == NULL) {
+            error = DRPM_ERR_MEMORY;
             goto cleanup;
+        }
+        if ((error = decompstrm_read(stream, add_data_size, add_data)) != DRPM_ERR_OK) // 3rd arg = NULL
+            goto cleanup;
+        printf("add data: ");
+        for (uint32_t i = 0; i < add_data_size; i++)
+            printf("%02x", add_data[i]);
+        printf("\n");
     }
 
     if (delta->version == 3) {
@@ -284,6 +331,8 @@ int readdelta_rest(int filedesc, struct drpm *delta)
             goto cleanup;
         delta->int_data_len = int_data_32;
     }
+
+    printf("length of internal data: %lu\n", delta->int_data_len);
 
 cleanup:
 
@@ -307,6 +356,8 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     ssize_t bytes_read;
     int error;
 
+    unsigned char *add_data;
+
     if ((error = read_be32(filedesc, &version)) != DRPM_ERR_OK)
         return error;
 
@@ -327,11 +378,26 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
 
     delta->tgt_nevr[tgt_nevr_len] = '\0';
 
+    printf("target NEVR: %s\n", delta->tgt_nevr);
+
     if ((error = read_be32(filedesc, &add_data_size)) != DRPM_ERR_OK)
         return error;
 
-    if (lseek(filedesc, add_data_size, SEEK_CUR) == (off_t)-1)
+    //
+    if ((add_data = malloc(add_data_size)) == NULL)
+        return DRPM_ERR_MEMORY;
+    if ((bytes_read = read(filedesc, add_data, add_data_size)) < 0)
         return DRPM_ERR_IO;
+    if ((uint32_t) bytes_read != add_data_size)
+        return DRPM_ERR_FORMAT;
+    printf("add data: ");
+    for (uint32_t i = 0; i < add_data_size; i++)
+        printf("%02x", add_data[i]);
+    printf("\n");
+    //
+
+    //if (lseek(filedesc, add_data_size, SEEK_CUR) == (off_t)-1)
+        //return DRPM_ERR_IO;
 
     return DRPM_ERR_OK;
 }
@@ -347,6 +413,9 @@ int readdelta_standard(int filedesc, struct drpm *delta)
     if ((error = rpm_get_nevr(rpmst, &delta->tgt_nevr)) != DRPM_ERR_OK ||
         (error = rpm_get_comp(rpmst, &delta->tgt_comp)) != DRPM_ERR_OK)
         goto cleanup;
+
+    printf("target NEVR: %s\n", delta->tgt_nevr);
+    printf("target compression: %s\n", comp2str(delta->tgt_comp));
 
     if (lseek(filedesc, rpm_size_full(rpmst), SEEK_SET) == (off_t)-1)
         error = DRPM_ERR_IO;

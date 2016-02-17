@@ -353,7 +353,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
         if (strncmp(name, "./", 2) == 0)
             name += 2;
 
-        name_len = strlen(name);
+        name_len = strlen(name) + 1;
 
         padding_bytes = CPIO_PADDING(CPIO_HEADER_SIZE + c_namesize);
         if ((error = rpm_archive_read_chunk(rpm_file, NULL, padding_bytes)) != DRPM_ERR_OK)
@@ -400,14 +400,14 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
         if (!skip) {
             cpio_hdr.mode = file.mode;
-            cpio_hdr.namesize = name_len + 3; // including "./" prefix
+            cpio_hdr.namesize = name_len + 2; // including "./" prefix
             cpio_hdr.nlink = 1;
 
             /* offset adjustment */
             if (cpio_len != cpio_pos_before_hdrname) {
                 if (offadj) {
                     while (true) {
-                        if (!resize((void **)&offadjs, offadjn * 2, 4)) {
+                        if (!resize32((void **)&offadjs, offadjn * 2, 4)) {
                             error = DRPM_ERR_MEMORY;
                             goto cleanup_fail;
                         }
@@ -454,9 +454,9 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
             if ((error = cpio_extend(&cpio, &cpio_len, cpio_buffer, CPIO_HEADER_SIZE)) != DRPM_ERR_OK ||
                 (error = cpio_extend(&cpio, &cpio_len, "./", 2)) != DRPM_ERR_OK ||
-                (error = cpio_extend(&cpio, &cpio_len, name, name_len + 1)) != DRPM_ERR_OK ||
+                (error = cpio_extend(&cpio, &cpio_len, name, name_len)) != DRPM_ERR_OK ||
                 (error = cpio_extend(&cpio, &cpio_len, "\0\0\0",
-                                     CPIO_PADDING(CPIO_HEADER_SIZE + 2 + name_len + 1))) != DRPM_ERR_OK)
+                                     CPIO_PADDING(CPIO_HEADER_SIZE + cpio_hdr.namesize))) != DRPM_ERR_OK)
                 goto cleanup_fail;
 
             if (MD5_Update(&seq_md5, name, name_len) != 1 ||
@@ -476,7 +476,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                     error = DRPM_ERR_OTHER;
                     goto cleanup_fail;
                 }
-            } else if (S_ISREG(file.mode)) {
+            } else if (S_ISREG(file.mode) && cpio_hdr.filesize) {
                 switch (digest_algo) {
                 case DIGESTALGO_MD5:
                     if (!parse_md5(digest, file.md5)) {
@@ -581,6 +581,11 @@ cleanup_fail:
         free(offadjs);
 
 cleanup:
+    for (size_t i = 0; i < file_count; i++) {
+        free(files[i].name);
+        free(files[i].md5);
+        free(files[i].linkto);
+    }
     free(files);
     free(name_buffer);
     free(seq_files);
@@ -601,7 +606,7 @@ int fill_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename,
 
     if (comp_not_set) {
         delta->comp = DRPM_COMP_GZIP;
-        delta->comp_level = COMP_LEVEL_DEFAULT;
+        delta->comp_level = DRPM_COMP_LEVEL_DEFAULT;
     }
 
     delta->tgt_comp = DRPM_COMP_NONE;
@@ -641,14 +646,8 @@ void free_deltarpm(struct deltarpm *delta)
 {
     struct deltarpm delta_init = {0};
 
-    switch (delta->type) {
-    case DRPM_TYPE_STANDARD:
-        rpm_destroy(&delta->head.tgt_rpm);
-        break;
-    case DRPM_TYPE_RPMONLY:
+    if (delta->type == DRPM_TYPE_RPMONLY)
         free(delta->head.tgt_nevr);
-        break;
-    }
 
     free(delta->src_nevr);
     free(delta->sequence);

@@ -176,7 +176,7 @@ int init_bzip2(struct compstrm *strm, int level)
     strm->stream.bzip2.next_in = NULL;
     strm->stream.bzip2.avail_in = 0;
 
-    if (level == COMP_LEVEL_DEFAULT)
+    if (level == DRPM_COMP_LEVEL_DEFAULT)
         level = 9;
 
     switch (BZ2_bzCompressInit(&strm->stream.bzip2, level, 0, 0)) {
@@ -200,7 +200,7 @@ int init_gzip(struct compstrm *strm, int level)
     strm->stream.gzip.zfree = Z_NULL;
     strm->stream.gzip.opaque = Z_NULL;
 
-    if (level == COMP_LEVEL_DEFAULT)
+    if (level == DRPM_COMP_LEVEL_DEFAULT)
         level = Z_DEFAULT_COMPRESSION;
 
     switch (deflateInit2(&strm->stream.gzip, level, Z_DEFLATED,
@@ -225,7 +225,7 @@ int init_lzma(struct compstrm *strm, int level)
     strm->finish = finish_lzma;
     strm->stream.lzma = stream;
 
-    if (level == COMP_LEVEL_DEFAULT)
+    if (level == DRPM_COMP_LEVEL_DEFAULT)
         level = LZMA_PRESET_DEFAULT;
 
     lzma_lzma_preset(&options, level);
@@ -281,7 +281,7 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
 {
     int error;
 
-    if (strm == NULL || (level != COMP_LEVEL_DEFAULT && (level < 1 || level > 9)))
+    if (strm == NULL || (level != DRPM_COMP_LEVEL_DEFAULT && (level < 1 || level > 9)))
         return DRPM_ERR_PROG;
 
     if ((*strm = malloc(sizeof(struct compstrm))) == NULL)

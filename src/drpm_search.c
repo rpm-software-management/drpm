@@ -70,8 +70,8 @@ int sfxsrt_create(struct sfxsrt **suf, const unsigned char *old, size_t old_len)
         return DRPM_ERR_PROG;
 
     if ((*suf = malloc(sizeof(struct sfxsrt))) == NULL ||
-        (I = malloc(sizeof(long long) * (old_len + 3))) == NULL ||
-        (V = malloc(sizeof(long long) * (old_len + 3))) == NULL) {
+        (I = calloc((old_len + 3), sizeof(long long))) == NULL ||
+        (V = calloc((old_len + 3), sizeof(long long))) == NULL) {
         error = DRPM_ERR_MEMORY;
         goto cleanup_fail;
     }
@@ -175,7 +175,7 @@ size_t sfxsrt_search(struct sfxsrt *suf,
     size_t miniscan = scan;
 
     while (scan < new_len) {
-        len = suffix_search(suf->I, old, old_len, new, new_len,
+        len = suffix_search(suf->I, old, old_len, new + scan, new_len - scan,
                             suf->F[new[scan]] + 1, suf->F[new[scan] + 1],
                             pos_ret);
 
@@ -356,3 +356,5 @@ size_t suffix_search(const long long *sfxar,
 
     return MAX(len_1, len_2);
 }
+
+// TODO: hashing

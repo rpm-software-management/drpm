@@ -52,6 +52,7 @@ static void rpm_init(struct rpm *);
 static void rpm_free(struct rpm *);
 static int rpm_export_header(struct rpm *, unsigned char **, size_t *);
 static int rpm_export_signature(struct rpm *, unsigned char **, size_t *);
+static void rpm_header_unload_region(struct rpm *, rpmTagVal);
 static int rpm_read_archive(struct rpm *, const char *, off_t, bool,
                             unsigned short *, MD5_CTX *, MD5_CTX *);
 
@@ -133,6 +134,36 @@ int rpm_export_signature(struct rpm *rpmst, unsigned char **signature_ret, size_
     free(signature);
 
     return DRPM_ERR_OK;
+}
+
+void rpm_header_unload_region(struct rpm *rpmst, rpmTagVal rpmtag)
+{
+    Header hdr;
+    HeaderIterator hdr_iter;
+    rpmtd copy_td;
+    rpmtd td = rpmtdNew();
+
+    if (headerGet(rpmst->header, rpmtag, td, HEADERGET_DEFAULT)) {
+        headerFree(rpmst->header);
+        rpmst->header = headerNew();
+        copy_td = rpmtdNew();
+
+        hdr = headerCopyLoad(td->data);
+        hdr_iter = headerInitIterator(hdr);
+
+        while (headerNext(hdr_iter, copy_td)) {
+            if (copy_td->data)
+                headerPut(rpmst->header, copy_td, HEADERPUT_DEFAULT);
+            rpmtdFreeData(copy_td);
+        }
+
+        headerFreeIterator(hdr_iter);
+        headerFree(hdr);
+        rpmtdFreeData(td);
+        rpmtdFree(copy_td);
+    }
+
+    rpmtdFree(td);
 }
 
 int rpm_read_archive(struct rpm *rpmst, const char *filename,
@@ -616,10 +647,12 @@ int rpm_get_payload_format(struct rpm *rpmst, unsigned short *payfmt)
     if ((payload_format = headerGetString(rpmst->header, RPMTAG_PAYLOADFORMAT)) == NULL)
         return DRPM_ERR_MEMORY;
 
-    if (strcmp(payload_format, "cpio") == 0) {
-        *payfmt = PAYLOAD_FORMAT_CPIO;
+    if (strcmp(payload_format, "drpm") == 0) {
+        *payfmt = RPM_PAYLOAD_FORMAT_DRPM;
+    } else if (strcmp(payload_format, "cpio") == 0) {
+        *payfmt = RPM_PAYLOAD_FORMAT_CPIO;
     } else if (strcmp(payload_format, "xar") == 0) {
-        *payfmt = PAYLOAD_FORMAT_XAR;
+        *payfmt = RPM_PAYLOAD_FORMAT_XAR;
     } else {
         return DRPM_ERR_FORMAT;
     }
@@ -632,8 +665,15 @@ int rpm_patch_payload_format(struct rpm *rpmst, const char *new_payfmt)
     if (rpmst == NULL || new_payfmt == NULL)
         return DRPM_ERR_PROG;
 
+    rpm_header_unload_region(rpmst, RPMTAG_HEADERIMMUTABLE);
+
+    if (headerDel(rpmst->header, RPMTAG_PAYLOADFORMAT) != 0)
+        return DRPM_ERR_FORMAT;
+
     if (headerPutString(rpmst->header, RPMTAG_PAYLOADFORMAT, new_payfmt) != 1)
         return DRPM_ERR_FORMAT;
+
+    rpmst->header = headerReload(rpmst->header, RPMTAG_HEADERIMMUTABLE);
 
     return DRPM_ERR_OK;
 }
@@ -851,7 +891,7 @@ int rpm_signature_set_size(struct rpm *rpmst, uint32_t size)
     return DRPM_ERR_OK;
 }
 
-int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[16])
+int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[MD5_DIGEST_LENGTH])
 {
     rpmtd tag_data;
 
@@ -863,7 +903,7 @@ int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[16])
     tag_data->tag = RPMSIGTAG_MD5;
     tag_data->type = RPM_BIN_TYPE;
     tag_data->data = md5;
-    tag_data->count = 16;
+    tag_data->count = MD5_DIGEST_LENGTH;
 
     headerPut(rpmst->signature, tag_data, HEADERPUT_DEFAULT);
 

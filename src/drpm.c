@@ -33,23 +33,7 @@
 #define MAGIC_DRPM 0x6472706D
 #define MAGIC_RPM 0xEDABEEDB
 
-#define VERSION_FLAGS (DRPM_FLAG_VERSION_1 | DRPM_FLAG_VERSION_2 \
-                       | DRPM_FLAG_VERSION_3)
-
-#define COMP_FLAGS (DRPM_FLAG_COMP_NONE | DRPM_FLAG_COMP_GZIP \
-                    | DRPM_FLAG_COMP_BZIP2 | DRPM_FLAG_COMP_LZMA \
-                    | DRPM_FLAG_COMP_XZ)
-
-#define COMP_LEVEL_FLAGS (DRPM_FLAG_COMP_LEVEL_1 | DRPM_FLAG_COMP_LEVEL_2 \
-                          | DRPM_FLAG_COMP_LEVEL_3 | DRPM_FLAG_COMP_LEVEL_4 \
-                          | DRPM_FLAG_COMP_LEVEL_5 | DRPM_FLAG_COMP_LEVEL_6 \
-                          | DRPM_FLAG_COMP_LEVEL_7 | DRPM_FLAG_COMP_LEVEL_8 \
-                          | DRPM_FLAG_COMP_LEVEL_9)
-
-#ifdef DRPM_DEBUG
-
-#include <stdio.h>
-
+// DEBUG
 const char *type2str(unsigned short type)
 {
     switch (type) {
@@ -62,6 +46,7 @@ const char *type2str(unsigned short type)
     }
 }
 
+// DEBUG
 const char *comp2str(unsigned short comp)
 {
     switch (comp) {
@@ -81,7 +66,6 @@ const char *comp2str(unsigned short comp)
         return "!!!unknown compression!!!";
     }
 }
-#endif
 
 const char *drpm_strerror(int error)
 {
@@ -109,6 +93,8 @@ const char *drpm_strerror(int error)
     }
 }
 
+/***************************** drpm read ******************************/
+
 int drpm_read(struct drpm **delta_ret, const char *filename)
 {
     struct drpm delta = {0};
@@ -134,11 +120,13 @@ int drpm_read(struct drpm **delta_ret, const char *filename)
 
     switch (magic) {
     case MAGIC_DRPM:
+        printf("deltarpm type: rpm-only\n");
         delta.type = DRPM_TYPE_RPMONLY;
         if ((error = readdelta_rpmonly(filedesc, &delta)) != DRPM_ERR_OK)
             goto cleanup_fail;
         break;
     case MAGIC_RPM:
+        printf("deltarpm type: standard\n");
         delta.type = DRPM_TYPE_STANDARD;
         if ((error = readdelta_standard(filedesc, &delta)) != DRPM_ERR_OK)
             goto cleanup_fail;
@@ -380,17 +368,17 @@ int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array,
     return DRPM_ERR_OK;
 }
 
+/***************************** drpm make ******************************/
+
+// TODO: implement patches and memlimit
 int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
-              const char *deltarpm_name, const char *seqfile_name, int flags)
+              const char *deltarpm_name, const drpm_make_options *user_opts)
 {
     int error = DRPM_ERR_OK;
 
-    bool rpm_only;
-    bool alone;
-    unsigned short version;
-    unsigned short comp = USHRT_MAX;
-    unsigned short comp_level;
-    bool comp_from_rpm = false;
+    drpm_make_options opts;
+    const bool rpm_only = (user_opts != NULL && user_opts->rpm_only);
+    const bool alone = (old_rpm_name == NULL || new_rpm_name == NULL);
 
     const char *solo_rpm_name = NULL;
     struct rpm *solo_rpm = NULL;
@@ -398,117 +386,45 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     struct rpm *new_rpm = NULL;
 
     unsigned char *old_cpio = NULL;
-    size_t old_cpio_len;
+    size_t old_cpio_len = 0;
     unsigned char *new_cpio = NULL;
-    size_t new_cpio_len;
+    size_t new_cpio_len = 0;
 
     unsigned char *old_header = NULL;
-    uint32_t old_header_len;
+    uint32_t old_header_len = 0;
     unsigned char *new_header = NULL;
-    uint32_t new_header_len;
+    uint32_t new_header_len = 0;
 
     unsigned short payload_format;
 
     struct deltarpm delta = {0};
 
-    /* parsing arguments */
-
     if (deltarpm_name == NULL || (old_rpm_name == NULL && new_rpm_name == NULL))
         return DRPM_ERR_ARGS;
 
-    if ((alone = (old_rpm_name == NULL || new_rpm_name == NULL)))
+    if (alone)
         solo_rpm_name = (old_rpm_name == NULL) ? new_rpm_name : old_rpm_name;
 
-    rpm_only = FLAG_SET(flags, DRPM_FLAG_RPMONLY);
+    if (user_opts == NULL)
+        drpm_make_options_defaults(&opts);
+    else
+        drpm_make_options_copy(&opts, user_opts);
 
-    switch (MASK_FLAGS(flags, VERSION_FLAGS)) {
-    case DRPM_FLAG_VERSION_1:
-        version = 1;
-        break;
-    case DRPM_FLAG_VERSION_2:
-        version = 2;
-        break;
-    case DRPM_FLAG_VERSION_3:
-    case DRPM_FLAG_NONE:
-        version = 3;
-        break;
-    default:
-        return DRPM_ERR_ARGS;
-    }
-
-    switch (MASK_FLAGS(flags, COMP_FLAGS)) {
-    case DRPM_FLAG_COMP_NONE:
-        comp = DRPM_COMP_NONE;
-        break;
-    case DRPM_FLAG_COMP_GZIP:
-        comp = DRPM_COMP_GZIP;
-        break;
-    case DRPM_FLAG_COMP_BZIP2:
-        comp = DRPM_COMP_BZIP2;
-        break;
-    case DRPM_FLAG_COMP_LZMA:
-        comp = DRPM_COMP_LZMA;
-        break;
-    case DRPM_FLAG_COMP_XZ:
-        comp = DRPM_COMP_XZ;
-        break;
-    case DRPM_FLAG_NONE:
-        comp_from_rpm = true;
-        break;
-    default:
-        return DRPM_ERR_ARGS;
-    }
-
-    switch (MASK_FLAGS(flags, COMP_LEVEL_FLAGS)) {
-    case DRPM_FLAG_COMP_LEVEL_1:
-        comp_level = 1;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_2:
-        comp_level = 2;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_3:
-        comp_level = 3;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_4:
-        comp_level = 4;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_5:
-        comp_level = 5;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_6:
-        comp_level = 6;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_7:
-        comp_level = 7;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_8:
-        comp_level = 8;
-        break;
-    case DRPM_FLAG_COMP_LEVEL_9:
-        comp_level = 9;
-        break;
-    case DRPM_FLAG_NONE:
-        comp_level = COMP_LEVEL_DEFAULT;
-        break;
-    default:
-        return DRPM_ERR_ARGS;
-    }
-
-    if (rpm_only && version < 3)
+    if (rpm_only && opts.version < 3)
         return DRPM_ERR_ARGS;
 
     delta.filename = deltarpm_name;
     delta.type = rpm_only ? DRPM_TYPE_RPMONLY : DRPM_TYPE_STANDARD;
-    delta.version = version;
+    delta.version = opts.version;
 
-    if (!comp_from_rpm) {
-        delta.comp = comp;
-        delta.comp_level = comp_level;
+    if (!opts.comp_from_rpm) {
+        delta.comp = opts.comp;
+        delta.comp_level = opts.comp_level;
     }
 
     /* no diff to perform for identity rpm-only deltarpms */
     if (alone && rpm_only) {
-        if ((error = fill_nodiff_deltarpm(&delta, solo_rpm_name, comp_from_rpm)) != DRPM_ERR_OK)
+        if ((error = fill_nodiff_deltarpm(&delta, solo_rpm_name, opts.comp_from_rpm)) != DRPM_ERR_OK)
             goto cleanup;
         goto write_files;
     }
@@ -538,7 +454,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     /* checking if archive is in CPIO format */
     if ((error = rpm_get_payload_format(alone ? solo_rpm : new_rpm, &payload_format)) != DRPM_ERR_OK)
         goto cleanup;
-    if (payload_format != PAYLOAD_FORMAT_CPIO) { // deltarpm doesn't support xar
+    if (payload_format != RPM_PAYLOAD_FORMAT_CPIO) { // deltarpm doesn't support xar (TODO)
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
@@ -550,10 +466,10 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         goto cleanup;
 
     /* matching RPM compression if no compression specified by user */
-    if (comp_from_rpm) {
-        if (delta.tgt_comp == DRPM_COMP_LZIP) { // deltarpm doesn't support lzip
+    if (opts.comp_from_rpm) {
+        if (delta.tgt_comp == DRPM_COMP_LZIP) { // deltarpm doesn't support lzip (TODO)
             delta.comp = DRPM_COMP_XZ;
-            delta.comp_level = COMP_LEVEL_DEFAULT;
+            delta.comp_level = DRPM_COMP_LEVEL_DEFAULT;
         } else {
             delta.comp = delta.tgt_comp;
             delta.comp_level = delta.tgt_comp_level;
@@ -564,12 +480,12 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     printf("delta compression type and level: %s (%u)\n", comp2str(delta.comp), delta.comp_level);
     printf("RPM compression type and level: %s (%u)\n", comp2str(delta.tgt_comp), delta.tgt_comp_level);
 
-    if (!rpm_only && rpm_copy(&delta.head.tgt_rpm, alone ? solo_rpm : new_rpm, false) != DRPM_ERR_OK)
-        goto cleanup;
-
     if (!rpm_only)
-        printf("copied RPM header\n");
+        delta.head.tgt_rpm = alone ? solo_rpm : new_rpm;
+    //if (!rpm_only && rpm_copy(&delta.head.tgt_rpm, alone ? solo_rpm : new_rpm, false) != DRPM_ERR_OK)
+        //goto cleanup;
 
+    // TODO: move this until after payformat patch
     /* storing offset of payload format tag in header for compatibility with deltarpm */
     if ((error = rpm_find_payload_format_offset(alone ? solo_rpm : new_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
         goto cleanup;
@@ -622,8 +538,8 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         if ((error = parse_cpio_from_rpm_filedata(alone ? solo_rpm : old_rpm,
                                                   &old_cpio, &old_cpio_len,
                                                   &delta.sequence, &delta.sequence_len,
-                                                  (version >= 3) ? &delta.offadjs : NULL,
-                                                  (version >= 3) ? &delta.offadjn : NULL)) != DRPM_ERR_OK ||
+                                                  (delta.version >= 3) ? &delta.offadjs : NULL,
+                                                  (delta.version >= 3) ? &delta.offadjn : NULL)) != DRPM_ERR_OK ||
             (error = rpm_fetch_archive(alone ? solo_rpm : new_rpm, &new_cpio, &new_cpio_len)) != DRPM_ERR_OK)
             goto cleanup;
     }
@@ -636,7 +552,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
                            &delta.ext_copies, &delta.ext_copies_size,
                            &delta.int_copies, &delta.int_copies_size,
                            &delta.add_data, &delta.add_data_len,
-                           DRPM_COMP_BZIP2, COMP_LEVEL_DEFAULT)) != DRPM_ERR_OK)
+                           opts.addblk_comp, opts.addblk_comp_level)) != DRPM_ERR_OK)
         goto cleanup;
 
     printf("completed diff\n");
@@ -650,8 +566,8 @@ write_files:
     if ((error = write_deltarpm(&delta)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if (seqfile_name != NULL)
-        error = write_seqfile(&delta, seqfile_name);
+    if (opts.seqfile != NULL)
+        error = write_seqfile(&delta, opts.seqfile);
 
 cleanup:
     printf("cleaning up\n");
