@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -201,7 +202,7 @@ int init_gzip(struct compstrm *strm, int level)
     strm->stream.gzip.opaque = Z_NULL;
 
     if (level == DRPM_COMP_LEVEL_DEFAULT)
-        level = Z_DEFAULT_COMPRESSION;
+        level = Z_BEST_COMPRESSION;
 
     switch (deflateInit2(&strm->stream.gzip, level, Z_DEFLATED,
             16 + MAX_WBITS, 8, Z_DEFAULT_STRATEGY)) {
@@ -226,7 +227,7 @@ int init_lzma(struct compstrm *strm, int level)
     strm->stream.lzma = stream;
 
     if (level == DRPM_COMP_LEVEL_DEFAULT)
-        level = LZMA_PRESET_DEFAULT;
+        level = 2;
 
     lzma_lzma_preset(&options, level);
 
@@ -250,10 +251,10 @@ int init_xz(struct compstrm *strm, int level)
     strm->finish = finish_lzma;
     strm->stream.lzma = stream;
 
-    if (level == 0)
-        level = LZMA_PRESET_DEFAULT;
+    if (level == DRPM_COMP_LEVEL_DEFAULT)
+        level = 3;
 
-    switch (lzma_easy_encoder(&strm->stream.lzma, level, LZMA_CHECK_CRC64)) {
+    switch (lzma_easy_encoder(&strm->stream.lzma, level, LZMA_CHECK_SHA256)) {
     case LZMA_OK:
         break;
     case LZMA_MEM_ERROR:

@@ -79,7 +79,8 @@ int make_diff(const unsigned char *old, size_t old_len,
     struct diff_copy *diff_copies = NULL;
     size_t diff_copies_len = 0;
 
-    struct sfxsrt *suffix;
+    //struct sfxsrt *suffix;
+    struct hash *hashtab;
 
     size_t old_pos = 0;
     size_t new_pos = 0;
@@ -96,7 +97,8 @@ int make_diff(const unsigned char *old, size_t old_len,
     size_t i;
     size_t count;
     size_t best_count;
-    int signed_count;
+    size_t count_back;
+    size_t count_forward;
 
     unsigned char buffer[BUFFER_SIZE];
     size_t write_len;
@@ -110,29 +112,34 @@ int make_diff(const unsigned char *old, size_t old_len,
     if (addblk)
         *add_block_ret = NULL;
 
-    if ((error = sfxsrt_create(&suffix, old, old_len)) != DRPM_ERR_OK)
+    //if ((error = sfxsrt_create(&suffix, old, old_len)) != DRPM_ERR_OK)
+    if ((error = hash_create(&hashtab, old, old_len)) != DRPM_ERR_OK)
         goto cleanup_fail;
 
     if (addblk && (error = compstrm_init(&stream, -1, add_block_comp, add_block_comp_level)) != DRPM_ERR_OK)
         goto cleanup_fail;
 
     while (new_pos_prev < new_len) {
-        new_pos = sfxsrt_search(suffix, old, old_len, new, new_len,
-                                addblk ? old_pos_prev - new_pos_prev : old_len,
-                                new_pos + len, &old_pos, &len);
+        //new_pos = sfxsrt_search(suffix, old, old_len, new, new_len,
+        new_pos = hash_search(hashtab, old, old_len, new, new_len,
+                              addblk ? old_pos_prev - new_pos_prev : old_len,
+                              new_pos + len, &old_pos, &len);
 
-        printf("old_pos = %zu, new_pos = %zu, len = %zu\n", new_pos, old_pos, len);
+        //printf("old_pos = %04zx, new_pos = %04zx, len = %04zx\n", old_pos, new_pos, len);
 
         max_len = MIN(old_len - old_pos_prev, new_pos - new_pos_prev);
         if (addblk) {
             len_forward = best_count = count = 0;
             for (i = 0; i < max_len; ) {
-                if (old[old_pos_prev + i] == new[new_pos_prev + i])
+                if (old[old_pos_prev + i] == new[new_pos_prev + i]) {
                     count++;
-                i++;
-                if (2 * count - i > 2 * best_count - len_forward) {
-                    best_count = count;
-                    len_forward = i;
+                    i++;
+                    if (2 * count >= best_count + i) {
+                        best_count = 2 * count - i;
+                        len_forward = i;
+                    }
+                } else {
+                    i++;
                 }
             }
         } else {
@@ -146,11 +153,12 @@ int make_diff(const unsigned char *old, size_t old_len,
             len_back = best_count = count = 0;
             max_len = MIN(old_pos, new_pos - new_pos_prev);
             for (i = 1; i <= max_len; i++) {
-                if (old[old_pos - i] == new[new_pos - i])
+                if (old[old_pos - i] == new[new_pos - i]) {
                     count++;
-                if (2 * count - i > 2 * best_count - len_back) {
-                    best_count = count;
-                    len_back = i;
+                    if (2 * count >= best_count + i) {
+                        best_count = 2 * count - i;
+                        len_back = i;
+                    }
                 }
             }
         } else {
@@ -158,16 +166,16 @@ int make_diff(const unsigned char *old, size_t old_len,
         }
 
         if (new_pos_prev + len_forward > new_pos - len_back) {
-            len_split = best_count = signed_count = 0;
+            len_split = best_count = count_back = count_forward = 0;
             len_overlap = (new_pos_prev + len_forward) - (new_pos - len_back);
             for (i = 0; i < len_overlap; i++) {
                 if (old[old_pos_prev + len_forward - len_overlap + i] ==
                     new[new_pos_prev + len_forward - len_overlap + i])
-                    signed_count++;
+                    count_forward++;
                 if (old[old_pos - len_back + i] == new[new_pos - len_back + i])
-                    signed_count--;
-                if (signed_count > 0 && (size_t)signed_count > best_count) {
-                    best_count = signed_count;
+                    count_back++;
+                if (count_forward > count_back && count_forward - count_back > best_count) {
+                    best_count = count_forward - count_back;
                     len_split = i + 1;
                 }
             }
@@ -184,31 +192,24 @@ int make_diff(const unsigned char *old, size_t old_len,
         diff_copies[diff_copies_len].new_len = (new_pos - len_back) - (new_pos_prev + len_forward);
         diff_copies[diff_copies_len].old_off = old_pos_prev;
         diff_copies[diff_copies_len].old_len = len_forward;
-        printf("[%zu] %zu %zu %zu %zu\n", diff_copies_len, diff_copies[diff_copies_len].new_off, diff_copies[diff_copies_len].new_len, diff_copies[diff_copies_len].old_off, diff_copies[diff_copies_len].old_len);
+        printf("[%02zx] %04zx %04zx %04zx %04zx\n", diff_copies_len, diff_copies[diff_copies_len].new_off, diff_copies[diff_copies_len].new_len, diff_copies[diff_copies_len].old_off, diff_copies[diff_copies_len].old_len);
         diff_copies_len++;
 
         if (addblk) {
-            printf("add block:");
             while (len_forward > 0) {
                 write_len = MIN(len_forward, BUFFER_SIZE);
-                for (i = 0; i < write_len; i++) {
+                for (i = 0; i < write_len; i++)
                     buffer[i] = new[new_pos_prev + i] - old[old_pos_prev + i];
-                    if (buffer[i])
-                        printf("%d,", buffer[i]);
-                    else
-                        printf(".");
-                }
                 if ((error = compstrm_write(stream, write_len, buffer)) != DRPM_ERR_OK)
                     goto cleanup_fail;
                 old_pos_prev += write_len;
                 new_pos_prev += write_len;
                 len_forward -= write_len;
             }
-            printf("\n");
         }
 
-        old_pos_prev = old_pos;
-        new_pos_prev = new_pos;
+        old_pos_prev = old_pos - len_back;
+        new_pos_prev = new_pos - len_back;
     }
 
     if ((error = create_diff_copies(diff_copies, diff_copies_len, ext_copies_ret, ext_copies_size_ret,
@@ -229,7 +230,8 @@ cleanup_fail:
 
 cleanup:
     free(diff_copies);
-    sfxsrt_free(&suffix);
+    //sfxsrt_free(&suffix);
+    hash_free(&hashtab);
 
     if (addblk) {
         if (error == DRPM_ERR_OK)

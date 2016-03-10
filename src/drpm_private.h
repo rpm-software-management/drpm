@@ -50,7 +50,7 @@
 #define MIN(x,y) (((x) < (y)) ? (x) : (y))
 #define MAX(x,y) (((x) > (y)) ? (x) : (y))
 
-#define TWOS_COMPLEMENT(x) (((unsigned long long)(x)) * 2 + 1)
+#define TWOS_COMPLEMENT(x) (~(x) + 1)
 
 #define PADDING(offset, align) ((((align) - ((offset) % (align))) % (align)))
 
@@ -105,6 +105,7 @@ struct decompstrm;
 //drpm_rpm.c
 struct rpm;
 //drpm_search.c
+struct hash;
 struct sfxsrt;
 
 // DEBUG
@@ -155,7 +156,6 @@ int readdelta_standard(int, struct drpm *);
 //drpm_rpm.c
 int rpm_archive_read_chunk(struct rpm *, void *, size_t);
 int rpm_archive_rewind(struct rpm *);
-int rpm_copy(struct rpm **, struct rpm *, bool);
 int rpm_destroy(struct rpm **);
 int rpm_fetch_archive(struct rpm *, unsigned char **, size_t *);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
@@ -179,6 +179,10 @@ uint32_t rpm_size_header(struct rpm *);
 int rpm_write(struct rpm *, const char *, bool);
 
 //drpm_search.c
+int hash_create(struct hash **, const unsigned char *, size_t);
+void hash_free(struct hash **);
+size_t hash_search(struct hash *, const unsigned char *, size_t,
+                   const unsigned char *, size_t, size_t, size_t, size_t *, size_t *);
 int sfxsrt_create(struct sfxsrt **, const unsigned char *, size_t);
 void sfxsrt_free(struct sfxsrt **);
 size_t sfxsrt_search(struct sfxsrt *, const unsigned char *, size_t,
