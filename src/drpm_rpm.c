@@ -353,33 +353,6 @@ int rpm_destroy(struct rpm **rpmst)
     return DRPM_ERR_OK;
 }
 
-int rpm_copy(struct rpm **rpmst_dst, struct rpm *rpmst_src, bool include_archive)
-{
-    if (rpmst_dst == NULL || rpmst_src == NULL)
-        return DRPM_ERR_PROG;
-
-    if ((*rpmst_dst = malloc(sizeof(struct rpm))) == NULL)
-        return DRPM_ERR_MEMORY;
-
-    rpm_init(*rpmst_dst);
-
-    memcpy((*rpmst_dst)->lead, rpmst_src->lead, RPMLEAD_SIZE);
-    (*rpmst_dst)->signature = headerCopy(rpmst_src->signature);
-    (*rpmst_dst)->header = headerCopy(rpmst_src->header);
-
-    if (include_archive && rpmst_src->archive_size > 0) {
-        if (((*rpmst_dst)->archive = malloc(rpmst_src->archive_size)) == NULL) {
-            free(*rpmst_dst);
-            return DRPM_ERR_MEMORY;
-        }
-        memcpy((*rpmst_dst)->archive, rpmst_src->archive, rpmst_src->archive_size);
-        (*rpmst_dst)->archive_size = rpmst_src->archive_size;
-        (*rpmst_dst)->archive_comp_size = rpmst_src->archive_comp_size;
-    }
-
-    return DRPM_ERR_OK;
-}
-
 int rpm_archive_read_chunk(struct rpm *rpmst, void *buffer, size_t count)
 {
     if (rpmst == NULL)

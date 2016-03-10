@@ -99,9 +99,9 @@ static bool seq_append(struct files_seq *seq, unsigned val)
 
     do {
         if (seq->index % 2 == 0)
-            seq->data[seq->index / 2] = ((val & 3) | ((len > 1) ? (1<<3) : 0)) << 4;
+            seq->data[seq->index / 2] = ((val & 7) | ((len > 1) ? (1<<3) : 0)) << 4;
         else
-            seq->data[seq->index / 2] |= (val & 3) | ((len > 1) ? (1<<3) : 0);
+            seq->data[seq->index / 2] |= (val & 7) | ((len > 1) ? (1<<3) : 0);
     } while (seq->index++, val >>= 3, --len > 0);
 
     return true;

@@ -114,21 +114,6 @@ int write_deltarpm(struct deltarpm *delta)
         }
     }
 
-    printf("tgt_lead_len = %u (0x%x)\n", delta->tgt_lead_len, delta->tgt_lead_len);
-    printf("payload_fmt_off = %u (0x%x)\n", delta->payload_fmt_off, delta->payload_fmt_off);
-    printf("int_copies_size = %u (0x%x)\n", delta->int_copies_size, delta->int_copies_size);
-    printf("ext_copies_size = %u (0x%x)\n", delta->ext_copies_size, delta->ext_copies_size);
-
-    printf("int_copies: ");
-    for (uint32_t i = 1; i < delta->int_copies_size * 2; i += 2)
-        printf(" %08x %08x", delta->int_copies[i-1], delta->int_copies[i]);
-    putchar('\n');
-
-    printf("ext_copies: ");
-    for (uint32_t i = 1; i < delta->ext_copies_size * 2; i += 2)
-        printf(" %08x %08x", delta->ext_copies[i-1], delta->ext_copies[i]);
-    putchar('\n');
-
     if ((error = compstrm_write_be32(stream, delta->tgt_lead_len)) != DRPM_ERR_OK ||
         (error = compstrm_write(stream, delta->tgt_lead_len, delta->tgt_lead)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, delta->payload_fmt_off)) != DRPM_ERR_OK ||
@@ -146,7 +131,9 @@ int write_deltarpm(struct deltarpm *delta)
     }
 
     for (uint32_t i = 0; i < delta->ext_copies_size * 2; i += 2) {
-        if ((error = compstrm_write_be32(stream, delta->ext_copies[i])) != DRPM_ERR_OK)
+        if ((error = compstrm_write_be32(stream, (int32_t)delta->ext_copies[i] < 0 ?
+                                                 TWOS_COMPLEMENT(delta->ext_copies[i]) | INT32_MIN :
+                                                 delta->ext_copies[i])) != DRPM_ERR_OK)
             goto cleanup;
     }
     for (uint32_t j = 1; j < delta->ext_copies_size * 2; j += 2) {
@@ -195,8 +182,7 @@ int write_deltarpm(struct deltarpm *delta)
 
     switch (delta->type) {
     case DRPM_TYPE_STANDARD:
-        if ((error = rpm_patch_payload_format(delta->head.tgt_rpm, "drpm")) != DRPM_ERR_OK ||
-            (error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
+        if ((error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
             return error;
 
         if (MD5_Init(&md5) != 1 ||
@@ -211,13 +197,6 @@ int write_deltarpm(struct deltarpm *delta)
             (error = rpm_signature_reload(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
             (error = rpm_write(delta->head.tgt_rpm, delta->filename, false)) != DRPM_ERR_OK)
             return error;
-
-        char md5str[16 * 2 + 1];
-        dump_hex(md5str, md5_digest, 16);
-        printf("signature: header_size = %u (0x%x)\n", header_size, header_size);
-        printf("           strm_data_len = %zu (0x%zx)\n", strm_data_len, strm_data_len);
-        printf("           == %zu (0x%zx)\n", header_size + strm_data_len, header_size + strm_data_len);
-        printf("signature: md5str = %s\n", md5str);
 
         if ((filedesc = open(delta->filename, O_WRONLY | O_APPEND)) < 0)
             return DRPM_ERR_IO;

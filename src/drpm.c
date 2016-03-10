@@ -482,15 +482,6 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
 
     if (!rpm_only)
         delta.head.tgt_rpm = alone ? solo_rpm : new_rpm;
-    //if (!rpm_only && rpm_copy(&delta.head.tgt_rpm, alone ? solo_rpm : new_rpm, false) != DRPM_ERR_OK)
-        //goto cleanup;
-
-    // TODO: move this until after payformat patch
-    /* storing offset of payload format tag in header for compatibility with deltarpm */
-    if ((error = rpm_find_payload_format_offset(alone ? solo_rpm : new_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
-        goto cleanup;
-
-    printf("stored payload format offset\n");
 
     /* reading source and target NEVRs */
     if ((error = rpm_get_nevr(alone ? solo_rpm : old_rpm, &delta.src_nevr)) != DRPM_ERR_OK ||
@@ -519,7 +510,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             goto cleanup;
 
         if ((old_cpio = realloc(old_cpio, old_header_len + old_cpio_len)) == NULL ||
-            (new_cpio = realloc(old_cpio, new_header_len + new_cpio_len)) == NULL) {
+            (new_cpio = realloc(new_cpio, new_header_len + new_cpio_len)) == NULL) {
             error = DRPM_ERR_MEMORY;
             goto cleanup;
         }
@@ -546,12 +537,19 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
 
     printf("prepared byte sequences (old = %zu, new = %zu)\n", old_cpio_len, new_cpio_len);
 
+    /* patching and storing offset of payload format tag in header for compatibility with deltarpm */
+    if ((!rpm_only && (error = rpm_patch_payload_format(delta.head.tgt_rpm, "drpm")) != DRPM_ERR_OK) ||
+        (error = rpm_find_payload_format_offset(alone ? solo_rpm : new_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("patched and stored offset of payload format\n");
+
     /* diff algorithm, creating deltarpm diff data */
     if ((error = make_diff(old_cpio, old_cpio_len, new_cpio, new_cpio_len,
                            &delta.int_data.ptrs, &delta.int_data_len,
                            &delta.ext_copies, &delta.ext_copies_size,
                            &delta.int_copies, &delta.int_copies_size,
-                           &delta.add_data, &delta.add_data_len,
+                           opts.addblk ? &delta.add_data : NULL, opts.addblk ? &delta.add_data_len : NULL,
                            opts.addblk_comp, opts.addblk_comp_level)) != DRPM_ERR_OK)
         goto cleanup;
 

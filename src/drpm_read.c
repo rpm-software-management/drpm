@@ -146,7 +146,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
 
     dump_hex(delta->sequence, sequence, sequence_len);
 
-    printf("sequence: %s\n", delta->sequence);
+    printf("sequence: %.32s %s\n", delta->sequence, delta->sequence + 32);
 
     if ((error = decompstrm_read(stream, MD5_DIGEST_LENGTH, md5)) != DRPM_ERR_OK)
         goto cleanup;
@@ -212,7 +212,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                         goto cleanup;
             }
 
-            printf("offset adjustment elements:");
+            printf("offset adjustment elements (%u):", delta->adj_elems_size);
             for (uint32_t i = 0; i < delta->adj_elems_size; i++)
                 printf(" %u", delta->adj_elems[i]);
             printf("\n");
@@ -268,7 +268,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                 goto cleanup;
     }
 
-    printf("internal copies:");
+    printf("internal copies (%u):", delta->int_copies_size);
     for (uint32_t i = 0; i < delta->int_copies_size; i++)
         printf(" %u", delta->int_copies[i]);
     printf("\n");
@@ -286,7 +286,7 @@ int readdelta_rest(int filedesc, struct drpm *delta)
                 goto cleanup;
     }
 
-    printf("external copies:");
+    printf("external copies (%u):", delta->ext_copies_size);
     for (uint32_t i = 0; i < delta->ext_copies_size; i++)
         printf(" %u", delta->ext_copies[i]);
     printf("\n");
@@ -305,22 +305,15 @@ int readdelta_rest(int filedesc, struct drpm *delta)
     if ((error = decompstrm_read_be32(stream, &add_data_size)) != DRPM_ERR_OK)
         goto cleanup;
 
+    printf("length of add data: %u\n", add_data_size);
+
     if (add_data_size > 0) {
         if (delta->type == DRPM_TYPE_RPMONLY) {
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
-        unsigned char *add_data;
-        if ((add_data = malloc(add_data_size)) == NULL) {
-            error = DRPM_ERR_MEMORY;
+        if ((error = decompstrm_read(stream, add_data_size, NULL)) != DRPM_ERR_OK)
             goto cleanup;
-        }
-        if ((error = decompstrm_read(stream, add_data_size, add_data)) != DRPM_ERR_OK) // 3rd arg = NULL
-            goto cleanup;
-        printf("add data: ");
-        for (uint32_t i = 0; i < add_data_size; i++)
-            printf("%02x", add_data[i]);
-        printf("\n");
     }
 
     if (delta->version == 3) {
@@ -356,8 +349,6 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     ssize_t bytes_read;
     int error;
 
-    unsigned char *add_data;
-
     if ((error = read_be32(filedesc, &version)) != DRPM_ERR_OK)
         return error;
 
@@ -383,21 +374,10 @@ int readdelta_rpmonly(int filedesc, struct drpm *delta)
     if ((error = read_be32(filedesc, &add_data_size)) != DRPM_ERR_OK)
         return error;
 
-    //
-    if ((add_data = malloc(add_data_size)) == NULL)
-        return DRPM_ERR_MEMORY;
-    if ((bytes_read = read(filedesc, add_data, add_data_size)) < 0)
-        return DRPM_ERR_IO;
-    if ((uint32_t) bytes_read != add_data_size)
-        return DRPM_ERR_FORMAT;
-    printf("add data: ");
-    for (uint32_t i = 0; i < add_data_size; i++)
-        printf("%02x", add_data[i]);
-    printf("\n");
-    //
+    printf("length of add data: %u\n", add_data_size);
 
-    //if (lseek(filedesc, add_data_size, SEEK_CUR) == (off_t)-1)
-        //return DRPM_ERR_IO;
+    if (lseek(filedesc, add_data_size, SEEK_CUR) == (off_t)-1)
+        return DRPM_ERR_IO;
 
     return DRPM_ERR_OK;
 }
