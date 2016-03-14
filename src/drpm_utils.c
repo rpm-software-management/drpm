@@ -31,6 +31,11 @@
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 
+uint16_t parse_be16(const unsigned char buffer[2])
+{
+    return (0xFF00 & (buffer[0] << 8)) | (0x00FF & buffer[1]);
+}
+
 uint32_t parse_be32(const unsigned char buffer[4])
 {
     return (0xFF000000 & (buffer[0] << 24)) |

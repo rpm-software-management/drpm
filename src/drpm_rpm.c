@@ -703,7 +703,7 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret,
         goto cleanup;
     }
 
-    colors = headerGet(rpmst->header, RPMTAG_FILECOLORS, filecolors, HEADERGET_MINMEM) == 1;
+    colors = (headerGet(rpmst->header, RPMTAG_FILECOLORS, filecolors, HEADERGET_MINMEM) == 1);
 
     count = rpmtdCount(filenames);
     if (count != rpmtdCount(fileflags) ||
