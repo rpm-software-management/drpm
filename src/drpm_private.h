@@ -102,6 +102,8 @@ struct file_info;
 struct compstrm;
 //drpm_decompstrm.c
 struct decompstrm;
+//drpm_make.c
+struct rpm_patches;
 //drpm_rpm.c
 struct rpm;
 //drpm_search.c
@@ -140,11 +142,14 @@ int make_diff(const unsigned char *, size_t, const unsigned char *, size_t,
               unsigned short, int);
 
 //drpm_make.c
+int destroy_patches(struct rpm_patches **);
 int fill_nodiff_deltarpm(struct deltarpm *, const char *, bool);
 void free_deltarpm(struct deltarpm *);
 int parse_cpio_from_rpm_filedata(struct rpm *, unsigned char **, size_t *,
                                  unsigned char **, uint32_t *,
-                                 uint32_t **, uint32_t *);
+                                 uint32_t **, uint32_t *,
+                                 const struct rpm_patches *);
+int read_patches(const char *, const char *, struct rpm_patches **);
 
 //drpm_read.c
 int read_be32(int, uint32_t *);
@@ -193,6 +198,7 @@ void create_be32(uint32_t, unsigned char *);
 void create_be64(uint64_t, unsigned char *);
 void dump_hex(char *, const unsigned char *, size_t);
 int md5_update_be32(MD5_CTX *, uint32_t);
+uint16_t parse_be16(const unsigned char *);
 uint32_t parse_be32(const unsigned char *);
 uint64_t parse_be64(const unsigned char *);
 ssize_t parse_hex(unsigned char *, const char *);

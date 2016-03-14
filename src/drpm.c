@@ -370,7 +370,7 @@ int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array,
 
 /***************************** drpm make ******************************/
 
-// TODO: implement patches and memlimit
+// TODO: implement memlimit
 int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
               const char *deltarpm_name, const drpm_make_options *user_opts)
 {
@@ -396,6 +396,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     uint32_t new_header_len = 0;
 
     unsigned short payload_format;
+    struct rpm_patches *patches = NULL;
 
     struct deltarpm delta = {0};
 
@@ -428,6 +429,9 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             goto cleanup;
         goto write_files;
     }
+
+    if (!rpm_only && (error = read_patches(opts.oldrpmprint, opts.oldpatchrpm, &patches)) != DRPM_ERR_OK)
+        goto cleanup;
 
     /* reading RPM(s) (also creating MD5 sums and determining compressor from archive) */
     if (alone) {
@@ -530,7 +534,8 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
                                                   &old_cpio, &old_cpio_len,
                                                   &delta.sequence, &delta.sequence_len,
                                                   (delta.version >= 3) ? &delta.offadjs : NULL,
-                                                  (delta.version >= 3) ? &delta.offadjn : NULL)) != DRPM_ERR_OK ||
+                                                  (delta.version >= 3) ? &delta.offadjn : NULL,
+                                                  patches)) != DRPM_ERR_OK ||
             (error = rpm_fetch_archive(alone ? solo_rpm : new_rpm, &new_cpio, &new_cpio_len)) != DRPM_ERR_OK)
             goto cleanup;
     }
@@ -580,6 +585,8 @@ cleanup:
     free(new_cpio);
     free(old_header);
     free(new_header);
+
+    destroy_patches(&patches);
 
     return error;
 }

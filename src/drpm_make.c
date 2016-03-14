@@ -25,6 +25,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <fcntl.h>
+#include <unistd.h>
+#define __USE_XOPEN 1
+#include <sys/stat.h>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <rpm/rpmfi.h>
@@ -52,6 +56,13 @@
 #define SEQ_ALLOC_SIZE 32
 #define SEQ_BYTE_LEN(index) (((index) + 1) / 2)
 
+#define MAGIC_RPML 0x52504D4C
+#define MAGIC_RPM 0xEDABEEDB
+
+#ifndef RPMFILE_UNPATCHED
+#define RPMFILE_UNPATCHED (1 << 10)
+#endif
+
 struct cpio_header {
     uint16_t ino;
     uint16_t mode;
@@ -75,9 +86,33 @@ struct files_seq {
     ssize_t last_seq;
 };
 
+struct patch_file {
+    char *name;
+    uint16_t mode;
+    uint32_t flags;
+    unsigned char md5[MD5_DIGEST_LENGTH];
+};
+
+struct patch_info {
+    char *nevr;
+    struct patch_file *files;
+    size_t file_count;
+};
+
+struct rpm_patches {
+    struct patch_info rpmprint;
+    struct patch_info patchrpm;
+};
+
 static int cpio_extend(unsigned char **, size_t *, const void *, size_t);
 static int cpio_header_read(struct cpio_header *, const char *);
 static void cpio_header_write(const struct cpio_header *, char *);
+static bool is_unpatched(const struct rpm_patches *, const char *, const char *);
+static int rpml_get_uint16(int, uint16_t *);
+static int rpml_get_uint32(int, uint32_t *);
+static int rpml_get_string(int, char **);
+static int rpml_get_filename(int, char **, uint32_t *);
+static int rpml_skip(int, off_t);
 static int seq_add(struct files_seq *, unsigned);
 static int seq_final(struct files_seq *, unsigned char **, size_t *);
 
@@ -244,7 +279,8 @@ void cpio_header_write(const struct cpio_header *cpio_hdr,
 int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                                  unsigned char **cpio_ret, size_t *cpio_len_ret,
                                  unsigned char **sequence_ret, uint32_t *sequence_len_ret,
-                                 uint32_t **offadjs_ret, uint32_t *offadjn_ret)
+                                 uint32_t **offadjs_ret, uint32_t *offadjn_ret,
+                                 const struct rpm_patches *patches)
 {
     int error = DRPM_ERR_OK;
 
@@ -272,7 +308,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
     size_t c_filesize;
     size_t c_namesize;
-    char *name;
+    const char *name;
     size_t name_len;
     char *name_buffer = NULL;
     size_t name_buffer_len = 0;
@@ -381,7 +417,9 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             file = files[files_index];
             cpio_hdr = cpio_hdr_init;
 
-            if (S_ISREG(file.mode)) {
+            if (patches != NULL && S_ISREG(file.mode) && is_unpatched(patches, name, file.md5)) {
+                skip = true;
+            } else if (S_ISREG(file.mode)) {
                 skip = (c_filesize != file.size) ||
                        ((file.flags & (RPMFILE_CONFIG | RPMFILE_MISSINGOK | RPMFILE_GHOST)) != 0) ||
                        ((file.verify & VERIFY_MD5) == 0 ||
@@ -591,6 +629,385 @@ cleanup:
     free(seq_files);
 
     return error;
+}
+
+int rpml_get_uint16(int filedesc, uint16_t *ret)
+{
+    unsigned char buf[2];
+
+    if (read(filedesc, buf, 2) != 2)
+        return DRPM_ERR_FORMAT;
+
+    if (ret != NULL)
+        *ret = parse_be16(buf);
+
+    return DRPM_ERR_OK;
+}
+
+int rpml_get_uint32(int filedesc, uint32_t *ret)
+{
+    unsigned char buf[4];
+
+    if (read(filedesc, buf, 4) != 4)
+        return DRPM_ERR_FORMAT;
+
+    if (ret != NULL)
+        *ret = parse_be32(buf);
+
+    return DRPM_ERR_OK;
+}
+
+int rpml_get_string(int filedesc, char **ret)
+{
+    uint8_t len;
+
+    if (read(filedesc, &len, 1) != 1)
+        return DRPM_ERR_FORMAT;
+
+    if (ret != NULL) {
+        if ((*ret = malloc(len + 1)) == NULL)
+            return DRPM_ERR_MEMORY;
+        if (read(filedesc, *ret, len) != len) {
+            free(*ret);
+            return DRPM_ERR_FORMAT;
+        }
+        (*ret)[len] = '\0';
+    }
+
+    return DRPM_ERR_OK;
+}
+
+int rpml_get_filename(int filedesc, char **filename_ret, uint32_t *filename_len_ret)
+{
+    int error;
+    uint8_t off;
+    uint16_t len;
+    uint8_t buf[2];
+    char *filename;
+    uint32_t filename_len;
+    uint32_t new_filename_len;
+
+    if (filename_ret == NULL || filename_len_ret == NULL)
+        return DRPM_ERR_PROG;
+
+    filename = *filename_ret;
+    filename_len = *filename_len_ret;
+
+    if (read(filedesc, buf, 2) != 2)
+        return DRPM_ERR_FORMAT;
+
+    off = buf[0];
+
+    if (buf[1] == 0xFF) {
+        if ((error = rpml_get_uint16(filedesc, &len)) != DRPM_ERR_OK)
+            return error;
+    } else {
+        len = buf[1];
+    }
+
+    new_filename_len = off + len + 1;
+
+    if (new_filename_len > filename_len) {
+        if ((filename = realloc(filename, new_filename_len)) == NULL)
+            return DRPM_ERR_MEMORY;
+        filename_len = new_filename_len;
+    }
+
+    if (read(filedesc, filename + off, len) != len)
+        return DRPM_ERR_FORMAT;
+
+    filename[off + len] = '\0';
+
+    *filename_ret = filename;
+    *filename_len_ret = filename_len;
+
+    return DRPM_ERR_OK;
+}
+
+int rpml_skip(int filedesc, off_t len)
+{
+    return lseek(filedesc, len, SEEK_CUR) != (off_t)-1 ?
+           DRPM_ERR_OK :
+           DRPM_ERR_IO;
+}
+
+int read_rpmlist(int filedesc, struct patch_info *patch, bool skip_magic)
+{
+    int error = DRPM_ERR_OK;
+    char *filename = NULL;
+    uint32_t filename_len;
+    const char *fname;
+    uint32_t magic;
+    char *name = NULL;
+    char *evr = NULL;
+    uint16_t patches_count;
+    uint32_t files_count;
+    uint8_t num;
+    uint8_t num2;
+    unsigned char buf[4];
+    uint8_t read_bytes;
+
+    if (!skip_magic) {
+        if ((error = rpml_get_uint32(filedesc, &magic)) != DRPM_ERR_OK)
+            return error;
+        if (magic != MAGIC_RPML)
+            return DRPM_ERR_FORMAT;
+    }
+
+    if ((error = rpml_get_string(filedesc, &name)) != DRPM_ERR_OK ||
+        (error = rpml_get_string(filedesc, &evr)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if ((patch->nevr = malloc(strlen(name) + strlen(evr) + 2)) == NULL) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    sprintf(patch->nevr, "%s-%s", name, evr);
+
+    if ((error = rpml_get_string(filedesc, NULL)) != DRPM_ERR_OK || // build host
+        (error = rpml_get_uint32(filedesc, NULL)) != DRPM_ERR_OK || // build time
+        (error = rpml_get_uint16(filedesc, &patches_count)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if (patches_count > 0) {
+        for (uint16_t i = 0; i < patches_count; i++)
+            if ((error = rpml_get_string(filedesc, NULL)) != DRPM_ERR_OK)
+                goto cleanup;
+
+        if ((error = rpml_get_uint32(filedesc, &files_count)) != DRPM_ERR_OK)
+            goto cleanup;
+
+        for (uint32_t i = 0; i < files_count; i++) {
+            if (!resize16((void **)&patch->files, patch->file_count, sizeof(struct patch_file))) {
+                error = DRPM_ERR_MEMORY;
+                goto cleanup;
+            }
+            if ((error = rpml_get_filename(filedesc, &filename, &filename_len)))
+                goto cleanup;
+            if ((patch->files[patch->file_count].name = malloc(strlen(filename) + 1)) == NULL) {
+                error = DRPM_ERR_MEMORY;
+            }
+            strcpy(patch->files[patch->file_count].name, filename);
+            patch->files[patch->file_count].mode = S_IFREG;
+            patch->files[patch->file_count].flags = RPMFILE_UNPATCHED;
+            memset(patch->files[patch->file_count].md5, 0, MD5_DIGEST_LENGTH);
+            patch->file_count++;
+        }
+    }
+
+    while (true) {
+        if ((error = rpml_get_filename(filedesc, &filename, &filename_len)) != DRPM_ERR_OK)
+            goto cleanup;
+
+        if (strlen(filename) == 0)
+            break;
+
+        if (!resize16((void **)&patch->files, patch->file_count, sizeof(struct patch_file))) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+
+        fname = (strncmp(filename, "./", 2) == 0) ? filename + 2 : filename;
+
+        if ((patch->files[patch->file_count].name = malloc(strlen(fname) + 1)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+
+        patch->files[patch->file_count].flags = RPMFILE_NONE;
+        memset(patch->files[patch->file_count].md5, 0, MD5_DIGEST_LENGTH);
+
+        if ((error = rpml_get_uint16(filedesc, &patch->files[patch->file_count].mode)) != DRPM_ERR_OK)
+            goto cleanup;
+
+        if (patch->files[patch->file_count].mode != 0) {
+            if (read(filedesc, &num, 1) != 1) {
+                error = DRPM_ERR_FORMAT;
+                goto cleanup;
+            }
+
+            if (num == 0xFF) {
+                if (read(filedesc, &num2, 1) != 1 ||
+                    read(filedesc, &num, 1) != 1) {
+                    error = DRPM_ERR_FORMAT;
+                    goto cleanup;
+                }
+                if (((num2 > 0) && (error = rpml_skip(filedesc, num2 + 1)) != DRPM_ERR_OK) ||
+                    ((num & 0xFC) && (error = rpml_skip(filedesc, (num >> 2 & 0x3F) + 1)) != DRPM_ERR_OK))
+                    goto cleanup;
+            } else {
+                if (((num & 0xE0) && (error = rpml_skip(filedesc, (num >> 5 & 7) + 1)) != DRPM_ERR_OK) ||
+                    ((num & 0x1C) && (error = rpml_skip(filedesc, (num >> 2 & 7) + 1)) != DRPM_ERR_OK))
+                    goto cleanup;
+            }
+
+            if ((S_ISCHR(patch->files[patch->file_count].mode) || S_ISBLK(patch->files[patch->file_count].mode)) &&
+                (error = rpml_get_uint32(filedesc, NULL)) != DRPM_ERR_OK) // rdev
+                goto cleanup;
+
+            if (S_ISREG(patch->files[patch->file_count].mode) || S_ISLNK(patch->files[patch->file_count].mode)) {
+                read_bytes = (num % 4) + 1;
+                memset(buf, 0, 4);
+                if (read(filedesc, buf + (4 - read_bytes), read_bytes) != read_bytes &&
+                    parse_be32(buf) > 0 &&
+                    read(filedesc, patch->files[patch->file_count].md5, MD5_DIGEST_LENGTH) != MD5_DIGEST_LENGTH) {
+                    error = DRPM_ERR_FORMAT;
+                    goto cleanup;
+                }
+            }
+        }
+
+        patch->file_count++;
+    }
+
+cleanup:
+    free(filename);
+    free(name);
+    free(evr);
+
+    return error;
+}
+
+int read_patches(const char *oldrpmprint, const char *oldpatchrpm, struct rpm_patches **patches)
+{
+    int error = DRPM_ERR_OK;
+    int filedesc;
+    struct patch_info *rpmprint;
+    struct patch_info *patchrpm;
+    uint32_t magic;
+    struct rpm *rpmst = NULL;
+    struct file_info *files;
+    size_t file_count;
+    char *fname;
+
+    if (patches == NULL)
+        return DRPM_ERR_PROG;
+
+    /* no patching */
+    if (oldrpmprint == NULL || oldpatchrpm == NULL) {
+        *patches = NULL;
+        return DRPM_ERR_OK;
+    }
+
+    if ((*patches = malloc(sizeof(struct rpm_patches))) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    rpmprint = &(*patches)->rpmprint;
+    patchrpm = &(*patches)->patchrpm;
+
+    if ((filedesc = open(oldpatchrpm, O_RDONLY)) < 0) {
+        error = DRPM_ERR_IO;
+        goto cleanup_fail;
+    }
+
+    if ((error = read_rpmlist(filedesc, patchrpm, false)) != DRPM_ERR_OK)
+        goto cleanup_fail;
+
+    close(filedesc);
+
+    if ((filedesc = open(oldrpmprint, O_RDONLY)) < 0) {
+        error = DRPM_ERR_IO;
+        goto cleanup_fail;
+    }
+
+    if ((error = read_be32(filedesc, &magic)) != DRPM_ERR_OK)
+        goto cleanup_fail;
+
+    switch (magic) {
+    case MAGIC_RPM:
+        if ((error = rpm_read(&rpmst, oldrpmprint, RPM_ARCHIVE_DONT_READ, NULL, NULL, NULL)) != DRPM_ERR_OK ||
+            (error = rpm_get_nevr(rpmst, &rpmprint->nevr)) != DRPM_ERR_OK ||
+            (error = rpm_get_file_info(rpmst, &files, &file_count, NULL)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+        if ((rpmprint->files = malloc(file_count)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup_fail;
+        }
+        rpmprint->file_count = file_count;
+        for (size_t i = 0; i < file_count; i++) {
+            fname = files[i].name;
+            if (fname[0] == '/')
+                fname++;
+            if ((rpmprint->files[i].name = malloc(strlen(fname) + 1)) == NULL) {
+                error = DRPM_ERR_MEMORY;
+                goto cleanup_fail;
+            }
+            strcpy(rpmprint->files[i].name, fname);
+            rpmprint->files[i].mode = files[i].mode;
+            rpmprint->files[i].flags = files[i].flags;
+            if (!parse_md5(rpmprint->files[i].md5, files[i].md5)) {
+                error = DRPM_ERR_FORMAT;
+                goto cleanup_fail;
+            }
+        }
+        break;
+    case MAGIC_RPML:
+        if ((error = read_rpmlist(filedesc, rpmprint, true)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+        break;
+    default:
+        error = DRPM_ERR_FORMAT;
+        goto cleanup_fail;
+    }
+
+    goto cleanup;
+
+cleanup_fail:
+    destroy_patches(patches);
+
+cleanup:
+    close(filedesc);
+
+    return error;
+}
+
+int destroy_patches(struct rpm_patches **patches)
+{
+    if (patches == NULL || *patches == NULL)
+        return DRPM_ERR_PROG;
+
+    for (size_t i = 0; i < (*patches)->rpmprint.file_count; i++)
+        free((*patches)->rpmprint.files[i].name);
+    free((*patches)->rpmprint.files);
+    free((*patches)->rpmprint.nevr);
+
+    for (size_t i = 0; i < (*patches)->patchrpm.file_count; i++)
+        free((*patches)->patchrpm.files[i].name);
+    free((*patches)->patchrpm.files);
+    free((*patches)->patchrpm.nevr);
+
+    free(*patches);
+
+    *patches = NULL;
+
+    return DRPM_ERR_OK;
+}
+
+bool is_unpatched(const struct rpm_patches *patches, const char *name,
+                  const char rpm_md5[MD5_DIGEST_LENGTH * 2 + 1])
+{
+    size_t i;
+    char patch_md5[MD5_DIGEST_LENGTH * 2 + 1];
+
+    for (i = 0; i < patches->rpmprint.file_count; i++)
+        if (strcmp(name, patches->rpmprint.files[i].name) == 0)
+            break;
+
+    if (i == patches->rpmprint.file_count ||
+        !(patches->rpmprint.files[i].flags & RPMFILE_UNPATCHED))
+        return false;
+
+    for (i = 0; i < patches->patchrpm.file_count; i++)
+        if (strcmp(name, patches->patchrpm.files[i].name) == 0)
+            break;
+
+    if (i == patches->patchrpm.file_count) // shouldn't happen
+        return true;
+
+    dump_hex(patch_md5, patches->patchrpm.files[i].md5, MD5_DIGEST_LENGTH);
+
+    return (strcmp(rpm_md5, patch_md5) != 0);
 }
 
 /* In the case of an rpm-only identity deltarpm, since identity deltarpms
