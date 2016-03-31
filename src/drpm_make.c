@@ -114,9 +114,10 @@ static int rpml_get_string(int, char **);
 static int rpml_get_filename(int, char **, uint32_t *);
 static int rpml_skip(int, off_t);
 static int seq_add(struct files_seq *, unsigned);
+static bool seq_append(struct files_seq *, unsigned);
 static int seq_final(struct files_seq *, unsigned char **, size_t *);
 
-static bool seq_append(struct files_seq *seq, unsigned val)
+bool seq_append(struct files_seq *seq, unsigned val)
 {
     size_t len = 1;
     unsigned tmp = val;
@@ -869,7 +870,7 @@ cleanup:
     return error;
 }
 
-int read_patches(const char *oldrpmprint, const char *oldpatchrpm, struct rpm_patches **patches)
+int patches_read(const char *oldrpmprint, const char *oldpatchrpm, struct rpm_patches **patches)
 {
     int error = DRPM_ERR_OK;
     int filedesc;
@@ -954,7 +955,7 @@ int read_patches(const char *oldrpmprint, const char *oldpatchrpm, struct rpm_pa
     goto cleanup;
 
 cleanup_fail:
-    destroy_patches(patches);
+    patches_destroy(patches);
 
 cleanup:
     close(filedesc);
@@ -962,7 +963,7 @@ cleanup:
     return error;
 }
 
-int destroy_patches(struct rpm_patches **patches)
+int patches_destroy(struct rpm_patches **patches)
 {
     if (patches == NULL || *patches == NULL)
         return DRPM_ERR_PROG;
@@ -982,6 +983,17 @@ int destroy_patches(struct rpm_patches **patches)
     *patches = NULL;
 
     return DRPM_ERR_OK;
+}
+
+int patches_check_nevr(const struct rpm_patches *patches, const char *nevr)
+{
+    if (patches == NULL)
+        return DRPM_ERR_PROG;
+
+    return (strcmp(patches->rpmprint.nevr, nevr) == 0 &&
+            strcmp(patches->patchrpm.nevr, nevr) == 0) ?
+           DRPM_ERR_OK :
+           DRPM_ERR_ARGS;
 }
 
 bool is_unpatched(const struct rpm_patches *patches, const char *name,

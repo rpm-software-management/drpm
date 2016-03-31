@@ -142,14 +142,15 @@ int make_diff(const unsigned char *, size_t, const unsigned char *, size_t,
               unsigned short, int);
 
 //drpm_make.c
-int destroy_patches(struct rpm_patches **);
 int fill_nodiff_deltarpm(struct deltarpm *, const char *, bool);
 void free_deltarpm(struct deltarpm *);
 int parse_cpio_from_rpm_filedata(struct rpm *, unsigned char **, size_t *,
                                  unsigned char **, uint32_t *,
                                  uint32_t **, uint32_t *,
                                  const struct rpm_patches *);
-int read_patches(const char *, const char *, struct rpm_patches **);
+int patches_check_nevr(const struct rpm_patches *, const char *);
+int patches_destroy(struct rpm_patches **);
+int patches_read(const char *, const char *, struct rpm_patches **);
 
 //drpm_read.c
 int read_be32(int, uint32_t *);

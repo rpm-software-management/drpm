@@ -430,7 +430,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         goto write_files;
     }
 
-    if (!rpm_only && (error = read_patches(opts.oldrpmprint, opts.oldpatchrpm, &patches)) != DRPM_ERR_OK)
+    if (!rpm_only && (error = patches_read(opts.oldrpmprint, opts.oldpatchrpm, &patches)) != DRPM_ERR_OK)
         goto cleanup;
 
     /* reading RPM(s) (also creating MD5 sums and determining compressor from archive) */
@@ -493,6 +493,9 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         goto cleanup;
 
     printf("copied NEVRs\n");
+
+    if (patches != NULL && (error = patches_check_nevr(patches, delta.src_nevr)) != DRPM_ERR_OK)
+        goto cleanup;
 
     if ((error = rpm_fetch_lead_and_signature(alone ? solo_rpm : new_rpm, &delta.tgt_lead, &delta.tgt_lead_len)) != DRPM_ERR_OK)
         goto cleanup;
@@ -586,7 +589,7 @@ cleanup:
     free(old_header);
     free(new_header);
 
-    destroy_patches(&patches);
+    patches_destroy(&patches);
 
     return error;
 }
