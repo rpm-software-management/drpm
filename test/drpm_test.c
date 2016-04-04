@@ -32,22 +32,12 @@
 #include <cmocka.h>
 
 #define DELTAS 2
-#define MOCK_TESTS 21
 
 #define UINT_UNSUP_TAGS 14
 #define ULONG_UNSUP_TAGS 12
 #define ULLONG_UNSUP_TAGS 10
 #define STRING_UNSUP_TAGS 12
 #define ULONG_ARR_UNSUP_TAGS 16
-
-int __real_read_be32(int, uint32_t *);
-int __real_readdelta_rpmonly(int, drpm *);
-int __real_readdelta_standard(int, drpm *);
-int __real_readdelta_rest(int, drpm *);
-int __real_decompstrm_init(struct decompstrm **, int, uint32_t *, MD5_CTX *);
-int __real_decompstrm_read_be32(struct decompstrm *, uint32_t *);
-int __real_decompstrm_read(struct decompstrm *, size_t, char *);
-int __real_decompstrm_destroy(struct decompstrm **);
 
 struct delta_meta {
     drpm *delta;
@@ -88,186 +78,6 @@ void print_help()
            "  ARG3   A valid rpm file, but not a deltarpm.\n"
            "  ARG4   A file that is neither an rpm nor a deltarpm.\n"
            "  ARG5   A file name that does not exist.\n");
-}
-
-int __wrap_read_be32(int filedesc, uint32_t *buffer_ret)
-{
-    switch (test_no) {
-    case 1:
-    case 2:
-        return (int)mock();
-    default:
-        return __real_read_be32(filedesc, buffer_ret);
-    }
-}
-
-int __wrap_readdelta_rpmonly(int filedesc, drpm *delta)
-{
-    switch (test_no) {
-    case 3:
-    case 4:
-    case 5:
-        return (int)mock();
-    default:
-        return __real_readdelta_rpmonly(filedesc, delta);
-    }
-}
-
-int __wrap_readdelta_standard(int filedesc, drpm *delta)
-{
-    switch (test_no) {
-    case 6:
-    case 7:
-    case 8:
-        return (int)mock();
-    default:
-        return __real_readdelta_standard(filedesc, delta);
-    }
-}
-
-int __wrap_readdelta_rest(int filedesc, drpm *delta)
-{
-    switch (test_no) {
-    case 9:
-    case 10:
-        return (int)mock();
-    default:
-        return __real_readdelta_rest(filedesc, delta);
-    }
-}
-
-int __wrap_decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp, MD5_CTX *md5)
-{
-    switch (test_no) {
-    case 11:
-    case 12:
-    case 13:
-    case 14:
-    case 15:
-        return (int)mock();
-    default:
-        return __real_decompstrm_init(strm, filedesc, comp, md5);
-    }
-}
-
-int __wrap_decompstrm_read_be32(struct decompstrm *strm, uint32_t *buffer_ret)
-{
-    switch (test_no) {
-    case 16:
-        return (int)mock();
-    default:
-        return __real_decompstrm_read_be32(strm, buffer_ret);
-    }
-}
-
-int __wrap_decompstrm_read(struct decompstrm *strm, size_t read_len, char *buffer_ret)
-{
-    switch (test_no) {
-    case 17:
-    case 18:
-    case 19:
-    case 20:
-        return (int)mock();
-    default:
-        return __real_decompstrm_read(strm, read_len, buffer_ret);
-    }
-}
-
-int __wrap_decompstrm_destroy(struct decompstrm **strm)
-{
-    switch (test_no) {
-    case 21:
-        __real_decompstrm_destroy(strm);
-        return (int)mock();
-    default:
-        return __real_decompstrm_destroy(strm);
-    }
-}
-
-static void test_drpm_read_err_mock(void **state)
-{
-    (void)state;
-
-    char *delta_file;
-    LargestIntegralType ret_vals[MOCK_TESTS] = {
-        DRPM_ERR_IO,
-        DRPM_ERR_FORMAT,
-        DRPM_ERR_FORMAT,
-        DRPM_ERR_MEMORY,
-        DRPM_ERR_IO,
-        DRPM_ERR_IO,
-        DRPM_ERR_FORMAT,
-        DRPM_ERR_MEMORY,
-        DRPM_ERR_FORMAT,
-        DRPM_ERR_MEMORY,
-        DRPM_ERR_ARGS,
-        DRPM_ERR_IO,
-        DRPM_ERR_MEMORY,
-        DRPM_ERR_CONFIG,
-        DRPM_ERR_FORMAT,
-        DRPM_ERR_ARGS,
-        DRPM_ERR_ARGS,
-        DRPM_ERR_IO,
-        DRPM_ERR_FORMAT,
-        DRPM_ERR_MEMORY,
-        DRPM_ERR_ARGS
-    };
-
-    for (test_no = 1; test_no <= MOCK_TESTS; test_no++) {
-
-        switch (test_no) {
-        case 1:
-        case 2:
-            will_return(__wrap_read_be32, ret_vals[test_no-1]);
-            break;
-        case 3:
-        case 4:
-        case 5:
-            will_return(__wrap_readdelta_rpmonly, ret_vals[test_no-1]);
-            break;
-        case 6:
-        case 7:
-        case 8:
-            will_return(__wrap_readdelta_standard, ret_vals[test_no-1]);
-            break;
-        case 9:
-        case 10:
-            will_return(__wrap_readdelta_rest, ret_vals[test_no-1]);
-            break;
-        case 11:
-        case 12:
-        case 13:
-        case 14:
-        case 15:
-            will_return(__wrap_decompstrm_init, ret_vals[test_no-1]);
-            break;
-        case 16:
-            will_return(__wrap_decompstrm_read_be32, ret_vals[test_no-1]);
-            break;
-        case 17:
-        case 18:
-        case 19:
-        case 20:
-            will_return(__wrap_decompstrm_read, ret_vals[test_no-1]);
-            break;
-        case 21:
-            will_return(__wrap_decompstrm_destroy, ret_vals[test_no-1]);
-            break;
-        }
-
-        switch (test_no) {
-        case 3:
-        case 4:
-        case 5:
-            delta_file = files[1];
-            break;
-        default:
-            delta_file = files[0];
-            break;
-        }
-
-        assert_int_equal(ret_vals[test_no-1], drpm_read(&delta, delta_file));
-    }
 }
 
 static void test_drpm_read_err_input(void **state)
@@ -642,7 +452,6 @@ int main(int argc, char **argv)
     delta = deltas[0].delta;
 
     const struct CMUnitTest tests[] = {
-        cmocka_unit_test(test_drpm_read_err_mock),
         cmocka_unit_test(test_drpm_read_err_input),
         cmocka_unit_test(test_drpm_read_ok),
         cmocka_unit_test(test_drpm_get_uint),

@@ -93,3 +93,33 @@ bool deltarpm_encode_comp(uint32_t *deltarpm_comp, unsigned short comp, unsigned
 
     return true;
 }
+
+void free_deltarpm(struct deltarpm *delta)
+{
+    struct deltarpm delta_init = {0};
+
+    switch (delta->type) {
+    case DRPM_TYPE_STANDARD:
+        rpm_destroy(&delta->head.tgt_rpm);
+        break;
+    case DRPM_TYPE_RPMONLY:
+        free(delta->head.tgt_nevr);
+        break;
+    }
+
+    free(delta->src_nevr);
+    free(delta->sequence);
+    free(delta->tgt_comp_param);
+    free(delta->offadj_elems);
+    free(delta->tgt_leadsig);
+    free(delta->int_copies);
+    free(delta->ext_copies);
+    free(delta->add_data);
+
+    if (delta->int_data_as_ptrs)
+        free(delta->int_data.ptrs);
+    else
+        free(delta->int_data.bytes);
+
+    *delta = delta_init;
+}

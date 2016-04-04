@@ -67,15 +67,15 @@ struct drpm {
     uint32_t tgt_comp;
     char *tgt_comp_param;
     uint32_t tgt_header_len;
-    uint32_t *adj_elems;
-    char *tgt_lead;
+    uint32_t *offadj_elems;
+    char *tgt_leadsig;
     uint32_t payload_fmt_off;
     uint32_t *int_copies;
     uint32_t *ext_copies;
     uint64_t ext_data_len;
     uint64_t int_data_len;
 
-    uint32_t adj_elems_size;
+    uint32_t offadj_elems_size;
     uint32_t int_copies_size;
     uint32_t ext_copies_size;
 };
@@ -125,7 +125,7 @@ int compstrm_write_be64(struct compstrm *, uint64_t);
 //drpm_decompstrm.c
 int decompstrm_destroy(struct decompstrm **);
 int decompstrm_get_comp_size(struct decompstrm *, size_t *);
-int decompstrm_init(struct decompstrm **, int, uint32_t *, MD5_CTX *);
+int decompstrm_init(struct decompstrm **, int, unsigned short *, MD5_CTX *);
 int decompstrm_read(struct decompstrm *, size_t, void *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
@@ -134,6 +134,7 @@ int decompstrm_read_until_eof(struct decompstrm *, size_t *, unsigned char **);
 //drpm_deltarpm.c
 bool deltarpm_decode_comp(uint32_t, unsigned short *, unsigned short *);
 bool deltarpm_encode_comp(uint32_t *, unsigned short, unsigned short);
+void free_deltarpm(struct deltarpm *);
 
 //drpm_diff.c
 int make_diff(const unsigned char *, size_t, const unsigned char *, size_t,
@@ -143,7 +144,6 @@ int make_diff(const unsigned char *, size_t, const unsigned char *, size_t,
 
 //drpm_make.c
 int fill_nodiff_deltarpm(struct deltarpm *, const char *, bool);
-void free_deltarpm(struct deltarpm *);
 int parse_cpio_from_rpm_filedata(struct rpm *, unsigned char **, size_t *,
                                  unsigned char **, uint32_t *,
                                  uint32_t **, uint32_t *,
@@ -153,11 +153,11 @@ int patches_destroy(struct rpm_patches **);
 int patches_read(const char *, const char *, struct rpm_patches **);
 
 //drpm_read.c
+int deltarpm_to_drpm(const struct deltarpm *, struct drpm *);
+void drpm_free(struct drpm *);
 int read_be32(int, uint32_t *);
 int read_be64(int, uint64_t *);
-int readdelta_rest(int, struct drpm *);
-int readdelta_rpmonly(int, struct drpm *);
-int readdelta_standard(int, struct drpm *);
+int read_deltarpm(struct deltarpm *, const char *);
 
 //drpm_rpm.c
 int rpm_archive_read_chunk(struct rpm *, void *, size_t);
@@ -167,7 +167,7 @@ int rpm_fetch_archive(struct rpm *, unsigned char **, size_t *);
 int rpm_fetch_header(struct rpm *, unsigned char **, uint32_t *);
 int rpm_fetch_lead_and_signature(struct rpm *, unsigned char **, uint32_t *);
 int rpm_find_payload_format_offset(struct rpm *, uint32_t *);
-int rpm_get_comp(struct rpm *, uint32_t *);
+int rpm_get_comp(struct rpm *, unsigned short *);
 int rpm_get_comp_level(struct rpm *, unsigned short *);
 int rpm_get_digest_algo(struct rpm *, unsigned short *);
 int rpm_get_file_info(struct rpm *, struct file_info **, size_t *, bool *);
@@ -235,13 +235,13 @@ struct deltarpm {
     uint32_t tgt_comp_param_len;
     unsigned char *tgt_comp_param;
     uint32_t tgt_header_len;
-    uint32_t offadjn;
-    uint32_t *offadjs;
-    uint32_t tgt_lead_len;
-    unsigned char *tgt_lead;
+    uint32_t offadj_elems_count;
+    uint32_t *offadj_elems;
+    uint32_t tgt_leadsig_len;
+    unsigned char *tgt_leadsig;
     uint32_t payload_fmt_off;
-    uint32_t int_copies_size; // TODO: inn vs. 2*inn
-    uint32_t ext_copies_size;
+    uint32_t int_copies_count;
+    uint32_t ext_copies_count;
     uint32_t *int_copies;
     uint32_t *ext_copies;
     uint64_t ext_data_len;

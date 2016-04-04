@@ -30,9 +30,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#define MAGIC_DRPM 0x6472706D
-#define MAGIC_RPM 0xEDABEEDB
-
 // DEBUG
 const char *type2str(unsigned short type)
 {
@@ -97,70 +94,28 @@ const char *drpm_strerror(int error)
 
 int drpm_read(struct drpm **delta_ret, const char *filename)
 {
-    struct drpm delta = {0};
-    int filedesc;
-    uint32_t magic;
+    struct deltarpm delta = {0};
     int error = DRPM_ERR_OK;
 
     if (filename == NULL || delta_ret == NULL)
         return DRPM_ERR_ARGS;
 
-    *delta_ret = NULL;
-
-    if ((filedesc = open(filename, O_RDONLY)) == -1)
-        return DRPM_ERR_IO;
-
-    if ((delta.filename = malloc(strlen(filename) + 1)) == NULL)
-        return DRPM_ERR_MEMORY;
-
-    strcpy(delta.filename, filename);
-
-    if ((error = read_be32(filedesc, &magic)) != DRPM_ERR_OK)
-        goto cleanup_fail;
-
-    switch (magic) {
-    case MAGIC_DRPM:
-        printf("deltarpm type: rpm-only\n");
-        delta.type = DRPM_TYPE_RPMONLY;
-        if ((error = readdelta_rpmonly(filedesc, &delta)) != DRPM_ERR_OK)
-            goto cleanup_fail;
-        break;
-    case MAGIC_RPM:
-        printf("deltarpm type: standard\n");
-        delta.type = DRPM_TYPE_STANDARD;
-        if ((error = readdelta_standard(filedesc, &delta)) != DRPM_ERR_OK)
-            goto cleanup_fail;
-        break;
-    default:
-        error = DRPM_ERR_FORMAT;
-        goto cleanup_fail;
-    }
-
-    if ((error = readdelta_rest(filedesc, &delta)) != DRPM_ERR_OK)
-        goto cleanup_fail;
+    if ((error = read_deltarpm(&delta, filename)) != DRPM_ERR_OK)
+        goto cleanup;
 
     if ((*delta_ret = malloc(sizeof(struct drpm))) == NULL) {
         error = DRPM_ERR_MEMORY;
-        goto cleanup_fail;
+        goto cleanup;
     }
 
-    **delta_ret = delta;
-
-    goto cleanup;
-
-cleanup_fail:
-    free(delta.filename);
-    free(delta.src_nevr);
-    free(delta.tgt_nevr);
-    free(delta.sequence);
-    free(delta.tgt_comp_param);
-    free(delta.tgt_lead);
-    free(delta.adj_elems);
-    free(delta.int_copies);
-    free(delta.ext_copies);
+    if ((error = deltarpm_to_drpm(&delta, *delta_ret)) != DRPM_ERR_OK)
+        goto cleanup;
 
 cleanup:
-    close(filedesc);
+    free_deltarpm(&delta);
+
+    if (error != DRPM_ERR_OK)
+        *delta_ret = NULL;
 
     return error;
 }
@@ -170,15 +125,8 @@ int drpm_destroy(struct drpm **delta)
     if (delta == NULL || *delta == NULL)
         return DRPM_ERR_ARGS;
 
-    free((*delta)->filename);
-    free((*delta)->src_nevr);
-    free((*delta)->tgt_nevr);
-    free((*delta)->sequence);
-    free((*delta)->tgt_comp_param);
-    free((*delta)->tgt_lead);
-    free((*delta)->adj_elems);
-    free((*delta)->int_copies);
-    free((*delta)->ext_copies);
+    drpm_free(*delta);
+
     free(*delta);
     *delta = NULL;
 
@@ -314,7 +262,7 @@ int drpm_get_string(struct drpm *delta, int tag, char **ret)
         string = delta->tgt_comp_param;
         break;
     case DRPM_TAG_TGTLEAD:
-        string = delta->tgt_lead;
+        string = delta->tgt_leadsig;
         break;
     default:
         return DRPM_ERR_ARGS;
@@ -340,8 +288,8 @@ int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array,
 
     switch (tag) {
     case DRPM_TAG_ADJELEMS:
-        array = delta->adj_elems;
-        *ret_size = (unsigned long)delta->adj_elems_size;
+        array = delta->offadj_elems;
+        *ret_size = (unsigned long)delta->offadj_elems_size;
         break;
     case DRPM_TAG_INTCOPIES:
         array = delta->int_copies;
@@ -361,7 +309,7 @@ int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array,
         if ((*ret_array = malloc(*ret_size * sizeof(unsigned long))) == NULL)
             return DRPM_ERR_MEMORY;
 
-        for (unsigned i = 0; i < *ret_size; i++)
+        for (unsigned long i = 0; i < *ret_size; i++)
             (*ret_array)[i] = (unsigned long)array[i];
     }
 
@@ -497,7 +445,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     if (patches != NULL && (error = patches_check_nevr(patches, delta.src_nevr)) != DRPM_ERR_OK)
         goto cleanup;
 
-    if ((error = rpm_fetch_lead_and_signature(alone ? solo_rpm : new_rpm, &delta.tgt_lead, &delta.tgt_lead_len)) != DRPM_ERR_OK)
+    if ((error = rpm_fetch_lead_and_signature(alone ? solo_rpm : new_rpm, &delta.tgt_leadsig, &delta.tgt_leadsig_len)) != DRPM_ERR_OK)
         goto cleanup;
 
     printf("copied RPM lead and signature\n");
@@ -536,8 +484,8 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         if ((error = parse_cpio_from_rpm_filedata(alone ? solo_rpm : old_rpm,
                                                   &old_cpio, &old_cpio_len,
                                                   &delta.sequence, &delta.sequence_len,
-                                                  (delta.version >= 3) ? &delta.offadjs : NULL,
-                                                  (delta.version >= 3) ? &delta.offadjn : NULL,
+                                                  (delta.version >= 3) ? &delta.offadj_elems : NULL,
+                                                  (delta.version >= 3) ? &delta.offadj_elems_count : NULL,
                                                   patches)) != DRPM_ERR_OK ||
             (error = rpm_fetch_archive(alone ? solo_rpm : new_rpm, &new_cpio, &new_cpio_len)) != DRPM_ERR_OK)
             goto cleanup;
@@ -555,8 +503,8 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     /* diff algorithm, creating deltarpm diff data */
     if ((error = make_diff(old_cpio, old_cpio_len, new_cpio, new_cpio_len,
                            &delta.int_data.ptrs, &delta.int_data_len,
-                           &delta.ext_copies, &delta.ext_copies_size,
-                           &delta.int_copies, &delta.int_copies_size,
+                           &delta.ext_copies, &delta.ext_copies_count,
+                           &delta.int_copies, &delta.int_copies_count,
                            opts.addblk ? &delta.add_data : NULL, opts.addblk ? &delta.add_data_len : NULL,
                            opts.addblk_comp, opts.addblk_comp_level)) != DRPM_ERR_OK)
         goto cleanup;
@@ -580,9 +528,9 @@ cleanup:
 
     free_deltarpm(&delta);
 
-    rpm_destroy(&solo_rpm);
     rpm_destroy(&old_rpm);
-    rpm_destroy(&new_rpm);
+    if (rpm_only) // preventing double free (delta.head.tgt_rpm)
+        rpm_destroy(&new_rpm);
 
     free(old_cpio);
     free(new_cpio);

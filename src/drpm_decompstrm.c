@@ -159,7 +159,7 @@ int decompstrm_destroy(struct decompstrm **strm)
     return DRPM_ERR_OK;
 }
 
-int decompstrm_init(struct decompstrm **strm, int filedesc, uint32_t *comp, MD5_CTX *md5)
+int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp, MD5_CTX *md5)
 {
     uint64_t magic;
     int error = DRPM_ERR_OK;

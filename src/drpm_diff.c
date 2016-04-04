@@ -192,7 +192,7 @@ int make_diff(const unsigned char *old, size_t old_len,
         diff_copies[diff_copies_len].new_len = (new_pos - len_back) - (new_pos_prev + len_forward);
         diff_copies[diff_copies_len].old_off = old_pos_prev;
         diff_copies[diff_copies_len].old_len = len_forward;
-        printf("[%02zx] %04zx %04zx %04zx %04zx\n", diff_copies_len, diff_copies[diff_copies_len].new_off, diff_copies[diff_copies_len].new_len, diff_copies[diff_copies_len].old_off, diff_copies[diff_copies_len].old_len);
+        //printf("[%02zx] %04zx %04zx %04zx %04zx\n", diff_copies_len, diff_copies[diff_copies_len].new_off, diff_copies[diff_copies_len].new_len, diff_copies[diff_copies_len].old_off, diff_copies[diff_copies_len].old_len);
         diff_copies_len++;
 
         if (addblk) {

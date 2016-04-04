@@ -394,7 +394,7 @@ int drpm_make_options_add_patches(drpm_make_options *opts, const char *oldrpmpri
  * @param [in]  mbytes  Permitted memory usage in megabytes.
  * @return Error code.
  */
-int drpm_make_options_set_memlimit(drpm_make_options *opts, unsigned mbytes);
+//int drpm_make_options_set_memlimit(drpm_make_options *opts, unsigned mbytes);
 
 /** @} */
 

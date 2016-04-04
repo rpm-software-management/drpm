@@ -176,7 +176,6 @@ int rpm_read_archive(struct rpm *rpmst, const char *filename,
     unsigned char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
     MD5_CTX *md5;
-    uint32_t comp;
     int error = DRPM_ERR_OK;
 
     if ((filedesc = open(filename, O_RDONLY)) < 0)
@@ -191,14 +190,11 @@ int rpm_read_archive(struct rpm *rpmst, const char *filename,
         // hack: never updating both MD5s when decompressing
         md5 = (seq_md5 == NULL) ? full_md5 : seq_md5;
 
-        if ((error = decompstrm_init(&stream, filedesc, &comp, md5)) != DRPM_ERR_OK ||
+        if ((error = decompstrm_init(&stream, filedesc, comp_ret, md5)) != DRPM_ERR_OK ||
             (error = decompstrm_read_until_eof(stream, &rpmst->archive_size, &rpmst->archive)) != DRPM_ERR_OK ||
             (error = decompstrm_get_comp_size(stream, &rpmst->archive_comp_size)) != DRPM_ERR_OK ||
             (error = decompstrm_destroy(&stream)) != DRPM_ERR_OK)
             goto cleanup;
-
-        if (comp_ret != NULL)
-            *comp_ret = comp;
     } else {
         while ((bytes_read = read(filedesc, buffer, BUFFER_SIZE)) > 0) {
             if ((archive_tmp = realloc(rpmst->archive,
@@ -524,7 +520,7 @@ int rpm_get_nevr(struct rpm *rpmst, char **nevr)
     return DRPM_ERR_OK;
 }
 
-int rpm_get_comp(struct rpm *rpmst, uint32_t *comp)
+int rpm_get_comp(struct rpm *rpmst, unsigned short *comp)
 {
     const char *payload_comp;
 

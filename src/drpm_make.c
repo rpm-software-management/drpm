@@ -452,7 +452,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                             goto cleanup_fail;
                         }
 
-                        if (cpio_len - cpio_len_prev >= (uint32_t)INT32_MIN) {
+                        if ((uint32_t)(cpio_len - cpio_len_prev) >= (uint32_t)INT32_MIN) {
                             offadjs[offadjn * 2] = INT32_MAX;
                             offadjs[offadjn * 2 + 1] = 0;
                             offadjn++;
@@ -1049,7 +1049,7 @@ int fill_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename,
 
     if ((error = rpm_read(&solo_rpm, rpm_filename, RPM_ARCHIVE_READ_UNCOMP,
                           NULL, delta->sequence, delta->tgt_md5)) != DRPM_ERR_OK ||
-        (error = rpm_fetch_lead_and_signature(solo_rpm, &delta->tgt_lead, &delta->tgt_lead_len)) != DRPM_ERR_OK ||
+        (error = rpm_fetch_lead_and_signature(solo_rpm, &delta->tgt_leadsig, &delta->tgt_leadsig_len)) != DRPM_ERR_OK ||
         (error = rpm_get_nevr(solo_rpm, &nevr)) != DRPM_ERR_OK)
         goto cleanup;
 
@@ -1070,28 +1070,4 @@ cleanup:
     rpm_destroy(&solo_rpm);
 
     return error;
-}
-
-void free_deltarpm(struct deltarpm *delta)
-{
-    struct deltarpm delta_init = {0};
-
-    if (delta->type == DRPM_TYPE_RPMONLY)
-        free(delta->head.tgt_nevr);
-
-    free(delta->src_nevr);
-    free(delta->sequence);
-    free(delta->tgt_comp_param);
-    free(delta->offadjs);
-    free(delta->tgt_lead);
-    free(delta->int_copies);
-    free(delta->ext_copies);
-    free(delta->add_data);
-
-    if (delta->int_data_as_ptrs)
-        free(delta->int_data.ptrs);
-    else
-        free(delta->int_data.bytes);
-
-    *delta = delta_init;
 }

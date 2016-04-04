@@ -60,6 +60,8 @@ int write_deltarpm(struct deltarpm *delta)
     uint32_t src_nevr_len;
     char version[5];
     uint32_t tgt_comp;
+    uint32_t int_copies_size;
+    uint32_t ext_copies_size;
     unsigned char *header = NULL;
     uint32_t header_size;
     MD5_CTX md5;
@@ -101,42 +103,47 @@ int write_deltarpm(struct deltarpm *delta)
 
         if (delta->version >= 3) {
             if ((error = compstrm_write_be32(stream, delta->tgt_header_len)) != DRPM_ERR_OK ||
-                (error = compstrm_write_be32(stream, delta->offadjn)) != DRPM_ERR_OK)
+                (error = compstrm_write_be32(stream, delta->offadj_elems_count)) != DRPM_ERR_OK)
                 goto cleanup;
-            for (uint32_t i = 0; i < delta->offadjn; i += 2) {
-                if ((error = compstrm_write_be32(stream, delta->offadjs[i])) != DRPM_ERR_OK)
+            for (uint32_t i = 0; i < delta->offadj_elems_count; i += 2) {
+                if ((error = compstrm_write_be32(stream, delta->offadj_elems[i])) != DRPM_ERR_OK)
                     goto cleanup;
             }
-            for (uint32_t j = 1; j < delta->offadjn; j += 2) {
-                if ((error = compstrm_write_be32(stream, delta->offadjs[j])) != DRPM_ERR_OK)
+            for (uint32_t j = 1; j < delta->offadj_elems_count; j += 2) {
+                if ((error = compstrm_write_be32(stream, (int32_t)delta->offadj_elems[j] < 0 ?
+                                                         TWOS_COMPLEMENT(delta->offadj_elems[j]) | INT32_MIN :
+                                                         delta->offadj_elems[j])) != DRPM_ERR_OK)
                     goto cleanup;
             }
         }
     }
 
-    if ((error = compstrm_write_be32(stream, delta->tgt_lead_len)) != DRPM_ERR_OK ||
-        (error = compstrm_write(stream, delta->tgt_lead_len, delta->tgt_lead)) != DRPM_ERR_OK ||
+    if ((error = compstrm_write_be32(stream, delta->tgt_leadsig_len)) != DRPM_ERR_OK ||
+        (error = compstrm_write(stream, delta->tgt_leadsig_len, delta->tgt_leadsig)) != DRPM_ERR_OK ||
         (error = compstrm_write_be32(stream, delta->payload_fmt_off)) != DRPM_ERR_OK ||
-        (error = compstrm_write_be32(stream, delta->int_copies_size)) != DRPM_ERR_OK ||
-        (error = compstrm_write_be32(stream, delta->ext_copies_size)) != DRPM_ERR_OK)
+        (error = compstrm_write_be32(stream, delta->int_copies_count)) != DRPM_ERR_OK ||
+        (error = compstrm_write_be32(stream, delta->ext_copies_count)) != DRPM_ERR_OK)
         goto cleanup;
 
-    for (uint32_t i = 0; i < delta->int_copies_size * 2; i += 2) {
+    int_copies_size = delta->int_copies_count * 2;
+    ext_copies_size = delta->ext_copies_count * 2;
+
+    for (uint32_t i = 0; i < int_copies_size; i += 2) {
         if ((error = compstrm_write_be32(stream, delta->int_copies[i])) != DRPM_ERR_OK)
             goto cleanup;
     }
-    for (uint32_t j = 1; j < delta->int_copies_size * 2; j += 2) {
+    for (uint32_t j = 1; j < int_copies_size; j += 2) {
         if ((error = compstrm_write_be32(stream, delta->int_copies[j])) != DRPM_ERR_OK)
             goto cleanup;
     }
 
-    for (uint32_t i = 0; i < delta->ext_copies_size * 2; i += 2) {
+    for (uint32_t i = 0; i < ext_copies_size; i += 2) {
         if ((error = compstrm_write_be32(stream, (int32_t)delta->ext_copies[i] < 0 ?
                                                  TWOS_COMPLEMENT(delta->ext_copies[i]) | INT32_MIN :
                                                  delta->ext_copies[i])) != DRPM_ERR_OK)
             goto cleanup;
     }
-    for (uint32_t j = 1; j < delta->ext_copies_size * 2; j += 2) {
+    for (uint32_t j = 1; j < ext_copies_size; j += 2) {
         if ((error = compstrm_write_be32(stream, delta->ext_copies[j])) != DRPM_ERR_OK)
             goto cleanup;
     }
@@ -167,7 +174,7 @@ int write_deltarpm(struct deltarpm *delta)
     }
 
     if (delta->int_data_as_ptrs) {
-        for (uint32_t i = 0; i < delta->int_copies_size; i++) {
+        for (uint32_t i = 0; i < delta->int_copies_count; i++) {
             if ((error = compstrm_write(stream, delta->int_copies[i * 2 + 1],
                                                 delta->int_data.ptrs[i])) != DRPM_ERR_OK)
                 goto cleanup;
