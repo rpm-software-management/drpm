@@ -26,6 +26,8 @@
 #include <limits.h>
 #include <fcntl.h>
 #include <rpm/rpmlib.h>
+#include <rpm/rpmts.h>
+#include <rpm/rpmdb.h>
 #include <openssl/md5.h>
 
 #define BUFFER_SIZE 4096
@@ -51,6 +53,7 @@ struct rpm {
 static void rpm_init(struct rpm *);
 static void rpm_free(struct rpm *);
 static int rpm_export_header(struct rpm *, unsigned char **, size_t *);
+static int rpm_export_header_struct(Header, unsigned char **, size_t *);
 static int rpm_export_signature(struct rpm *, unsigned char **, size_t *);
 static void rpm_header_unload_region(struct rpm *, rpmTagVal);
 static int rpm_read_archive(struct rpm *, const char *, off_t, bool,
@@ -76,7 +79,7 @@ void rpm_free(struct rpm *rpmst)
     rpm_init(rpmst);
 }
 
-int rpm_export_header(struct rpm *rpmst, unsigned char **header_ret, size_t *len_ret)
+int rpm_export_header_struct(Header hdst, unsigned char **header_ret, size_t *len_ret)
 {
     unsigned char *header;
     unsigned header_size;
@@ -84,7 +87,7 @@ int rpm_export_header(struct rpm *rpmst, unsigned char **header_ret, size_t *len
     *header_ret = NULL;
     *len_ret = 0;
 
-    if ((header = headerExport(rpmst->header, &header_size)) == NULL ||
+    if ((header = headerExport(hdst, &header_size)) == NULL ||
         (*header_ret = malloc(sizeof(rpm_header_magic) + header_size)) == NULL) {
         free(header);
         return DRPM_ERR_MEMORY;
@@ -100,38 +103,32 @@ int rpm_export_header(struct rpm *rpmst, unsigned char **header_ret, size_t *len
     return DRPM_ERR_OK;
 }
 
+int rpm_export_header(struct rpm *rpmst, unsigned char **header_ret, size_t *len_ret)
+{
+    return rpm_export_header_struct(rpmst->header, header_ret, len_ret);
+}
+
 int rpm_export_signature(struct rpm *rpmst, unsigned char **signature_ret, size_t *len_ret)
 {
-    unsigned char *signature;
-    unsigned signature_size;
-    size_t len;
+    int error;
     unsigned char padding[7] = {0};
     unsigned short padding_bytes;
+    unsigned char *signature;
+    size_t len;
 
-    *signature_ret = NULL;
-    *len_ret = 0;
+    if ((error = rpm_export_header_struct(rpmst->signature, signature_ret, len_ret)) != DRPM_ERR_OK)
+        return error;
 
-    if ((signature = headerExport(rpmst->signature, &signature_size)) == NULL) {
-        free(signature);
-        return DRPM_ERR_MEMORY;
-    }
-
-    len = sizeof(rpm_header_magic) + signature_size;
+    len = *len_ret;
     padding_bytes = RPMSIG_PADDING(len);
-    len += padding_bytes;
 
-    if ((*signature_ret = malloc(len)) == NULL) {
-        free(signature);
-        return DRPM_ERR_MEMORY;
+    if (padding_bytes) {
+        if ((signature = realloc(*signature_ret, len + padding_bytes)) == NULL)
+            return DRPM_ERR_MEMORY;
+        memcpy(signature + len, padding, padding_bytes);
+        *signature_ret = signature;
+        *len_ret += padding_bytes;
     }
-
-    memcpy(*signature_ret, rpm_header_magic, sizeof(rpm_header_magic));
-    memcpy(*signature_ret + sizeof(rpm_header_magic), signature, signature_size);
-    memcpy(*signature_ret + sizeof(rpm_header_magic) + signature_size, padding, padding_bytes);
-
-    *len_ret = len;
-
-    free(signature);
 
     return DRPM_ERR_OK;
 }
@@ -886,4 +883,86 @@ int rpm_signature_reload(struct rpm *rpmst)
     rpmst->signature = headerReload(rpmst->signature, RPMTAG_HEADERSIGNATURES);
 
     return DRPM_ERR_OK;
+}
+
+int rpmdb_fetch_header(const char *nevr, const char *arch, unsigned char **header_ret, size_t *header_size_ret)
+{
+    int error = DRPM_ERR_OK;
+    rpmts trans = NULL;
+    rpmdbMatchIterator iter = NULL;
+    Header header = NULL;
+    char *name;
+    char *epoch;
+    char *version;
+    char *release;
+    char *str;
+    char *ptr;
+
+    if (nevr == NULL)
+        return DRPM_ERR_PROG;
+
+    if ((str = malloc(strlen(nevr) + 1)) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    strcpy(str, nevr);
+
+    name = str;
+
+    ptr = strchr(name, '-');
+    if (ptr == NULL || ptr == name) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    *ptr = '\0';
+    epoch = ++ptr;
+
+    ptr = strchr(epoch, ':');
+    if (ptr == NULL) {
+        if (ptr == epoch) {
+            error = DRPM_ERR_FORMAT;
+            goto cleanup;
+        }
+        version = epoch;
+        epoch = NULL;
+    } else {
+        *ptr = '\0';
+        version = ++ptr;
+    }
+
+    ptr = strchr(version, '-');
+    if (ptr == NULL || ptr == version) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    *ptr = '\0';
+    release = ++ptr;
+
+    rpmReadConfigFiles(NULL, NULL);
+
+    trans = rpmtsCreate();
+
+    iter = rpmtsInitIterator(trans, RPMTAG_NAME, name, 0);
+    rpmdbSetIteratorRE(iter, RPMTAG_EPOCH, RPMMIRE_STRCMP, epoch);
+    rpmdbSetIteratorRE(iter, RPMTAG_VERSION, RPMMIRE_STRCMP, version);
+    rpmdbSetIteratorRE(iter, RPMTAG_RELEASE, RPMMIRE_STRCMP, release);
+    if (arch)
+        rpmdbSetIteratorRE(iter, RPMTAG_ARCH, RPMMIRE_STRCMP, arch);
+
+    if ((header = rpmdbNextIterator(iter)) == NULL) {
+        error = DRPM_ERR_ARGS; // RPM not installed
+        goto cleanup;
+    }
+
+    if ((error = rpm_export_header_struct(header, header_ret, header_size_ret)) != DRPM_ERR_OK)
+        goto cleanup;
+
+cleanup:
+    rpmdbFreeIterator(iter);
+    rpmtsFree(trans);
+    headerFree(header);
+    free(str);
+
+    return error;
 }

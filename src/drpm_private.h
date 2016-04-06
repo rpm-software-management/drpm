@@ -183,6 +183,7 @@ int rpm_signature_set_size(struct rpm *, uint32_t);
 uint32_t rpm_size_full(struct rpm *);
 uint32_t rpm_size_header(struct rpm *);
 int rpm_write(struct rpm *, const char *, bool);
+int rpmdb_fetch_header(const char *, const char *, unsigned char **, size_t *);
 
 //drpm_search.c
 int hash_create(struct hash **, const unsigned char *, size_t);
