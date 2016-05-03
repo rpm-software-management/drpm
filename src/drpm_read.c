@@ -31,12 +31,9 @@
 #include <openssl/md5.h>
 
 #define MAGIC_DRPM 0x6472706D
-#define MAGIC_RPM 0xEDABEEDB
 
 #define MAGIC_DLT(x) (((x) >> 8) == 0x444C54)
 #define MAGIC_DLT3(x) ((x) == 0x444C5433)
-
-#define RPM_LEADSIG_MIN_LEN 112 /* 96B rpmlead + 16B signature intro */
 
 static int readdelta_rest(int, struct deltarpm *);
 static int readdelta_rpmonly(int, struct deltarpm *);
@@ -88,12 +85,15 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
     uint32_t int_copies_size;
     uint32_t ext_copies_size;
     uint32_t ext_data_32;
+    uint32_t add_data_len;
     uint32_t int_data_32;
     uint64_t off;
     int error = DRPM_ERR_OK;
 
-    if ((error = decompstrm_init(&stream, filedesc, &delta->comp, NULL)) != DRPM_ERR_OK)
+    if ((error = decompstrm_init(&stream, filedesc, &delta->comp, NULL, NULL, 0)) != DRPM_ERR_OK)
         return error;
+
+    printf("delta compression: %s\n", comp2str(delta->comp));
 
     if ((error = decompstrm_read_be32(stream, &version)) != DRPM_ERR_OK)
         goto cleanup;
@@ -304,18 +304,22 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
 
     printf("length of external data: %lu\n", delta->ext_data_len);
 
-    if ((error = decompstrm_read_be32(stream, &delta->add_data_len)) != DRPM_ERR_OK)
+    if ((error = decompstrm_read_be32(stream, &add_data_len)) != DRPM_ERR_OK)
         goto cleanup;
 
-    printf("length of add data: %u\n", delta->add_data_len);
-
-    if (delta->add_data_len > 0) {
+    if (add_data_len > 0) {
         if (delta->type == DRPM_TYPE_RPMONLY) {
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
-        if ((error = decompstrm_read(stream, delta->add_data_len, delta->add_data)) != DRPM_ERR_OK)
+        printf("length of add data: %u\n", add_data_len);
+        if ((delta->add_data = malloc(add_data_len)) == NULL) {
+            error = DRPM_ERR_MEMORY;
             goto cleanup;
+        }
+        if ((error = decompstrm_read(stream, add_data_len, delta->add_data)) != DRPM_ERR_OK)
+            goto cleanup;
+        delta->add_data_len = add_data_len;
     }
 
     if (delta->version == 3) {
@@ -334,8 +338,14 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
         goto cleanup;
     }
 
-    if (delta->int_data_len > 0 && (error = decompstrm_read(stream, delta->int_data_len, delta->int_data.bytes)) != DRPM_ERR_OK)
-        goto cleanup;
+    if (delta->int_data_len > 0) {
+        if ((delta->int_data.bytes = malloc(delta->int_data_len)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+        if ((error = decompstrm_read(stream, delta->int_data_len, delta->int_data.bytes)) != DRPM_ERR_OK)
+            goto cleanup;
+    }
 
     delta->int_data_as_ptrs = false;
 

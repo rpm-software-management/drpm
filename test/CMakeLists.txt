@@ -1,4 +1,4 @@
-set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_compstrm.c ../src/drpm_decompstrm.c ../src/drpm_deltarpm.c ../src/drpm_diff.c ../src/drpm_make.c ../src/drpm_options.c ../src/drpm_read.c ../src/drpm_rpm.c ../src/drpm_search.c ../src/drpm_utils.c ../src/drpm_write.c)
+set(DRPM_TEST_SOURCES drpm_test.c ../src/drpm.c ../src/drpm_apply.c ../src/drpm_block.c ../src/drpm_compstrm.c ../src/drpm_decompstrm.c ../src/drpm_deltarpm.c ../src/drpm_diff.c ../src/drpm_make.c ../src/drpm_options.c ../src/drpm_read.c ../src/drpm_rpm.c ../src/drpm_search.c ../src/drpm_utils.c ../src/drpm_write.c)
 
 set(DRPM_TEST_FILES drpm_test_file_1.drpm drpm_test_file_2.drpm drpm_test_file_3.rpm drpm_test_file_4)
 set(DRPM_TEST_ARGS ${DRPM_TEST_FILES} drpm_test_file_5)
@@ -14,7 +14,7 @@ set_source_files_properties(${DRPM_TEST_SOURCES} PROPERTIES
    COMPILE_FLAGS "-std=c99 -pedantic -Wall -Wextra -DHAVE_CONFIG_H -I${CMAKE_BINARY_DIR}"
 )
 
-target_link_libraries(drpm_test ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${LIBLZMA_LIBRARIES} ${RPM_LIBRARIES} ${LIBCRYPTO_LIBRARIES} ${CMOCKA_LIBRARIES})
+target_link_libraries(drpm_test ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${LIBLZMA_LIBRARIES} lz ${RPM_LIBRARIES} ${LIBCRYPTO_LIBRARIES} ${CMOCKA_LIBRARIES})
 
 add_test(
    NAME drpm_test

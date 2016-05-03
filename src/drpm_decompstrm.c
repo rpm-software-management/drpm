@@ -31,12 +31,14 @@
 #include <zlib.h>
 #include <bzlib.h>
 #include <lzma.h>
+#include <lzlib.h>
 #include <openssl/md5.h>
 
 #define MAGIC_BZIP2(x) (((x) >> 40) == 0x425A68)
 #define MAGIC_GZIP(x) (((x) >> 48) == 0x1F8B)
 #define MAGIC_LZMA(x) (((x) >> 40) == 0x5D0000)
 #define MAGIC_XZ(x) (((x) >> 16) == 0xFD377A585A00)
+#define MAGIC_LZIP(x) (((x) >> 32) == 0x4C5A4950)
 
 struct decompstrm {
     unsigned char *data;
@@ -47,23 +49,45 @@ struct decompstrm {
         z_stream gzip;
         bz_stream bzip2;
         lzma_stream lzma;
+        struct LZ_Decoder *lzip;
     } stream;
+    bool lzip_eof;
     int (*read_chunk)(struct decompstrm *);
     void (*finish)(struct decompstrm *);
     size_t comp_size;
     MD5_CTX *md5;
+    const unsigned char *buffer;
+    size_t buffer_len;
 };
 
 static void finish_bzip2(struct decompstrm *);
 static void finish_gzip(struct decompstrm *);
+static void finish_lzip(struct decompstrm *);
 static void finish_lzma(struct decompstrm *);
 static int init_bzip2(struct decompstrm *);
 static int init_gzip(struct decompstrm *);
+static int init_lzip(struct decompstrm *);
 static int init_lzma(struct decompstrm *);
 static int readchunk(struct decompstrm *);
 static int readchunk_bzip2(struct decompstrm *);
 static int readchunk_gzip(struct decompstrm *);
+static int readchunk_lzip(struct decompstrm *);
 static int readchunk_lzma(struct decompstrm *);
+
+static int lzip_error(struct decompstrm *strm)
+{
+    switch (LZ_decompress_errno(strm->stream.lzip)) {
+    case LZ_ok:
+        return DRPM_ERR_OK;
+    case LZ_bad_argument:
+    case LZ_sequence_error:
+        return DRPM_ERR_PROG;
+    case LZ_mem_error:
+        return DRPM_ERR_MEMORY;
+    default:
+        return DRPM_ERR_OTHER;
+    }
+}
 
 void finish_bzip2(struct decompstrm *strm)
 {
@@ -78,6 +102,11 @@ void finish_gzip(struct decompstrm *strm)
 void finish_lzma(struct decompstrm *strm)
 {
     lzma_end(&strm->stream.lzma);
+}
+
+void finish_lzip(struct decompstrm *strm)
+{
+    LZ_decompress_close(strm->stream.lzip);
 }
 
 int init_bzip2(struct decompstrm *strm)
@@ -144,6 +173,23 @@ int init_lzma(struct decompstrm *strm)
     return DRPM_ERR_OK;
 }
 
+int init_lzip(struct decompstrm *strm)
+{
+    int error;
+
+    strm->read_chunk = readchunk_lzip;
+    strm->finish = finish_lzip;
+    strm->lzip_eof = false;
+
+    if ((strm->stream.lzip = LZ_decompress_open()) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    if ((error = lzip_error(strm)) != DRPM_ERR_OK)
+        LZ_decompress_close(strm->stream.lzip);
+
+    return error;
+}
+
 int decompstrm_destroy(struct decompstrm **strm)
 {
     if (strm == NULL || *strm == NULL)
@@ -159,19 +205,23 @@ int decompstrm_destroy(struct decompstrm **strm)
     return DRPM_ERR_OK;
 }
 
-int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp, MD5_CTX *md5)
+int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp, MD5_CTX *md5,
+                    const unsigned char *buffer, size_t buffer_len)
 {
     uint64_t magic;
     int error = DRPM_ERR_OK;
 
-    if (strm == NULL || filedesc < 0)
+    if (strm == NULL || (filedesc < 0 && (buffer == NULL || buffer_len < 8)))
         return DRPM_ERR_PROG;
 
-    if ((error = read_be64(filedesc, &magic)) != DRPM_ERR_OK)
-        return error;
-
-    if (lseek(filedesc, -8, SEEK_CUR) == -1)
-        return DRPM_ERR_IO;
+    if (filedesc < 0) {
+        magic = parse_be64(buffer);
+    } else {
+        if ((error = read_be64(filedesc, &magic)) != DRPM_ERR_OK)
+            return error;
+        if (lseek(filedesc, -8, SEEK_CUR) == -1)
+            return DRPM_ERR_IO;
+    }
 
     if ((*strm = malloc(sizeof(struct decompstrm))) == NULL)
         return DRPM_ERR_MEMORY;
@@ -182,6 +232,8 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp
     (*strm)->filedesc = filedesc;
     (*strm)->comp_size = 0;
     (*strm)->md5 = md5;
+    (*strm)->buffer = buffer;
+    (*strm)->buffer_len = buffer_len;
 
     if (MAGIC_GZIP(magic)) {
         if (comp != NULL)
@@ -203,6 +255,11 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp
             *comp = DRPM_COMP_LZMA;
         if ((error = init_lzma(*strm)) != DRPM_ERR_OK)
             goto cleanup_fail;
+    } else if (MAGIC_LZIP(magic)) {
+        if (comp != NULL)
+            *comp = DRPM_COMP_LZIP;
+        if ((error = init_lzip(*strm)) != DRPM_ERR_OK)
+            goto cleanup_fail;
     } else {
         if (comp != NULL)
             *comp = DRPM_COMP_NONE;
@@ -214,6 +271,7 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp
 
 cleanup_fail:
     free(*strm);
+    *strm = NULL;
 
     return error;
 }
@@ -267,6 +325,9 @@ int decompstrm_read(struct decompstrm *strm, size_t read_len, void *buffer_ret)
     if (strm == NULL)
         return DRPM_ERR_PROG;
 
+    if (UNSIGNED_SUM_OVERFLOWS(strm->data_len, read_len))
+        return DRPM_ERR_OVERFLOW;
+
     while (strm->data_pos + read_len > strm->data_len)
         if ((error = strm->read_chunk(strm)) != DRPM_ERR_OK)
             return error;
@@ -284,11 +345,13 @@ int decompstrm_read_until_eof(struct decompstrm *strm,
 {
     int error;
     bool eof = false;
+    size_t data_len_prev;
 
     if (strm == NULL || (buffer_ret != NULL && len_ret == NULL))
         return DRPM_ERR_PROG;
 
     while (!eof) {
+        data_len_prev = strm->data_len;
         switch ((error = strm->read_chunk(strm))) {
         case DRPM_ERR_OK:
             break;
@@ -298,6 +361,8 @@ int decompstrm_read_until_eof(struct decompstrm *strm,
         default:
             return error;
         }
+        if (data_len_prev > strm->data_len)
+            return DRPM_ERR_OVERFLOW;
     }
 
     if (len_ret != NULL) {
@@ -319,8 +384,15 @@ int readchunk(struct decompstrm *strm)
     unsigned char *data_tmp;
     unsigned char buffer[CHUNK_SIZE];
 
-    if ((in_len = read(strm->filedesc, buffer, CHUNK_SIZE)) < 0)
-        return DRPM_ERR_IO;
+    if (strm->filedesc < 0) {
+        in_len = MIN(CHUNK_SIZE, strm->buffer_len);
+        memcpy(buffer, strm->buffer, in_len);
+        strm->buffer += in_len;
+        strm->buffer_len -= in_len;
+    } else {
+        if ((in_len = read(strm->filedesc, buffer, CHUNK_SIZE)) < 0)
+            return DRPM_ERR_IO;
+    }
 
     if (in_len == 0)
         return DRPM_ERR_FORMAT;
@@ -348,8 +420,15 @@ int readchunk_bzip2(struct decompstrm *strm)
     char out_buffer[CHUNK_SIZE];
     size_t out_len;
 
-    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
-        return DRPM_ERR_IO;
+    if (strm->filedesc < 0) {
+        in_len = MIN(CHUNK_SIZE, strm->buffer_len);
+        memcpy(in_buffer, strm->buffer, in_len);
+        strm->buffer += in_len;
+        strm->buffer_len -= in_len;
+    } else {
+        if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
+            return DRPM_ERR_IO;
+    }
 
     if (in_len == 0)
         return DRPM_ERR_FORMAT;
@@ -394,8 +473,15 @@ int readchunk_gzip(struct decompstrm *strm)
     unsigned char out_buffer[CHUNK_SIZE];
     size_t out_len;
 
-    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
-        return DRPM_ERR_IO;
+    if (strm->filedesc < 0) {
+        in_len = MIN(CHUNK_SIZE, strm->buffer_len);
+        memcpy(in_buffer, strm->buffer, in_len);
+        strm->buffer += in_len;
+        strm->buffer_len -= in_len;
+    } else {
+        if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
+            return DRPM_ERR_IO;
+    }
 
     if (in_len == 0)
         return DRPM_ERR_FORMAT;
@@ -441,8 +527,15 @@ int readchunk_lzma(struct decompstrm *strm)
     unsigned char out_buffer[CHUNK_SIZE];
     size_t out_len;
 
-    if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
-        return DRPM_ERR_IO;
+    if (strm->filedesc < 0) {
+        in_len = MIN(CHUNK_SIZE, strm->buffer_len);
+        memcpy(in_buffer, strm->buffer, in_len);
+        strm->buffer += in_len;
+        strm->buffer_len -= in_len;
+    } else {
+        if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
+            return DRPM_ERR_IO;
+    }
 
     if (in_len == 0)
         return DRPM_ERR_FORMAT;
@@ -477,6 +570,82 @@ int readchunk_lzma(struct decompstrm *strm)
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     } while (!strm->stream.lzma.avail_out);
+
+    strm->comp_size += in_len;
+
+    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+        return DRPM_ERR_OTHER;
+
+    return DRPM_ERR_OK;
+}
+
+int readchunk_lzip(struct decompstrm *strm)
+{
+    int error;
+    unsigned char *data_tmp;
+    ssize_t in_len;
+    unsigned char in_buffer[CHUNK_SIZE];
+    unsigned char out_buffer[CHUNK_SIZE];
+    size_t out_len;
+    ssize_t written = 0;
+    int wr;
+    int rd;
+
+    if (strm->lzip_eof)
+        return DRPM_ERR_FORMAT;
+
+    if (strm->filedesc < 0) {
+        in_len = MIN(CHUNK_SIZE, strm->buffer_len);
+        memcpy(in_buffer, strm->buffer, in_len);
+        strm->buffer += in_len;
+        strm->buffer_len -= in_len;
+    } else {
+        if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
+            return DRPM_ERR_IO;
+    }
+
+    if (in_len == 0) {
+        strm->lzip_eof = true;
+        LZ_decompress_finish(strm->stream.lzip);
+        do {
+            if ((rd = LZ_decompress_read(strm->stream.lzip, out_buffer, CHUNK_SIZE)) < 0) {
+                error = lzip_error(strm);
+                return error == DRPM_ERR_OK ? DRPM_ERR_OTHER : error;
+            }
+            out_len = rd;
+            if (out_len == 0)
+                continue;
+            if ((data_tmp = realloc(strm->data, strm->data_len + out_len)) == NULL)
+                return DRPM_ERR_MEMORY;
+            strm->data = data_tmp;
+            memcpy(strm->data + strm->data_len, out_buffer, out_len);
+            strm->data_len += out_len;
+        } while (!LZ_decompress_finished(strm->stream.lzip));
+    } else {
+        while (written < in_len) {
+            if (LZ_decompress_write_size(strm->stream.lzip) > 0) {
+                if ((wr = LZ_decompress_write(strm->stream.lzip,
+                                              in_buffer + written,
+                                              in_len - written)) < 0) {
+                    error = lzip_error(strm);
+                    return error == DRPM_ERR_OK ? DRPM_ERR_OTHER : error;
+                }
+                written += wr;
+            }
+            if ((rd = LZ_decompress_read(strm->stream.lzip, out_buffer, CHUNK_SIZE)) < 0) {
+                error = lzip_error(strm);
+                return error == DRPM_ERR_OK ? DRPM_ERR_OTHER : error;
+            }
+            out_len = rd;
+            if (out_len == 0)
+                continue;
+            if ((data_tmp = realloc(strm->data, strm->data_len + out_len)) == NULL)
+                return DRPM_ERR_MEMORY;
+            strm->data = data_tmp;
+            memcpy(strm->data + strm->data_len, out_buffer, out_len);
+            strm->data_len += out_len;
+        };
+    }
 
     strm->comp_size += in_len;
 

@@ -27,6 +27,14 @@
 #include <openssl/md5.h>
 #include <rpm/rpmlib.h>
 
+struct compstrm_wrapper {
+    struct compstrm *strm;
+    int filedesc;
+    size_t uncomp_len;
+    size_t uncomp_left;
+    unsigned char *uncomp_data;
+};
+
 int write_be32(int filedesc, uint32_t number)
 {
     unsigned char nbo[4];
@@ -202,7 +210,7 @@ int write_deltarpm(struct deltarpm *delta)
             (error = rpm_signature_set_size(delta->head.tgt_rpm, header_size + strm_data_len)) != DRPM_ERR_OK ||
             (error = rpm_signature_set_md5(delta->head.tgt_rpm, md5_digest)) != DRPM_ERR_OK ||
             (error = rpm_signature_reload(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
-            (error = rpm_write(delta->head.tgt_rpm, delta->filename, false)) != DRPM_ERR_OK)
+            (error = rpm_write(delta->head.tgt_rpm, delta->filename, false, NULL, false)) != DRPM_ERR_OK)
             return error;
 
         if ((filedesc = open(delta->filename, O_WRONLY | O_APPEND)) < 0)
@@ -210,7 +218,7 @@ int write_deltarpm(struct deltarpm *delta)
         break;
 
     case DRPM_TYPE_RPMONLY:
-        if ((filedesc = creat(delta->filename, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)) < 0)
+        if ((filedesc = creat(delta->filename, CREAT_MODE)) < 0)
             return DRPM_ERR_IO;
 
         if (write(filedesc, "drpm", 4) != 4 ||
@@ -275,4 +283,94 @@ cleanup:
     fclose(file);
 
     return error;
+}
+
+int compstrm_wrapper_init(struct compstrm_wrapper **csw, size_t uncomp_len,
+                          int filedesc, unsigned short comp, int level)
+{
+    int error;
+
+    if (csw == NULL || filedesc < 0)
+        return DRPM_ERR_PROG;
+
+    if ((*csw = malloc(sizeof(struct compstrm_wrapper))) == NULL ||
+        ((*csw)->uncomp_data = malloc(uncomp_len)) == NULL) {
+        free(*csw);
+        *csw = NULL;
+        return DRPM_ERR_MEMORY;
+    }
+
+    if ((error = compstrm_init(&(*csw)->strm, filedesc, comp, level)) != DRPM_ERR_OK) {
+        free((*csw)->uncomp_data);
+        free(*csw);
+        *csw = NULL;
+        return error;
+    }
+
+    (*csw)->filedesc = filedesc;
+    (*csw)->uncomp_len = uncomp_len;
+    (*csw)->uncomp_left = uncomp_len;
+
+    return DRPM_ERR_OK;
+}
+
+int compstrm_wrapper_destroy(struct compstrm_wrapper **csw)
+{
+    if (csw == NULL || *csw == NULL)
+        return DRPM_ERR_PROG;
+
+    compstrm_destroy(&(*csw)->strm);
+    free((*csw)->uncomp_data);
+    free(*csw);
+
+    return DRPM_ERR_OK;
+}
+
+int compstrm_wrapper_write(struct compstrm_wrapper *csw, const unsigned char *buffer, size_t buffer_len)
+{
+    size_t write_len;
+
+    if (csw == NULL || csw->strm == NULL || csw->filedesc < 0)
+        return DRPM_ERR_PROG;
+
+    if (csw->uncomp_left > 0) {
+        if (buffer_len == 0)
+            return DRPM_ERR_OK;
+
+        if (buffer == NULL)
+            return DRPM_ERR_PROG;
+
+        write_len = MIN(csw->uncomp_left, buffer_len);
+        if (write(csw->filedesc, buffer, write_len) != (ssize_t)write_len)
+            return DRPM_ERR_IO;
+        memcpy(csw->uncomp_data + csw->uncomp_len - csw->uncomp_left, buffer, write_len);
+        buffer += write_len;
+        buffer_len -= write_len;
+        csw->uncomp_left -= write_len;
+    }
+
+    return compstrm_write(csw->strm, buffer_len, buffer);
+}
+
+int compstrm_wrapper_finish(struct compstrm_wrapper *csw, unsigned char **data, size_t *data_len)
+{
+    int error;
+    unsigned char *data_tmp;
+
+    if (csw == NULL)
+        return DRPM_ERR_PROG;
+
+    if ((error = compstrm_finish(csw->strm, data, data_len)) != DRPM_ERR_OK)
+        return error;
+
+    if ((data_tmp = realloc(*data, csw->uncomp_len + *data_len)) == NULL) {
+        free(*data);
+        return DRPM_ERR_MEMORY;
+    }
+
+    memmove(data_tmp + csw->uncomp_len, data_tmp, *data_len);
+    memcpy(data_tmp, csw->uncomp_data, csw->uncomp_len);
+    *data_len += csw->uncomp_len;
+
+    return DRPM_ERR_OK;
 }

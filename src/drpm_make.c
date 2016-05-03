@@ -39,16 +39,9 @@
 
 #define BUFFER_SIZE 4096
 
-#define UNSIGNED_SUM_OVERFLOWS(x,y) ((x) + (y) < (y))
-
-#define IN_LIB_DIR(path) (strstr((path), "lib/") != NULL ||\
-                          strstr((path), "lib32/") != NULL ||\
-                          strstr((path), "lib64/") != NULL)
-
-#define CPIO_MAGIC "070701"
-#define CPIO_TRAILER "TRAILER!!!"
-#define CPIO_HEADER_SIZE 110 /* new ASCII format (6B + 8B * 13) */
-#define CPIO_PADDING(offset) PADDING((offset), 4)
+#define IN_MULTILIB_DIR(path) (strstr((path), "lib/") != NULL ||\
+                               strstr((path), "lib32/") != NULL ||\
+                               strstr((path), "lib64/") != NULL)
 
 #define CPIO_ALLOC_SIZE 65536
 
@@ -58,26 +51,10 @@
 #define SEQ_BYTE_LEN(index) (((index) + 1) / 2)
 
 #define MAGIC_RPML 0x52504D4C
-#define MAGIC_RPM 0xEDABEEDB
 
 #ifndef RPMFILE_UNPATCHED
 #define RPMFILE_UNPATCHED (1 << 10)
 #endif
-
-struct cpio_header {
-    uint16_t ino;
-    uint16_t mode;
-    uint16_t uid;
-    uint16_t gid;
-    uint16_t nlink;
-    uint32_t mtime;
-    uint32_t filesize;
-    uint8_t devmajor;
-    uint8_t devminor;
-    uint8_t rdevmajor;
-    uint8_t rdevminor;
-    uint16_t namesize;
-};
 
 struct files_seq {
     unsigned char *data;
@@ -106,8 +83,6 @@ struct rpm_patches {
 };
 
 static int cpio_extend(unsigned char **, size_t *, const void *, size_t);
-static int cpio_header_read(struct cpio_header *, const char *);
-static void cpio_header_write(const struct cpio_header *, char *);
 static bool is_unpatched(const struct rpm_patches *, const char *, const char *);
 static int rpml_get_uint16(int, uint16_t *);
 static int rpml_get_uint32(int, uint32_t *);
@@ -313,6 +288,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
     const char *name;
     size_t name_len;
     char *name_buffer = NULL;
+    char *name_buffer_tmp;
     size_t name_buffer_len = 0;
 
     unsigned char *sequence = NULL;
@@ -367,10 +343,11 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
         c_namesize = cpio_hdr.namesize;
 
         if (c_namesize > name_buffer_len) {
-            if ((name_buffer = realloc(name_buffer, c_namesize)) == NULL) {
+            if ((name_buffer_tmp = realloc(name_buffer, c_namesize)) == NULL) {
                 error = DRPM_ERR_MEMORY;
                 goto cleanup_fail;
             }
+            name_buffer = name_buffer_tmp;
             name_buffer_len = c_namesize;
         }
 
@@ -404,7 +381,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
         /* looking up file in RPM header, skipping if not found
          * or if it's a regular file and one of the following occur:
-         * - file size missmatch between CPIO and RPM headers
+         * - file size mismatch between CPIO and RPM headers
          * - bad file flags
          * - bad verify flags
          * - colored file in non-multilib dir */
@@ -415,7 +392,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                 break;
         }
 
-        if (!(skip = files_index == file_count)) {
+        if (!(skip = (files_index == file_count))) {
             file = files[files_index];
             cpio_hdr = cpio_hdr_init;
 
@@ -428,7 +405,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                         (file.verify & VERIFY_SIZE) == 0) ||
                        (file_colors &&
                         (file.color & (RPMFC_ELF32 | RPMFC_ELF64)) != 0 &&
-                        !IN_LIB_DIR(name));
+                        !IN_MULTILIB_DIR(name));
                 cpio_hdr.filesize = file.size;
             } else if (S_ISLNK(file.mode)) {
                 cpio_hdr.filesize = strlen(file.linkto);

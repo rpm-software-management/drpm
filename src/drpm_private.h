@@ -36,6 +36,8 @@
 
 #define CHUNK_SIZE 1024
 
+#define CREAT_MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
+
 #define DIGESTALGO_MD5 0
 #define DIGESTALGO_SHA256 1
 
@@ -52,7 +54,17 @@
 
 #define TWOS_COMPLEMENT(x) (~(x) + 1)
 
+#define UNSIGNED_SUM_OVERFLOWS(x,y) ((x) + (y) < (y))
+
 #define PADDING(offset, align) ((((align) - ((offset) % (align))) % (align)))
+
+#define MAGIC_RPM 0xEDABEEDB
+#define RPM_LEADSIG_MIN_LEN 112 /* 96B rpmlead + 16B signature intro */
+
+#define CPIO_MAGIC "070701"
+#define CPIO_TRAILER "TRAILER!!!"
+#define CPIO_HEADER_SIZE 110 /* new ASCII format (6B + 8B * 13) */
+#define CPIO_PADDING(offset) PADDING((offset), 4)
 
 struct drpm {
     char *filename;
@@ -95,9 +107,13 @@ struct drpm_make_options {
     unsigned mbytes;
 };
 
+struct cpio_file;
+struct cpio_header;
 struct deltarpm;
 struct file_info;
 
+//drpm_block.c
+struct blocks;
 //drpm_compstrm.c
 struct compstrm;
 //drpm_decompstrm.c
@@ -109,10 +125,28 @@ struct rpm;
 //drpm_search.c
 struct hash;
 struct sfxsrt;
+//drpm_write.c
+struct compstrm_wrapper;
 
 // DEBUG
 const char *type2str(unsigned short type);
 const char *comp2str(unsigned short comp);
+
+//drpm_apply.c
+int expand_sequence(struct cpio_file **, size_t *, const unsigned char *, uint32_t,
+                    const struct file_info *, size_t, unsigned short, int);
+int is_prelinked(bool *, int, const unsigned char *, ssize_t);
+int prelink_open(const char *, int *);
+
+//drpm_block.c
+size_t block_id(uint64_t offset);
+size_t block_size();
+int blocks_create(struct blocks **, uint64_t, const struct file_info *,
+                  const struct cpio_file *, size_t, const uint32_t *, size_t,
+                  struct rpm *, bool);
+int blocks_destroy(struct blocks **);
+int blocks_next(struct blocks *, unsigned char *, size_t *, uint64_t, size_t,
+                size_t, size_t);
 
 //drpm_compstrm.c
 int compstrm_destroy(struct compstrm **);
@@ -125,7 +159,7 @@ int compstrm_write_be64(struct compstrm *, uint64_t);
 //drpm_decompstrm.c
 int decompstrm_destroy(struct decompstrm **);
 int decompstrm_get_comp_size(struct decompstrm *, size_t *);
-int decompstrm_init(struct decompstrm **, int, unsigned short *, MD5_CTX *);
+int decompstrm_init(struct decompstrm **, int, unsigned short *, MD5_CTX *, const unsigned char *, size_t);
 int decompstrm_read(struct decompstrm *, size_t, void *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
@@ -143,6 +177,8 @@ int make_diff(const unsigned char *, size_t, const unsigned char *, size_t,
               unsigned short, int);
 
 //drpm_make.c
+int cpio_header_read(struct cpio_header *, const char *);
+void cpio_header_write(const struct cpio_header *, char *);
 int fill_nodiff_deltarpm(struct deltarpm *, const char *, bool);
 int parse_cpio_from_rpm_filedata(struct rpm *, unsigned char **, size_t *,
                                  unsigned char **, uint32_t *,
@@ -173,17 +209,20 @@ int rpm_get_digest_algo(struct rpm *, unsigned short *);
 int rpm_get_file_info(struct rpm *, struct file_info **, size_t *, bool *);
 int rpm_get_nevr(struct rpm *, char **);
 int rpm_get_payload_format(struct rpm *, unsigned short *);
+bool rpm_is_sourcerpm(struct rpm *);
 int rpm_patch_payload_format(struct rpm *, const char *);
 int rpm_read(struct rpm **, const char *, int, unsigned short *,
              unsigned char *, unsigned char *);
+int rpm_read_header(struct rpm **, const char *, const char *);
+int rpm_replace_lead_and_signature(struct rpm *, unsigned char *, size_t);
 int rpm_signature_empty(struct rpm *);
+int rpm_signature_get_md5(struct rpm *, unsigned char *, bool *);
 int rpm_signature_reload(struct rpm *);
 int rpm_signature_set_md5(struct rpm *, unsigned char *);
 int rpm_signature_set_size(struct rpm *, uint32_t);
 uint32_t rpm_size_full(struct rpm *);
 uint32_t rpm_size_header(struct rpm *);
-int rpm_write(struct rpm *, const char *, bool);
-int rpmdb_fetch_header(const char *, const char *, unsigned char **, size_t *);
+int rpm_write(struct rpm *, const char *, bool, unsigned char *, bool);
 
 //drpm_search.c
 int hash_create(struct hash **, const unsigned char *, size_t);
@@ -211,10 +250,38 @@ bool resize16(void **, size_t, size_t);
 bool resize32(void **, size_t, size_t);
 
 //drpm_write.c
+int compstrm_wrapper_destroy(struct compstrm_wrapper **);
+int compstrm_wrapper_finish(struct compstrm_wrapper *, unsigned char **, size_t *);
+int compstrm_wrapper_init(struct compstrm_wrapper **, size_t,
+                          int, unsigned short, int);
+int compstrm_wrapper_write(struct compstrm_wrapper *, const unsigned char *, size_t);
 int write_be32(int, uint32_t);
 int write_be64(int, uint64_t);
+int write_comp(struct compstrm *, size_t *, int, const void *, size_t);
 int write_deltarpm(struct deltarpm *);
 int write_seqfile(struct deltarpm *, const char *);
+
+struct cpio_file {
+    ssize_t index;
+    size_t header_len;
+    size_t content_len;
+    size_t offset;
+};
+
+struct cpio_header {
+    uint16_t ino;
+    uint16_t mode;
+    uint16_t uid;
+    uint16_t gid;
+    uint16_t nlink;
+    uint32_t mtime;
+    uint32_t filesize;
+    uint8_t devmajor;
+    uint8_t devminor;
+    uint8_t rdevmajor;
+    uint8_t rdevminor;
+    uint16_t namesize;
+};
 
 struct deltarpm {
     const char *filename;

@@ -31,6 +31,8 @@
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 
+static bool resize(void **, size_t, size_t, size_t);
+
 uint16_t parse_be16(const unsigned char buffer[2])
 {
     return (0xFF00 & (buffer[0] << 8)) | (0x00FF & buffer[1]);
@@ -140,24 +142,26 @@ bool parse_sha256(unsigned char *dest, const char *source)
     return parse_hex(dest, source) == SHA256_DIGEST_LENGTH;
 }
 
-bool resize16(void **buffer, size_t members_count, size_t member_size)
+bool resize(void **buffer, size_t members_count, size_t member_size, size_t threshhold)
 {
-    if (members_count % 16 == 0) {
-        if ((*buffer = realloc(*buffer,
-             member_size * (members_count + 16))) == NULL)
+    void *buf_tmp;
+
+    if (members_count % threshhold == 0) {
+        if ((buf_tmp = realloc(*buffer,
+             member_size * (members_count + threshhold))) == NULL)
             return false;
+        *buffer = buf_tmp;
     }
 
     return true;
 }
 
+bool resize16(void **buffer, size_t members_count, size_t member_size)
+{
+    return resize(buffer, members_count, member_size, 16);
+}
+
 bool resize32(void **buffer, size_t members_count, size_t member_size)
 {
-    if (members_count % 32 == 0) {
-        if ((*buffer = realloc(*buffer,
-             member_size * (members_count + 32))) == NULL)
-            return false;
-    }
-
-    return true;
+    return resize(buffer, members_count, member_size, 32);
 }

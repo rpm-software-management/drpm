@@ -72,7 +72,7 @@ int make_diff(const unsigned char *old, size_t old_len,
 {
     int error;
 
-    const bool addblk = add_block_ret != NULL && add_block_len_ret != NULL;
+    const bool addblk = (add_block_ret != NULL && add_block_len_ret != NULL);
     size_t add_block_len;
     struct compstrm *stream;
 

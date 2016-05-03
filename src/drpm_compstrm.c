@@ -30,6 +30,7 @@
 #include <zlib.h>
 #include <bzlib.h>
 #include <lzma.h>
+#include <lzlib.h>
 
 struct compstrm {
     unsigned char *data;
@@ -40,6 +41,7 @@ struct compstrm {
         z_stream gzip;
         bz_stream bzip2;
         lzma_stream lzma;
+        struct LZ_Encoder *lzip;
     } stream;
     int (*write_chunk)(struct compstrm *, size_t, const void *);
     int (*finish)(struct compstrm *);
@@ -48,15 +50,33 @@ struct compstrm {
 
 static int finish_bzip2(struct compstrm *);
 static int finish_gzip(struct compstrm *);
+static int finish_lzip(struct compstrm *);
 static int finish_lzma(struct compstrm *);
 static int init_bzip2(struct compstrm *, int);
 static int init_gzip(struct compstrm *, int);
+static int init_lzip(struct compstrm *, int);
 static int init_lzma(struct compstrm *, int);
 static int init_xz(struct compstrm *, int);
 static int writechunk(struct compstrm *, size_t, const void *);
 static int writechunk_bzip2(struct compstrm *, size_t, const void *);
 static int writechunk_gzip(struct compstrm *, size_t, const void *);
+static int writechunk_lzip(struct compstrm *, size_t, const void *);
 static int writechunk_lzma(struct compstrm *, size_t, const void *);
+
+static int lzip_error(struct compstrm *strm)
+{
+    switch (LZ_compress_errno(strm->stream.lzip)) {
+    case LZ_ok:
+        return DRPM_ERR_OK;
+    case LZ_bad_argument:
+    case LZ_sequence_error:
+        return DRPM_ERR_PROG;
+    case LZ_mem_error:
+        return DRPM_ERR_MEMORY;
+    default:
+        return DRPM_ERR_OTHER;
+    }
+}
 
 int finish_bzip2(struct compstrm *strm)
 {
@@ -166,6 +186,41 @@ cleanup:
     return error;
 }
 
+int finish_lzip(struct compstrm *strm)
+{
+    int error = DRPM_ERR_OK;
+    int rd;
+    unsigned char *data_tmp;
+    unsigned char out_buffer[CHUNK_SIZE];
+    size_t out_len;
+
+    LZ_compress_finish(strm->stream.lzip);
+
+    do {
+        if ((rd = LZ_compress_read(strm->stream.lzip, out_buffer, CHUNK_SIZE)) < 0) {
+            error = lzip_error(strm);
+            if (error == DRPM_ERR_OK)
+                error = DRPM_ERR_OTHER;
+            goto cleanup;
+        }
+        out_len = rd;
+        if (out_len == 0)
+            continue;
+        if ((data_tmp = realloc(strm->data, strm->data_len + out_len)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+        strm->data = data_tmp;
+        memcpy(strm->data + strm->data_len, out_buffer, out_len);
+        strm->data_len += out_len;
+    } while (!LZ_compress_finished(strm->stream.lzip));
+
+cleanup:
+    LZ_compress_close(strm->stream.lzip);
+
+    return error;
+}
+
 int init_bzip2(struct compstrm *strm, int level)
 {
     strm->write_chunk = writechunk_bzip2;
@@ -266,6 +321,22 @@ int init_xz(struct compstrm *strm, int level)
     return DRPM_ERR_OK;
 }
 
+int init_lzip(struct compstrm *strm, int level)
+{
+    int error;
+
+    strm->write_chunk = writechunk_lzip;
+    strm->finish = finish_lzip;
+
+    if ((strm->stream.lzip = LZ_compress_open(65535, 16, SIZE_MAX)) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    if ((error = lzip_error(strm)) != DRPM_ERR_OK)
+        LZ_compress_close(strm->stream.lzip);
+
+    return error;
+}
+
 int compstrm_destroy(struct compstrm **strm)
 {
     if (strm == NULL || *strm == NULL)
@@ -315,6 +386,10 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
         if ((error = init_xz(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
         break;
+    case DRPM_COMP_LZIP:
+        if ((error = init_lzip(*strm, level)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+        break;
     default:
         return DRPM_ERR_PROG;
     }
@@ -323,6 +398,7 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
 
 cleanup_fail:
     free(*strm);
+    *strm = NULL;
 
     return error;
 }
@@ -331,7 +407,7 @@ int compstrm_finish(struct compstrm *strm, unsigned char **data, size_t *data_le
 {
     int error;
     size_t comp_write_len;
-    const bool copy_data = data != NULL && data_len != NULL;
+    const bool copy_data = (data != NULL && data_len != NULL);
 
     if (strm == NULL || strm->finished)
         return DRPM_ERR_PROG;
@@ -512,6 +588,43 @@ int writechunk_lzma(struct compstrm *strm, size_t in_len, const void *in_buffer)
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     } while (strm->stream.lzma.avail_out == 0);
+
+    return DRPM_ERR_OK;
+}
+
+int writechunk_lzip(struct compstrm *strm, size_t in_len, const void *in_buffer)
+{
+    int error;
+    unsigned char *data_tmp;
+    unsigned char out_buffer[CHUNK_SIZE];
+    size_t out_len;
+    size_t written = 0;
+    int wr;
+    int rd;
+
+    while (written < in_len) {
+        if (LZ_compress_write_size(strm->stream.lzip) > 0) {
+            if ((wr = LZ_compress_write(strm->stream.lzip,
+                                        (unsigned char *)in_buffer + written,
+                                        in_len - written)) < 0) {
+                error = lzip_error(strm);
+                return error == DRPM_ERR_OK ? DRPM_ERR_OTHER : error;
+            }
+            written += wr;
+        }
+        if ((rd = LZ_compress_read(strm->stream.lzip, out_buffer, CHUNK_SIZE)) < 0) {
+            error = lzip_error(strm);
+            return error == DRPM_ERR_OK ? DRPM_ERR_OTHER : error;
+        }
+        out_len = rd;
+        if (out_len == 0)
+            continue;
+        if ((data_tmp = realloc(strm->data, strm->data_len + out_len)) == NULL)
+            return DRPM_ERR_MEMORY;
+        strm->data = data_tmp;
+        memcpy(strm->data + strm->data_len, out_buffer, out_len);
+        strm->data_len += out_len;
+    };
 
     return DRPM_ERR_OK;
 }

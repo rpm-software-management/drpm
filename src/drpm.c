@@ -29,6 +29,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stddef.h>
 
 // DEBUG
 const char *type2str(unsigned short type)
@@ -82,11 +83,15 @@ const char *drpm_strerror(int error)
     case DRPM_ERR_OTHER:
         return "unspecified/unknown error";
     case DRPM_ERR_OVERFLOW:
-        return "overflow";
+        return "file too large";
     case DRPM_ERR_PROG:
         return "internal programming error";
+    case DRPM_ERR_MISMATCH:
+        return "file changed";
+    case DRPM_ERR_NOINSTALL:
+        return "old RPM not installed";
     default:
-        return NULL;
+        return "(undefined error value)";
     }
 }
 
@@ -335,8 +340,10 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
 
     unsigned char *old_cpio = NULL;
     size_t old_cpio_len = 0;
+    unsigned char *old_cpio_tmp;
     unsigned char *new_cpio = NULL;
     size_t new_cpio_len = 0;
+    unsigned char *new_cpio_tmp;
 
     unsigned char *old_header = NULL;
     uint32_t old_header_len = 0;
@@ -419,13 +426,8 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
 
     /* matching RPM compression if no compression specified by user */
     if (opts.comp_from_rpm) {
-        if (delta.tgt_comp == DRPM_COMP_LZIP) { // deltarpm doesn't support lzip (TODO)
-            delta.comp = DRPM_COMP_XZ;
-            delta.comp_level = DRPM_COMP_LEVEL_DEFAULT;
-        } else {
-            delta.comp = delta.tgt_comp;
-            delta.comp_level = delta.tgt_comp_level;
-        }
+        delta.comp = delta.tgt_comp;
+        delta.comp_level = delta.tgt_comp_level;
         printf("determined delta compression type and level from RPM\n");
     }
 
@@ -464,11 +466,13 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             (error = rpm_fetch_archive(new_rpm, &new_cpio, &new_cpio_len)) != DRPM_ERR_OK)
             goto cleanup;
 
-        if ((old_cpio = realloc(old_cpio, old_header_len + old_cpio_len)) == NULL ||
-            (new_cpio = realloc(new_cpio, new_header_len + new_cpio_len)) == NULL) {
+        if ((old_cpio_tmp = realloc(old_cpio, old_header_len + old_cpio_len)) == NULL ||
+            (new_cpio_tmp = realloc(new_cpio, new_header_len + new_cpio_len)) == NULL) {
             error = DRPM_ERR_MEMORY;
             goto cleanup;
         }
+        old_cpio = old_cpio_tmp;
+        new_cpio = new_cpio_tmp;
 
         memmove(old_cpio + old_header_len, old_cpio, old_cpio_len);
         memmove(new_cpio + new_header_len, new_cpio, new_cpio_len);
@@ -538,6 +542,458 @@ cleanup:
     free(new_header);
 
     patches_destroy(&patches);
+
+    return error;
+}
+
+/***************************** drpm apply *****************************/
+
+int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *new_rpm_name)
+{
+    int error = DRPM_ERR_OK;
+    struct deltarpm delta = {0};
+    const bool from_rpm = (old_rpm_name != NULL);
+    bool rpm_only;
+    struct rpm *old_rpm = NULL;
+    struct rpm *patched_rpm = NULL;
+    unsigned char oldsig_md5[MD5_DIGEST_LENGTH];
+    unsigned char newsig_md5[MD5_DIGEST_LENGTH];
+    char *old_rpm_nevr = NULL;
+    struct file_info *files = NULL;
+    size_t file_count = 0;
+    unsigned short digest_algo;
+    struct cpio_file *cpio_files = NULL;
+    size_t cpio_files_len = 0;
+    struct blocks *blks = NULL;
+    int filedesc;
+    MD5_CTX md5;
+    unsigned char md5_digest[MD5_DIGEST_LENGTH];
+    bool no_full_md5;
+    bool has_md5;
+    const unsigned char empty_md5[MD5_DIGEST_LENGTH] = {0};
+    struct decompstrm *addblk_strm = NULL;
+    unsigned char *addblk_buf = NULL;
+    unsigned char *buffer = NULL;
+    size_t buffer_len;
+    unsigned char *header = NULL;
+    uint32_t header_size;
+    struct compstrm_wrapper *csw = NULL;
+    const uint32_t *int_copies;
+    uint32_t int_copies_count;
+    size_t int_copy_len;
+    const unsigned char *int_data;
+    const uint32_t *ext_copies;
+    uint32_t ext_copies_count;
+    size_t ext_copy_len;
+    uint64_t ext_offset = 0;
+    uint32_t ext_copies_before_int_copy;
+    size_t ext_copies_done = 0;
+    size_t blk_id;
+    unsigned char *comp_data;
+    size_t comp_data_len;
+
+    if (deltarpm_name == NULL || new_rpm_name == NULL)
+        return DRPM_ERR_ARGS;
+
+    if ((filedesc = creat(new_rpm_name, CREAT_MODE)) < 0)
+        return DRPM_ERR_IO;
+
+    if ((error = read_deltarpm(&delta, deltarpm_name)) != DRPM_ERR_OK)
+        goto cleanup;
+    rpm_only = (delta.type == DRPM_TYPE_RPMONLY);
+    no_full_md5 = (memcmp(empty_md5, delta.tgt_md5, MD5_DIGEST_LENGTH) == 0);
+    printf("read deltarpm, type is %s, full md5 %spresent\n",
+           type2str(delta.type), no_full_md5 ? "not " : "");
+
+    if (from_rpm) {
+        if ((error = rpm_read(&old_rpm, old_rpm_name, RPM_ARCHIVE_READ_DECOMP, NULL, NULL, NULL)) != DRPM_ERR_OK)
+            goto cleanup;
+        printf("read old RPM\n");
+        if (rpm_only) {
+            if ((error = rpm_signature_get_md5(old_rpm, oldsig_md5, &has_md5)) != DRPM_ERR_OK)
+                goto cleanup;
+            printf("md5 %sfound in signature\n", has_md5 ? "" : "not ");
+            if (!has_md5) {
+                error = DRPM_ERR_FORMAT;
+                goto cleanup;
+            }
+            if (memcmp(delta.sequence, oldsig_md5, MD5_DIGEST_LENGTH) != 0) {
+                error = DRPM_ERR_MISMATCH;
+                goto cleanup;
+            }
+            printf("md5s match\n");
+        }
+    } else {
+        if (rpm_only) // rpm-only deltarpms do not work from filesystem
+            return DRPM_ERR_ARGS;
+        if (rpm_is_sourcerpm(delta.head.tgt_rpm)) // cannot reconstruct source RPMs from filesystem
+            return DRPM_ERR_ARGS;
+        if ((error = rpm_read_header(&old_rpm, delta.src_nevr, NULL)) != DRPM_ERR_OK)
+            goto cleanup;
+        printf("read RPM header from database\n");
+    }
+
+    if ((error = rpm_get_nevr(old_rpm, &old_rpm_nevr)) != DRPM_ERR_OK)
+        goto cleanup;
+    if (strcmp(delta.src_nevr, old_rpm_nevr) != 0) {
+        error = DRPM_ERR_MISMATCH;
+        goto cleanup;
+    }
+
+    printf("NEVRs match\n");
+
+    if (!rpm_only) {
+        if ((error = rpm_get_file_info(old_rpm, &files, &file_count, NULL)) != DRPM_ERR_OK ||
+            (error = rpm_get_digest_algo(old_rpm, &digest_algo)) != DRPM_ERR_OK ||
+            (error = expand_sequence(&cpio_files, &cpio_files_len,
+                                     delta.sequence, delta.sequence_len,
+                                     files, file_count, digest_algo,
+                                     DRPM_CHECK_NONE)) != DRPM_ERR_OK)
+            goto cleanup;
+        printf("sequence expansion successful\n");
+    }
+
+    patched_rpm = old_rpm;
+    if ((error = rpm_replace_lead_and_signature(patched_rpm, delta.tgt_leadsig, delta.tgt_leadsig_len)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("patched lead and signature\n");
+
+    if (rpm_only && delta.tgt_comp == DRPM_COMP_NONE && delta.int_copies_count == 0 && delta.ext_copies_count == 0) {
+        printf("no diff deltarpm\n");
+        if ((error = rpm_write(patched_rpm, new_rpm_name, true, md5_digest, !no_full_md5)) != DRPM_ERR_OK)
+            goto cleanup;
+        printf("RPM write successful\n");
+
+        goto final_check;
+    }
+
+    if ((error = blocks_create(&blks, delta.ext_data_len, files,
+                               cpio_files, cpio_files_len,
+                               delta.ext_copies, delta.ext_copies_count,
+                               from_rpm ? old_rpm : NULL, rpm_only)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("created blocks\n");
+
+    if (delta.add_data_len > 0) {
+        if ((error = decompstrm_init(&addblk_strm, -1, NULL, NULL, delta.add_data, delta.add_data_len)) != DRPM_ERR_OK)
+            goto cleanup;
+        if ((addblk_buf = malloc(block_size())) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup;
+        }
+        printf("prepared add block\n");
+    }
+
+    if ((buffer = malloc(block_size())) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
+
+    if (MD5_Init(&md5) != 1) {
+        error = DRPM_ERR_OTHER;
+        goto cleanup;
+    }
+
+    if (write(filedesc, delta.tgt_leadsig, delta.tgt_leadsig_len) != (ssize_t)delta.tgt_leadsig_len) {
+        error = DRPM_ERR_IO;
+        goto cleanup;
+    }
+    if (!no_full_md5 && MD5_Update(&md5, delta.tgt_leadsig, delta.tgt_leadsig_len) != 1) {
+        error = DRPM_ERR_OTHER;
+        goto cleanup;
+    }
+    printf("wrote lead and signature%s\n", no_full_md5 ? "" : " and updated md5");
+
+    if (!rpm_only) {
+        if ((error = rpm_patch_payload_format(delta.head.tgt_rpm, "cpio")) != DRPM_ERR_OK ||
+            (error = rpm_fetch_header(delta.head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
+            goto cleanup;
+        if (write(filedesc, header, header_size) != (ssize_t)header_size) {
+            error = DRPM_ERR_IO;
+            goto cleanup;
+        }
+        if (MD5_Update(&md5, header, header_size) != 1) {
+            error = DRPM_ERR_OTHER;
+            goto cleanup;
+        }
+        printf("wrote header and updated md5\n");
+    }
+
+    if ((error = compstrm_wrapper_init(&csw, delta.tgt_header_len,
+                                       filedesc, delta.tgt_comp, delta.tgt_comp_level)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    int_copies = delta.int_copies;
+    int_copies_count = delta.int_copies_count;
+    ext_copies = delta.ext_copies;
+    ext_copies_count = delta.ext_copies_count;
+    int_data = delta.int_data.bytes;
+
+    printf("patching...\n");
+
+    FILE *f = fopen("mine", "wb");
+    FILE *fi = fopen("mine_int", "wb");
+
+    while (int_copies_count--) {
+        ext_copies_before_int_copy = *int_copies++;
+        if (ext_copies_before_int_copy > ext_copies_count) {
+            error = DRPM_ERR_FORMAT;
+            goto cleanup;
+        }
+
+        printf("performing %u external copies...\n", ext_copies_before_int_copy);
+        while (ext_copies_before_int_copy--) {
+            ext_offset += (int32_t)*ext_copies++;
+            ext_copy_len = *ext_copies++;
+            ext_copies_count--;
+            blk_id = block_id(ext_offset);
+
+            printf("performing external copy (%zu)...\n", ext_copy_len);
+
+            while (ext_copy_len > 0) {
+                if ((error = blocks_next(blks, buffer, &buffer_len,
+                                         ext_offset, ext_copy_len,
+                                         ext_copies_done, blk_id)) != DRPM_ERR_OK)
+                    goto cleanup;
+
+                if (delta.add_data_len > 0) {
+                    if ((error = decompstrm_read(addblk_strm, buffer_len, addblk_buf)) != DRPM_ERR_OK)
+                        goto cleanup;
+                    for (size_t i = 0; i < buffer_len; i++)
+                        buffer[i] += (signed char)addblk_buf[i];
+                }
+
+                fwrite(buffer, 1, buffer_len, f);
+
+                if ((error = compstrm_wrapper_write(csw, buffer, buffer_len)) != DRPM_ERR_OK)
+                    goto cleanup;
+
+                ext_copy_len -= buffer_len;
+                ext_offset += buffer_len;
+                blk_id++;
+            }
+
+            ext_copies_done++;
+        }
+
+        int_copy_len = *int_copies++;
+
+        printf("performing internal copy (%zu)...\n", int_copy_len);
+
+        fwrite(int_data, 1, int_copy_len, fi);
+        if ((error = compstrm_wrapper_write(csw, int_data, int_copy_len)) != DRPM_ERR_OK)
+            goto cleanup;
+        int_data += int_copy_len;
+    }
+
+    fclose(f);
+    fclose(fi);
+
+    printf("finished patch\n");
+
+    if ((error = compstrm_wrapper_finish(csw, &comp_data, &comp_data_len)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    if (MD5_Update(&md5, comp_data, comp_data_len) != 1 ||
+        MD5_Final(md5_digest, &md5) != 1) {
+        error = DRPM_ERR_OTHER;
+        goto cleanup;
+    }
+
+    printf("updated md5\n");
+
+final_check:
+    printf("final check...\n");
+
+    if (no_full_md5) {
+        if ((error = rpm_signature_get_md5(patched_rpm, newsig_md5, &has_md5)) != DRPM_ERR_OK)
+            goto cleanup;
+        if (has_md5 && memcmp(md5_digest, newsig_md5, MD5_DIGEST_LENGTH) != 0) {
+            error = DRPM_ERR_MISMATCH;
+            goto cleanup;
+        }
+    } else {
+        if (memcmp(md5_digest, delta.tgt_md5, MD5_DIGEST_LENGTH) != 0) {
+            error = DRPM_ERR_MISMATCH;
+            goto cleanup;
+        }
+    }
+
+    printf("check successful\n");
+
+cleanup:
+
+    printf("cleaning up\n");
+
+    close(filedesc);
+
+    for (size_t i = 0; i < file_count; i++) {
+        free(files[i].name);
+        free(files[i].md5);
+        free(files[i].linkto);
+    }
+    free(files);
+    free_deltarpm(&delta);
+    rpm_destroy(&old_rpm);
+    free(old_rpm_nevr);
+
+    blocks_destroy(&blks);
+    decompstrm_destroy(&addblk_strm);
+    compstrm_wrapper_destroy(&csw);
+    free(cpio_files);
+    free(addblk_buf);
+    free(buffer);
+    free(header);
+    free(comp_data);
+
+    return error;
+}
+
+int drpm_check(const char *deltarpm_name, int check_mode)
+{
+    int error = DRPM_ERR_OK;
+    struct deltarpm delta = {0};
+    struct rpm *old_rpm = NULL;
+    char *old_rpm_nevr = NULL;
+    struct file_info *files = NULL;
+    size_t file_count = 0;
+    unsigned short digest_algo;
+
+    if (deltarpm_name == NULL ||
+        (check_mode != DRPM_CHECK_FILESIZES && check_mode != DRPM_CHECK_FULL))
+        return DRPM_ERR_ARGS;
+
+    if ((error = read_deltarpm(&delta, deltarpm_name)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("read deltarpm\n");
+
+    if ((error = rpm_read_header(&old_rpm, delta.src_nevr, NULL)) != DRPM_ERR_OK)
+        goto cleanup;
+
+    printf("read header from database\n");
+
+    if ((error = rpm_get_nevr(old_rpm, &old_rpm_nevr)) != DRPM_ERR_OK)
+        goto cleanup;
+    if (strcmp(delta.src_nevr, old_rpm_nevr) != 0) {
+        error = DRPM_ERR_MISMATCH;
+        goto cleanup;
+    }
+
+    printf("NEVRs match\n");
+
+    if (delta.type == DRPM_TYPE_STANDARD) {
+        if ((error = rpm_get_file_info(old_rpm, &files, &file_count, NULL)) != DRPM_ERR_OK ||
+            (error = rpm_get_digest_algo(old_rpm, &digest_algo)) != DRPM_ERR_OK ||
+            (error = expand_sequence(NULL, NULL, delta.sequence, delta.sequence_len,
+                                     files, file_count, digest_algo, check_mode)) != DRPM_ERR_OK)
+            goto cleanup;
+        printf("sequence expansion check succeeded\n");
+    }
+
+cleanup:
+    printf("cleaning up\n");
+
+    for (size_t i = 0; i < file_count; i++) {
+        free(files[i].name);
+        free(files[i].md5);
+        free(files[i].linkto);
+    }
+    free(files);
+    free_deltarpm(&delta);
+    rpm_destroy(&old_rpm);
+    free(old_rpm_nevr);
+
+    return error;
+}
+
+int drpm_check_sequence(const char *old_rpm_name, const char *sequence, int check_mode)
+{
+    int error = DRPM_ERR_OK;
+    char *nevr = NULL;
+    unsigned char *seq = NULL;
+    size_t seq_len;
+    char *ptr;
+    ptrdiff_t nevr_len;
+    struct rpm *old_rpm = NULL;
+    unsigned char sigmd5[MD5_DIGEST_LENGTH];
+    bool has_md5;
+    bool rpm_only;
+    char *old_rpm_nevr = NULL;
+    struct file_info *files = NULL;
+    size_t file_count = 0;
+    unsigned short digest_algo;
+
+    if (sequence == NULL ||
+        (check_mode != DRPM_CHECK_NONE &&
+         check_mode != DRPM_CHECK_FILESIZES &&
+         check_mode != DRPM_CHECK_FULL) ||
+        (old_rpm_name != NULL && check_mode != DRPM_CHECK_NONE))
+        return DRPM_ERR_ARGS;
+
+    ptr = strrchr(sequence, '-');
+    if (ptr == NULL || ptr == sequence)
+        return DRPM_ERR_FORMAT;
+    nevr_len = ptr - sequence;
+    seq_len = (strlen(++ptr) + 1) / 2;
+    if ((nevr = malloc(nevr_len + 1)) == NULL ||
+        (seq = malloc(seq_len)) == NULL) {
+        error = DRPM_ERR_MEMORY;
+        goto cleanup;
+    }
+    strncpy(nevr, sequence, nevr_len);
+    nevr[nevr_len] = '\0';
+    if (parse_hex(seq, ptr) < MD5_DIGEST_LENGTH) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
+
+    printf("parsed sequence\n");
+
+    if (old_rpm_name == NULL) {
+        if ((error = rpm_read_header(&old_rpm, nevr, NULL)) != DRPM_ERR_OK)
+            goto cleanup;
+        rpm_only = false;
+        printf("read RPM header from database\n");
+    } else {
+        if ((error = rpm_read(&old_rpm, old_rpm_name, RPM_ARCHIVE_DONT_READ, NULL, NULL, NULL)) != DRPM_ERR_OK ||
+            (error = rpm_signature_get_md5(old_rpm, sigmd5, &has_md5)) != DRPM_ERR_OK)
+            goto cleanup;
+        rpm_only = (seq_len == MD5_DIGEST_LENGTH && has_md5 && memcmp(seq, sigmd5, MD5_DIGEST_LENGTH) == 0);
+        printf("read old RPM, identified %s delta\n", rpm_only ? "rpm-only" : "standard");
+    }
+
+    if ((error = rpm_get_nevr(old_rpm, &old_rpm_nevr)) != DRPM_ERR_OK)
+        goto cleanup;
+    if (strcmp(nevr, old_rpm_nevr) != 0) {
+        error = DRPM_ERR_MISMATCH;
+        goto cleanup;
+    }
+
+    printf("NEVRs match\n");
+
+    if (!rpm_only) {
+        if ((error = rpm_get_file_info(old_rpm, &files, &file_count, NULL)) != DRPM_ERR_OK ||
+            (error = rpm_get_digest_algo(old_rpm, &digest_algo)) != DRPM_ERR_OK ||
+            (error = expand_sequence(NULL, NULL, seq, seq_len, files, file_count, digest_algo, check_mode)) != DRPM_ERR_OK)
+            goto cleanup;
+        printf("sequence expansion check succeeded\n");
+    }
+
+cleanup:
+    printf("cleaning up\n");
+    for (size_t i = 0; i < file_count; i++) {
+        free(files[i].name);
+        free(files[i].md5);
+        free(files[i].linkto);
+    }
+    free(files);
+    free(nevr);
+    free(seq);
+    free(old_rpm_nevr);
+    rpm_destroy(&old_rpm);
 
     return error;
 }

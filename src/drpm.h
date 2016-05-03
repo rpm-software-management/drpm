@@ -36,43 +36,45 @@
 #endif
 
 /**
- * @defgroup drpmMake DeltaRPM Creation
+ * @defgroup drpmMake DRPM Make
  * Tools for creating a DeltaRPM file from two RPM files,
  * providing the same functionality as
  * [makedeltarpm(8)](http://linux.die.net/man/8/makedeltarpm).
  * @{
- * @defgroup drpmMakeOptions DeltaRPM Creation Options
+ * @defgroup drpmMakeOptions DRPM Make Options
  * Tools for customizing DeltaRPM creation.
  * @}
  *
- * @defgroup drpmApply DeltaRPM Application
+ * @defgroup drpmApply DRPM Apply
  * Tools for applying a DeltaRPM file to re-create a new RPM file
  * (from an old RPM file or from filesystem data),
  * providing the same functionality as
  * [applydeltarpm(8)](http://linux.die.net/man/8/applydeltarpm).
  * @{
- * @defgroup drpmCheck DeltaRPM Reconstruction Checking
+ * @defgroup drpmCheck DRPM Check
  * Tools for checking if the reconstruction is possible
  * (like <tt>applydeltarpm { -c | -C }</tt>).
  * @}
  *
- * @defgroup drpmRead DeltaRPM Info Extraction
- * Tools for reading DeltaRPM files.
+ * @defgroup drpmRead DRPM Read
+ * Tools for extracting information from DeltaRPM files.
  */
 
 /**
  * @name Errors / Return values
  * @{
  */
-#define DRPM_ERR_OK 0       /**< no error */
-#define DRPM_ERR_MEMORY 1   /**< memory allocation error */
-#define DRPM_ERR_ARGS 2     /**< bad arguments */
-#define DRPM_ERR_IO 3       /**< I/O error */
-#define DRPM_ERR_FORMAT 4   /**< wrong file format */
-#define DRPM_ERR_CONFIG 5   /**< misconfigured external library */
-#define DRPM_ERR_OTHER 6    /**< unspecified/unknown error */
-#define DRPM_ERR_OVERFLOW 7 /**< overflow */
-#define DRPM_ERR_PROG 8     /**< internal programming error */
+#define DRPM_ERR_OK 0           /**< no error */
+#define DRPM_ERR_MEMORY 1       /**< memory allocation error */
+#define DRPM_ERR_ARGS 2         /**< bad arguments */
+#define DRPM_ERR_IO 3           /**< I/O error */
+#define DRPM_ERR_FORMAT 4       /**< wrong file format */
+#define DRPM_ERR_CONFIG 5       /**< misconfigured external library */
+#define DRPM_ERR_OTHER 6        /**< unspecified/unknown error */
+#define DRPM_ERR_OVERFLOW 7     /**< file too large */
+#define DRPM_ERR_PROG 8         /**< internal programming error */
+#define DRPM_ERR_MISMATCH 9     /**< file changed */
+#define DRPM_ERR_NOINSTALL 10   /**< old RPM not installed */
 /** @} */
 
 /**
@@ -92,7 +94,17 @@
 #define DRPM_COMP_BZIP2 2   /**< bzip2 */
 #define DRPM_COMP_LZMA 3    /**< lzma */
 #define DRPM_COMP_XZ 4      /**< xz */
-#define DRPM_COMP_LZIP 5    /**< lzip */
+/**
+ * @brief lzip
+ *
+ * The original deltarpm implementation does not support lzip.
+ * DeltaRPM packages compressed with lzip will work within this API, but
+ * will not be backwards-compatible.
+ *
+ * This compression algorithm is supported because newer versions
+ * of RPM packages may be compressed with lzip.
+ */
+#define DRPM_COMP_LZIP 5
 /** @} */
 
 /**
@@ -131,8 +143,9 @@
  * @name Check Modes
  * @{
  */
-#define DRPM_CHECK_FULL 0           /**< full (i.e.\ slow) on-disk checking */
-#define DRPM_CHECK_FILESIZES 1      /**< only checking if filesizes have changed */
+#define DRPM_CHECK_NONE 0           /**< no file checking */
+#define DRPM_CHECK_FULL 1           /**< full (i.e.\ slow) on-disk checking */
+#define DRPM_CHECK_FILESIZES 2      /**< only checking if filesizes have changed */
 /** @} */
 
 /**
@@ -170,12 +183,13 @@ int drpm_check(const char *deltarpm, int checkmode);
 /**
  * @ingroup drpmCheck
  * @brief Checks if the reconstruction is possible based on sequence ID.
+ * @param [in]  oldrpm      Name of old RPM file (if @c NULL, filesystem data is used).
  * @param [in]  sequence    Sequence ID of the DeltaRPM.
  * @param [in]  checkmode   Full check or filesize changes only.
  * @return Error code.
  * @see DRPM_CHECK_FULL, DRPM_CHECK_FILESIZES
  */
-int drpm_check_sequence(const char *sequence, int checkmode);
+int drpm_check_sequence(const char *oldrpm, const char *sequence, int checkmode);
 
 /**
  * @ingroup drpmMake
@@ -625,7 +639,7 @@ int drpm_destroy(drpm **delta);
  * Works very similarly to
  * [strerror(3)](http://linux.die.net/man/3/strerror).
  * @param [in]  error   error code
- * @return error description (or @c NULL if error code invalid)
+ * @return error description
  */
 const char *drpm_strerror(int error);
 

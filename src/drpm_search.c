@@ -282,7 +282,7 @@ scannext:
             pos2 = hash_table[key2];
             if (pos2) {
                 if (memcmp(new + scan + 3 * HSIZE, old + pos2 - 1, HSIZE) != 0) {
-                    key2 = (key2 == ht_len) ? 0 : key2 + 1;
+                    key2 = (key2 == ht_len - 1) ? 0 : key2 + 1;
                     pos2 = hash_table[key2];
                 }
             }

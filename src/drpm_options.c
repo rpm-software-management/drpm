@@ -147,12 +147,10 @@ int drpm_make_options_set_delta_comp(struct drpm_make_options *opts, unsigned sh
     case DRPM_COMP_BZIP2:
     case DRPM_COMP_LZMA:
     case DRPM_COMP_XZ:
+    case DRPM_COMP_LZIP:
         opts->comp_from_rpm = false;
         opts->comp = comp;
         opts->comp_level = level;
-        break;
-    case DRPM_COMP_LZIP: // TODO
-        opts->comp_from_rpm = true;
         break;
     default:
         return DRPM_ERR_ARGS;
@@ -193,11 +191,10 @@ int drpm_make_options_set_addblk_comp(struct drpm_make_options *opts, unsigned s
     case DRPM_COMP_BZIP2:
     case DRPM_COMP_LZMA:
     case DRPM_COMP_XZ:
+    case DRPM_COMP_LZIP:
         opts->addblk = true;
         opts->addblk_comp = comp;
         opts->addblk_comp_level = level;
-        break;
-    case DRPM_COMP_LZIP: // TODO
         break;
     default:
         return DRPM_ERR_ARGS;
