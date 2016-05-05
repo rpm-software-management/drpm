@@ -493,11 +493,7 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
  * @return error number
  * @warning @p delta should have been previously initialized with
  * drpm_read(), otherwise behaviour is undefined.
- * @see DRPM_TAG_VERSION
- * @see DRPM_TAG_TYPE
- * @see DRPM_TAG_COMP
  * @see DRPM_TAG_TGTSIZE
- * @see DRPM_TAG_TGTCOMP
  * @see DRPM_TAG_TGTHEADERLEN
  * @see DRPM_TAG_PAYLOADFMTOFF
  */
@@ -527,13 +523,6 @@ int drpm_get_ulong(drpm *delta, int tag, unsigned long *target);
  * @return error number
  * @warning @p delta should have been previously initialized with
  * drpm_read(), otherwise behaviour is undefined.
- * @see DRPM_TAG_VERSION
- * @see DRPM_TAG_TYPE
- * @see DRPM_TAG_COMP
- * @see DRPM_TAG_TGTSIZE
- * @see DRPM_TAG_TGTCOMP
- * @see DRPM_TAG_TGTHEADERLEN
- * @see DRPM_TAG_PAYLOADFMTOFF
  * @see DRPM_TAG_EXTDATALEN
  * @see DRPM_TAG_INTDATALEN
  */

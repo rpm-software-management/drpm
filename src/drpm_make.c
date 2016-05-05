@@ -285,7 +285,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
     size_t c_filesize;
     size_t c_namesize;
-    const char *name;
+    char *name;
     size_t name_len;
     char *name_buffer = NULL;
     char *name_buffer_tmp;
@@ -355,11 +355,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             goto cleanup_fail;
 
         name = name_buffer;
-
-        if (strlen(name) != c_namesize - 1) {
-            error = DRPM_ERR_FORMAT;
-            goto cleanup_fail;
-        }
+        name[c_namesize - 1] = '\0';
 
         /* end of archive? */
         if (strcmp(name, CPIO_TRAILER) == 0)

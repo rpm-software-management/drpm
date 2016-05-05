@@ -267,10 +267,11 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
                 goto cleanup;
     }
 
-    printf("internal copies (%u):", delta->int_copies_count);
-    for (uint32_t i = 0; i < delta->int_copies_count; i++)
-        printf(" [%u,%u]", delta->int_copies[2 * i], delta->int_copies[2 * i + 1]);
-    printf("\n");
+    printf("internal copies: %u\n", delta->int_copies_count);
+    //printf("internal copies (%u):", delta->int_copies_count);
+    //for (uint32_t i = 0; i < delta->int_copies_count; i++)
+        //printf(" [%u,%u]", delta->int_copies[2 * i], delta->int_copies[2 * i + 1]);
+    //printf("\n");
 
     if (ext_copies_size > 0) {
         if ((delta->ext_copies = malloc(ext_copies_size * 4)) == NULL) {
@@ -288,10 +289,11 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
                 goto cleanup;
     }
 
-    printf("external copies (%u):", delta->ext_copies_count);
-    for (uint32_t i = 0; i < delta->ext_copies_count; i++)
-        printf(" [%d,%u]", (int32_t)delta->ext_copies[2 * i], delta->ext_copies[2 * i + 1]);
-    printf("\n");
+    printf("external copies: %u\n", delta->ext_copies_count);
+    //printf("external copies (%u):", delta->ext_copies_count);
+    //for (uint32_t i = 0; i < delta->ext_copies_count; i++)
+        //printf(" [%d,%u]", (int32_t)delta->ext_copies[2 * i], delta->ext_copies[2 * i + 1]);
+    //printf("\n");
 
     if (delta->version == 3) {
         if ((error = decompstrm_read_be64(stream, &delta->ext_data_len)) != DRPM_ERR_OK)
@@ -556,8 +558,16 @@ int deltarpm_to_drpm(const struct deltarpm *src, struct drpm *dst)
     if (dst->ext_copies_size > 0)
         memcpy(dst->ext_copies, src->ext_copies, dst->ext_copies_size * 4);
 
-    if (src->type == DRPM_TYPE_STANDARD && (error = rpm_get_nevr(src->head.tgt_rpm, &dst->tgt_nevr)) != DRPM_ERR_OK)
-        goto cleanup_fail;
+    if (src->type == DRPM_TYPE_STANDARD) {
+        if ((error = rpm_get_nevr(src->head.tgt_rpm, &dst->tgt_nevr)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+    } else {
+        if ((dst->tgt_nevr = malloc(strlen(src->head.tgt_nevr) + 1)) == NULL) {
+            error = DRPM_ERR_MEMORY;
+            goto cleanup_fail;
+        }
+        strcpy(dst->tgt_nevr, src->head.tgt_nevr);
+    }
 
     return DRPM_ERR_OK;
 

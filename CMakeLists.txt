@@ -28,6 +28,9 @@ include(CPack)
 
 enable_testing()
 
+set(DRPM_SOURCES drpm.c drpm_apply.c drpm_block.c drpm_compstrm.c drpm_decompstrm.c drpm_deltarpm.c drpm_diff.c drpm_make.c drpm_options.c drpm_read.c drpm_rpm.c drpm_search.c drpm_utils.c drpm_write.c)
+set(DRPM_LINK_LIBRARIES ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${LIBLZMA_LIBRARIES} lz ${RPM_LIBRARIES} ${LIBCRYPTO_LIBRARIES})
+
 add_subdirectory(src)
 add_subdirectory(test)
 add_subdirectory(doc)

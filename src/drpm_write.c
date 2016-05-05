@@ -370,6 +370,8 @@ int compstrm_wrapper_finish(struct compstrm_wrapper *csw, unsigned char **data, 
 
     memmove(data_tmp + csw->uncomp_len, data_tmp, *data_len);
     memcpy(data_tmp, csw->uncomp_data, csw->uncomp_len);
+
+    *data = data_tmp;
     *data_len += csw->uncomp_len;
 
     return DRPM_ERR_OK;

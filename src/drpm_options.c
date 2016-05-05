@@ -27,11 +27,15 @@
 
 int drpm_make_options_init(struct drpm_make_options **opts)
 {
+    const struct drpm_make_options init = {0};
+
     if (opts == NULL)
         return DRPM_ERR_ARGS;
 
     if ((*opts = malloc(sizeof(struct drpm_make_options))) == NULL)
         return DRPM_ERR_MEMORY;
+
+    **opts = init;
 
     drpm_make_options_defaults(*opts);
 
@@ -56,6 +60,10 @@ int drpm_make_options_defaults(struct drpm_make_options *opts)
 {
     if (opts == NULL)
         return DRPM_ERR_ARGS;
+
+    free(opts->seqfile);
+    free(opts->oldrpmprint);
+    free(opts->oldpatchrpm);
 
     opts->rpm_only = false;
     opts->version = 3;
@@ -88,20 +96,30 @@ int drpm_make_options_copy(struct drpm_make_options *opts_dst, const struct drpm
     opts_dst->addblk_comp_level = opts_src->addblk_comp_level;
     opts_dst->mbytes = opts_src->mbytes;
 
-    if (opts_src->seqfile == NULL)
-        opts_dst->seqfile = NULL;
-    else
+    free(opts_dst->seqfile);
+    free(opts_dst->oldrpmprint);
+    free(opts_dst->oldpatchrpm);
+    opts_dst->seqfile = NULL;
+    opts_dst->oldrpmprint = NULL;
+    opts_dst->oldpatchrpm = NULL;
+
+    if (opts_src->seqfile != NULL) {
+        if ((opts_dst->seqfile = malloc(strlen(opts_src->seqfile) + 1)) == NULL)
+            return DRPM_ERR_OK;
         strcpy(opts_dst->seqfile, opts_src->seqfile);
+    }
 
-    if (opts_src->oldrpmprint == NULL)
-        opts_dst->oldrpmprint = NULL;
-    else
+    if (opts_src->oldrpmprint != NULL) {
+        if ((opts_dst->oldrpmprint = malloc(strlen(opts_src->oldrpmprint) + 1)) == NULL)
+            return DRPM_ERR_OK;
         strcpy(opts_dst->oldrpmprint, opts_src->oldrpmprint);
+    }
 
-    if (opts_src->oldpatchrpm == NULL)
-        opts_dst->oldpatchrpm = NULL;
-    else
+    if (opts_src->oldpatchrpm != NULL) {
+        if ((opts_dst->oldpatchrpm = malloc(strlen(opts_src->oldpatchrpm) + 1)) == NULL)
+            return DRPM_ERR_OK;
         strcpy(opts_dst->oldpatchrpm, opts_src->oldpatchrpm);
+    }
 
     return DRPM_ERR_OK;
 }
@@ -205,6 +223,8 @@ int drpm_make_options_set_addblk_comp(struct drpm_make_options *opts, unsigned s
 
 int drpm_make_options_set_seqfile(struct drpm_make_options *opts, const char *seqfile)
 {
+    char *tmp;
+
     if (opts == NULL)
         return DRPM_ERR_ARGS;
 
@@ -212,6 +232,11 @@ int drpm_make_options_set_seqfile(struct drpm_make_options *opts, const char *se
         free(opts->seqfile);
         opts->seqfile = NULL;
     } else {
+        if (opts->seqfile == NULL || strlen(opts->seqfile) < strlen(seqfile)) {
+            if ((tmp = realloc(opts->seqfile, strlen(seqfile) + 1)) == NULL)
+                return DRPM_ERR_MEMORY;
+            opts->seqfile = tmp;
+        }
         strcpy(opts->seqfile, seqfile);
     }
 
@@ -220,16 +245,20 @@ int drpm_make_options_set_seqfile(struct drpm_make_options *opts, const char *se
 
 int drpm_make_options_add_patches(struct drpm_make_options *opts, const char *oldrpmprint, const char *oldpatchrpm)
 {
+    char *tmp;
+
     if (opts == NULL || oldrpmprint == NULL || oldpatchrpm == NULL)
         return DRPM_ERR_ARGS;
 
-    if (opts->oldrpmprint != NULL) {
-        free(opts->oldrpmprint);
-        opts->oldrpmprint = NULL;
+    if (opts->oldrpmprint == NULL || strlen(opts->oldrpmprint) < strlen(oldrpmprint)) {
+        if ((tmp = realloc(opts->oldrpmprint, strlen(oldrpmprint) + 1)) == NULL)
+            return DRPM_ERR_MEMORY;
+        opts->oldrpmprint = tmp;
     }
-    if (opts->oldpatchrpm != NULL) {
-        free(opts->oldpatchrpm);
-        opts->oldpatchrpm = NULL;
+    if (opts->oldpatchrpm == NULL || strlen(opts->oldpatchrpm) < strlen(oldpatchrpm)) {
+        if ((tmp = realloc(opts->oldpatchrpm, strlen(oldpatchrpm) + 1)) == NULL)
+            return DRPM_ERR_MEMORY;
+        opts->oldpatchrpm = tmp;
     }
 
     strcpy(opts->oldrpmprint, oldrpmprint);

@@ -329,7 +329,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
 {
     int error = DRPM_ERR_OK;
 
-    drpm_make_options opts;
+    drpm_make_options opts = {0};
     const bool rpm_only = (user_opts != NULL && user_opts->rpm_only);
     const bool alone = (old_rpm_name == NULL || new_rpm_name == NULL);
 
@@ -543,6 +543,10 @@ cleanup:
 
     patches_destroy(&patches);
 
+    free(opts.seqfile);
+    free(opts.oldrpmprint);
+    free(opts.oldpatchrpm);
+
     return error;
 }
 
@@ -586,7 +590,7 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
     uint32_t ext_copies_count;
     size_t ext_copy_len;
     uint64_t ext_offset = 0;
-    uint32_t ext_copies_before_int_copy;
+    uint32_t ext_copies_todo;
     size_t ext_copies_done = 0;
     size_t blk_id;
     unsigned char *comp_data;
@@ -659,7 +663,8 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
 
     printf("patched lead and signature\n");
 
-    if (rpm_only && delta.tgt_comp == DRPM_COMP_NONE && delta.int_copies_count == 0 && delta.ext_copies_count == 0) {
+    if (rpm_only && delta.tgt_comp == DRPM_COMP_NONE &&
+        delta.int_copies_count == 0 && delta.ext_copies_count == 0) {
         printf("no diff deltarpm\n");
         if ((error = rpm_write(patched_rpm, new_rpm_name, true, md5_digest, !no_full_md5)) != DRPM_ERR_OK)
             goto cleanup;
@@ -733,24 +738,21 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
 
     printf("patching...\n");
 
-    FILE *f = fopen("mine", "wb");
-    FILE *fi = fopen("mine_int", "wb");
-
     while (int_copies_count--) {
-        ext_copies_before_int_copy = *int_copies++;
-        if (ext_copies_before_int_copy > ext_copies_count) {
+        ext_copies_todo = *int_copies++;
+        if (ext_copies_todo > ext_copies_count) {
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
 
-        printf("performing %u external copies...\n", ext_copies_before_int_copy);
-        while (ext_copies_before_int_copy--) {
+        //printf("performing %u external copies...\n", ext_copies_todo);
+        while (ext_copies_todo--) {
             ext_offset += (int32_t)*ext_copies++;
             ext_copy_len = *ext_copies++;
             ext_copies_count--;
             blk_id = block_id(ext_offset);
 
-            printf("performing external copy (%zu)...\n", ext_copy_len);
+            //printf("performing external copy (%zu)...\n", ext_copy_len);
 
             while (ext_copy_len > 0) {
                 if ((error = blocks_next(blks, buffer, &buffer_len,
@@ -765,8 +767,6 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
                         buffer[i] += (signed char)addblk_buf[i];
                 }
 
-                fwrite(buffer, 1, buffer_len, f);
-
                 if ((error = compstrm_wrapper_write(csw, buffer, buffer_len)) != DRPM_ERR_OK)
                     goto cleanup;
 
@@ -780,16 +780,12 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
 
         int_copy_len = *int_copies++;
 
-        printf("performing internal copy (%zu)...\n", int_copy_len);
+        //printf("performing internal copy (%zu)...\n", int_copy_len);
 
-        fwrite(int_data, 1, int_copy_len, fi);
         if ((error = compstrm_wrapper_write(csw, int_data, int_copy_len)) != DRPM_ERR_OK)
             goto cleanup;
         int_data += int_copy_len;
     }
-
-    fclose(f);
-    fclose(fi);
 
     printf("finished patch\n");
 
@@ -937,7 +933,11 @@ int drpm_check_sequence(const char *old_rpm_name, const char *sequence, int chec
     if (ptr == NULL || ptr == sequence)
         return DRPM_ERR_FORMAT;
     nevr_len = ptr - sequence;
-    seq_len = (strlen(++ptr) + 1) / 2;
+    seq_len = (strlen(++ptr)) / 2;
+    if (seq_len < MD5_DIGEST_LENGTH) {
+        error = DRPM_ERR_FORMAT;
+        goto cleanup;
+    }
     if ((nevr = malloc(nevr_len + 1)) == NULL ||
         (seq = malloc(seq_len)) == NULL) {
         error = DRPM_ERR_MEMORY;
@@ -945,12 +945,12 @@ int drpm_check_sequence(const char *old_rpm_name, const char *sequence, int chec
     }
     strncpy(nevr, sequence, nevr_len);
     nevr[nevr_len] = '\0';
-    if (parse_hex(seq, ptr) < MD5_DIGEST_LENGTH) {
+    if (parse_hex(seq, ptr) != (ssize_t)seq_len) {
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
 
-    printf("parsed sequence\n");
+    printf("parsed sequence (%zu): %.32s %s\n", seq_len, ptr, ptr + 32);
 
     if (old_rpm_name == NULL) {
         if ((error = rpm_read_header(&old_rpm, nevr, NULL)) != DRPM_ERR_OK)

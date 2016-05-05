@@ -466,9 +466,9 @@ int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive, uns
 {
     int error = DRPM_ERR_OK;
     FD_t file;
-    unsigned char *signature;
+    unsigned char *signature = NULL;
     size_t signature_len;
-    unsigned char *header;
+    unsigned char *header = NULL;
     size_t header_len;
     MD5_CTX md5;
 
@@ -520,6 +520,9 @@ int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive, uns
 
 cleanup:
     Fclose(file);
+    free(signature);
+    free(header);
+
     return error;
 }
 

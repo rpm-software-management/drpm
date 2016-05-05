@@ -659,7 +659,7 @@ int fillblock_rpm_standard(struct blocks *blks, struct block *blk, size_t id, si
     char cpio_buf[CPIO_HEADER_SIZE] = {0};
     size_t c_namesize;
     size_t c_filesize;
-    const char *name;
+    char *name;
     char *name_buffer = NULL;
     char *name_buffer_tmp;
     size_t name_buffer_len = 0;
@@ -764,9 +764,9 @@ int fillblock_rpm_standard(struct blocks *blks, struct block *blk, size_t id, si
                 break;
 
             name = name_buffer;
+            name[c_namesize - 1] = '\0';
 
-            if (strlen(name) != c_namesize - 1 ||
-                strcmp(name, CPIO_TRAILER) == 0) {
+            if (strcmp(name, CPIO_TRAILER) == 0) {
                 error = DRPM_ERR_FORMAT;
                 break;
             }
@@ -838,7 +838,6 @@ int fillblock_rpm_rpmonly(struct blocks *blks, struct block *blk, size_t id, siz
         if (header_offset < header_size) {
             if (header_offset + read_len > header_size) {
                 header_read_len = header_size - header_offset;
-                //printf("header_read_len = %zu, read_len = %zu\n", header_read_len, read_len);
                 if ((error = rpm_archive_read_chunk(old_rpm,
                                                     blk->data.buffer + header_read_len,
                                                     read_len - header_read_len)) != DRPM_ERR_OK)
@@ -849,12 +848,10 @@ int fillblock_rpm_rpmonly(struct blocks *blks, struct block *blk, size_t id, siz
             memcpy(blk->data.buffer, header + header_offset, header_read_len);
             header_offset += header_read_len;
         } else {
-            //printf("read_len = %zu\n", read_len);
             if ((error = rpm_archive_read_chunk(old_rpm, blk->data.buffer, read_len)) != DRPM_ERR_OK)
                 break;
         }
 
-        fprintf(stderr, "read_len = %zu\n", read_len);
         left -= read_len;
 
         if (read_len < BLOCK_SIZE)
@@ -877,10 +874,6 @@ int fillblock_rpm_rpmonly(struct blocks *blks, struct block *blk, size_t id, siz
             (error = push_block(blks, blk, copy_cnt)) != DRPM_ERR_OK)
             break;
     }
-
-    if (error == DRPM_ERR_OK)
-        fprintf(stderr, "left = %zu, rpm_id = %zu\n", left, rpm_id);
-    //fprintf(stderr, "header_offset = %zu, left = %zu, rpm_id = %zu\n", header_offset, left, rpm_id);
 
     blks->rpm_files.from_rpm.old_header_offset = header_offset;
     blks->rpm_files.from_rpm.left = left;
