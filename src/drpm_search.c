@@ -369,7 +369,8 @@ gotit:
 
 struct sfxsrt {
     long long *I;   // suffix array
-    size_t F[257];  // min. number of preceding suffixes for each byte value
+    size_t F[257];  // key = byte value,
+                    // value = where to start looking in suffix array
 };
 
 int sfxsrt_create(struct sfxsrt **suf, const unsigned char *old, size_t old_len)

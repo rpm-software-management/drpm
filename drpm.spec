@@ -13,11 +13,13 @@ BuildRequires:  cmake >= 2.8
 BuildRequires:  gcc
 
 BuildRequires:  rpm-devel
+BuildRequires:  openssl-devel
 BuildRequires:  zlib-devel
 BuildRequires:  bzip2-devel
 BuildRequires:  xz-devel
-BuildRequires:  openssl-devel
-BuildRequires:  prelink
+%if 0%{?suse_version}
+BuildRequires:  lzlib-devel
+%endif
 
 BuildRequires:  pkgconfig
 
@@ -43,13 +45,17 @@ mkdir build
 
 %build
 pushd build
-  %cmake ..
-  %make_build
+%if 0%{?suse_version}
+%cmake -DHAVE_LZLIB_DEVEL ..
+%else
+%cmake ..
+%endif
+%make_build
 popd
 
 %install
 pushd build
-  %make_install
+%make_install
 popd
 
 %check
@@ -74,7 +80,7 @@ popd
 * Tue May 3 2016 Matej Chalk <mchalk@redhat.com> 0.3.0-2
 - Now contains makedeltarpm and applydeltarpm functionality
 - Cleaned up spec
-- Added prelink dependency
+- Added lzlib-devel dependency for OpenSUSE
 
 * Thu Sep 3 2015 Matej Chalk <mchalk@redhat.com> 0.3.0-1
 - Bumped minor version (deltarpm creation added)

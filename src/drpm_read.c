@@ -39,6 +39,7 @@ static int readdelta_rest(int, struct deltarpm *);
 static int readdelta_rpmonly(int, struct deltarpm *);
 static int readdelta_standard(int, struct deltarpm *);
 
+/* Reads 32-byte integer in network byte order from file. */
 int read_be32(int filedesc, uint32_t *buffer_ret)
 {
     unsigned char buffer[4];
@@ -57,6 +58,7 @@ int read_be32(int filedesc, uint32_t *buffer_ret)
     return DRPM_ERR_OK;
 }
 
+/* Reads 64-byte integer in network byte order from file. */
 int read_be64(int filedesc, uint64_t *buffer_ret)
 {
     unsigned char buffer[8];
@@ -75,6 +77,8 @@ int read_be64(int filedesc, uint64_t *buffer_ret)
     return DRPM_ERR_OK;
 }
 
+/* Reads the rest of the DeltaRPM, i.e. the compressed part
+ * that has the same format for standard and rpm-only deltas. */
 int readdelta_rest(int filedesc, struct deltarpm *delta)
 {
     struct decompstrm *stream;
@@ -90,10 +94,11 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
     uint64_t off;
     int error = DRPM_ERR_OK;
 
+    /* initializing decompression and determining compression method */
     if ((error = decompstrm_init(&stream, filedesc, &delta->comp, NULL, NULL, 0)) != DRPM_ERR_OK)
         return error;
 
-    printf("delta compression: %s\n", comp2str(delta->comp));
+    /* reading delta version (1-3) */
 
     if ((error = decompstrm_read_be32(stream, &version)) != DRPM_ERR_OK)
         goto cleanup;
@@ -105,12 +110,13 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
 
     delta->version = version % 256 - '0';
 
-    printf("delta version: %u\n", delta->version);
-
     if (delta->version < 3 && delta->type == DRPM_TYPE_RPMONLY) {
+        // rpm-only deltas only supported since version 3
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
+
+    /* reading source NEVR */
 
     if ((error = decompstrm_read_be32(stream, &src_nevr_len)) != DRPM_ERR_OK)
         goto cleanup;
@@ -125,11 +131,14 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
 
     delta->src_nevr[src_nevr_len] = '\0';
 
-    printf("source NEVR: %s\n", delta->src_nevr);
+    /* reading DeltaRPM sequence */
 
     if ((error = decompstrm_read_be32(stream, &delta->sequence_len)) != DRPM_ERR_OK)
         goto cleanup;
 
+    // sequence consists of an MD5 checksum and, for standard deltas,
+    // the compressed order in which the files from the RPM header
+    // appear in the CPIO archive
     if (delta->sequence_len < MD5_DIGEST_LENGTH ||
         (delta->sequence_len != MD5_DIGEST_LENGTH && delta->type == DRPM_TYPE_RPMONLY)) {
         error = DRPM_ERR_FORMAT;
@@ -144,31 +153,22 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
     if ((error = decompstrm_read(stream, delta->sequence_len, delta->sequence)) != DRPM_ERR_OK)
         goto cleanup;
 
-    char *sequence = malloc(delta->sequence_len * 2 + 1);
-    dump_hex(sequence, delta->sequence, delta->sequence_len);
-    printf("sequence: %.32s %s\n", sequence, sequence + MD5_DIGEST_LENGTH * 2);
-    free(sequence);
-
+    /* reading MD5 sum of the target RPM */
     if ((error = decompstrm_read(stream, MD5_DIGEST_LENGTH, delta->tgt_md5)) != DRPM_ERR_OK)
         goto cleanup;
 
-    char md5[MD5_DIGEST_LENGTH * 2 + 1];
-    dump_hex(md5, delta->tgt_md5, MD5_DIGEST_LENGTH);
-    printf("target MD5: %s\n", md5);
-
     if (delta->version >= 2) {
+        /* reading size of the target RPM and the target compression */
         if ((error = decompstrm_read_be32(stream, &delta->tgt_size)) != DRPM_ERR_OK ||
             (error = decompstrm_read_be32(stream, &deltarpm_comp)) != DRPM_ERR_OK)
             goto cleanup;
-
-        printf("target size: %u\n", delta->tgt_size);
 
         if (!deltarpm_decode_comp(deltarpm_comp, &delta->tgt_comp, &delta->tgt_comp_level)) {
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
 
-        printf("target compression: %s (%u)\n", comp2str(delta->tgt_comp), delta->tgt_comp_level);
+        /* reading target compression parameters */
 
         if ((error = decompstrm_read_be32(stream, &delta->tgt_comp_param_len)) != DRPM_ERR_OK)
             goto cleanup;
@@ -183,17 +183,12 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
                 goto cleanup;
         }
 
-        char *comp_param = malloc(delta->tgt_comp_param_len * 2 + 1);
-        dump_hex(comp_param, delta->tgt_comp_param, delta->tgt_comp_param_len);
-        printf("target compression parameter block: %s\n", comp_param);
-        free(comp_param);
-
         if (delta->version == 3) {
+            /* reading size of target header included in the diff
+             * and the offset adjustment elements for the CPIO archive */
             if ((error = decompstrm_read_be32(stream, &delta->tgt_header_len)) != DRPM_ERR_OK ||
                 (error = decompstrm_read_be32(stream, &delta->offadj_elems_count)) != DRPM_ERR_OK)
                 goto cleanup;
-
-            printf("target header length: %u\n", delta->tgt_header_len);
 
             if (delta->offadj_elems_count > 0) {
                 offadj_elems_size = delta->offadj_elems_count * 2;
@@ -211,18 +206,16 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
                         delta->offadj_elems[j] = TWOS_COMPLEMENT(delta->offadj_elems[j] ^ INT32_MIN);
                 }
             }
-
-            printf("offset adjustment elements (%u):", delta->offadj_elems_count);
-            for (uint32_t i = 0; i < delta->offadj_elems_count; i++)
-                printf(" [%u,%d]", delta->offadj_elems[2 * i], (int32_t)delta->offadj_elems[2 * i + 1]);
-            printf("\n");
         }
     }
 
     if (delta->tgt_header_len == 0 && delta->type == DRPM_TYPE_RPMONLY) {
+        // rpm-only deltas include the header in the diff
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
+
+    /* reading target lead and signature */
 
     if ((error = decompstrm_read_be32(stream, &delta->tgt_leadsig_len)) != DRPM_ERR_OK)
         goto cleanup;
@@ -240,16 +233,12 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
     if ((error = decompstrm_read(stream, delta->tgt_leadsig_len, delta->tgt_leadsig)) != DRPM_ERR_OK)
         goto cleanup;
 
-    char leadsig[51];
-    dump_hex(leadsig, delta->tgt_leadsig, 25);
-    printf("target lead (%u): %s...\n", delta->tgt_leadsig_len, leadsig);
+    /* reading payload format offset and internal and external copies */
 
     if ((error = decompstrm_read_be32(stream, &delta->payload_fmt_off)) != DRPM_ERR_OK ||
         (error = decompstrm_read_be32(stream, &delta->int_copies_count)) != DRPM_ERR_OK ||
         (error = decompstrm_read_be32(stream, &delta->ext_copies_count)) != DRPM_ERR_OK)
         goto cleanup;
-
-    printf("payload format offset: %u\n", delta->payload_fmt_off);
 
     int_copies_size = delta->int_copies_count * 2;
     ext_copies_size = delta->ext_copies_count * 2;
@@ -267,12 +256,6 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
                 goto cleanup;
     }
 
-    printf("internal copies: %u\n", delta->int_copies_count);
-    //printf("internal copies (%u):", delta->int_copies_count);
-    //for (uint32_t i = 0; i < delta->int_copies_count; i++)
-        //printf(" [%u,%u]", delta->int_copies[2 * i], delta->int_copies[2 * i + 1]);
-    //printf("\n");
-
     if (ext_copies_size > 0) {
         if ((delta->ext_copies = malloc(ext_copies_size * 4)) == NULL) {
             error = DRPM_ERR_MEMORY;
@@ -289,12 +272,7 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
                 goto cleanup;
     }
 
-    printf("external copies: %u\n", delta->ext_copies_count);
-    //printf("external copies (%u):", delta->ext_copies_count);
-    //for (uint32_t i = 0; i < delta->ext_copies_count; i++)
-        //printf(" [%d,%u]", (int32_t)delta->ext_copies[2 * i], delta->ext_copies[2 * i + 1]);
-    //printf("\n");
-
+    /* reading length of external data */
     if (delta->version == 3) {
         if ((error = decompstrm_read_be64(stream, &delta->ext_data_len)) != DRPM_ERR_OK)
             goto cleanup;
@@ -304,17 +282,17 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
         delta->ext_data_len = ext_data_32;
     }
 
-    printf("length of external data: %lu\n", delta->ext_data_len);
+    /* reading add data */
 
     if ((error = decompstrm_read_be32(stream, &add_data_len)) != DRPM_ERR_OK)
         goto cleanup;
 
     if (add_data_len > 0) {
         if (delta->type == DRPM_TYPE_RPMONLY) {
+            // should be empty for rpm-only deltas, as they include this earlier
             error = DRPM_ERR_FORMAT;
             goto cleanup;
         }
-        printf("length of add data: %u\n", add_data_len);
         if ((delta->add_data = malloc(add_data_len)) == NULL) {
             error = DRPM_ERR_MEMORY;
             goto cleanup;
@@ -324,6 +302,8 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
         delta->add_data_len = add_data_len;
     }
 
+    /* reading internal data */
+
     if (delta->version == 3) {
         if ((error = decompstrm_read_be64(stream, &delta->int_data_len)) != DRPM_ERR_OK)
             goto cleanup;
@@ -332,8 +312,6 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
             goto cleanup;
         delta->int_data_len = int_data_32;
     }
-
-    printf("length of internal data: %lu\n", delta->int_data_len);
 
     if (delta->int_data_len > SIZE_MAX) {
         error = DRPM_ERR_OVERFLOW;
@@ -351,6 +329,7 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
 
     delta->int_data_as_ptrs = false;
 
+    /* checking internal copies against internal data length */
     off = 0;
     for (uint32_t i = 1; i < int_copies_size; i += 2) {
         off += delta->int_copies[i];
@@ -360,6 +339,7 @@ int readdelta_rest(int filedesc, struct deltarpm *delta)
         }
     }
 
+    /* checking external copies against external data length */
     off = 0;
     for (uint32_t i = 0; i < ext_copies_size; i += 2) {
         off += (int32_t)delta->ext_copies[i];
@@ -380,6 +360,7 @@ cleanup:
     return error;
 }
 
+/* Reads part of DeltaRPM specific to rpm-only deltas. */
 int readdelta_rpmonly(int filedesc, struct deltarpm *delta)
 {
     uint32_t version;
@@ -396,6 +377,8 @@ int readdelta_rpmonly(int filedesc, struct deltarpm *delta)
     if ((error = read_be32(filedesc, &tgt_nevr_len)) != DRPM_ERR_OK)
         return error;
 
+    /* reading target NEVR */
+
     if ((delta->head.tgt_nevr = malloc(tgt_nevr_len + 1)) == NULL)
         return DRPM_ERR_MEMORY;
 
@@ -407,7 +390,7 @@ int readdelta_rpmonly(int filedesc, struct deltarpm *delta)
 
     delta->head.tgt_nevr[tgt_nevr_len] = '\0';
 
-    printf("target NEVR: %s\n", delta->head.tgt_nevr);
+    /* reading add data */
 
     if ((error = read_be32(filedesc, &delta->add_data_len)) != DRPM_ERR_OK)
         return error;
@@ -421,29 +404,22 @@ int readdelta_rpmonly(int filedesc, struct deltarpm *delta)
     if ((uint32_t)bytes_read != delta->add_data_len)
         return DRPM_ERR_FORMAT;
 
-    printf("length of add data: %u\n", delta->add_data_len);
-
     return DRPM_ERR_OK;
 }
 
+/* Reads part of DeltaRPM specific to standard deltas. */
 int readdelta_standard(int filedesc, struct deltarpm *delta)
 {
     struct rpm *rpmst;
     int error;
 
+    /* reading RPM lead, signature and header */
     if ((error = rpm_read(&rpmst, delta->filename, RPM_ARCHIVE_DONT_READ, NULL, NULL, NULL)) != DRPM_ERR_OK)
         return error;
 
+    /* reading target compression from header (used for older delta versions) */
     if ((error = rpm_get_comp(rpmst, &delta->tgt_comp)) != DRPM_ERR_OK)
         return error;
-
-    printf("target compression: %s\n", comp2str(delta->tgt_comp));
-
-    char *tgt_nevr;
-    if ((error = rpm_get_nevr(rpmst, &tgt_nevr)) != DRPM_ERR_OK)
-        return error;
-    printf("target NEVR: %s\n", tgt_nevr);
-    free(tgt_nevr);
 
     if (lseek(filedesc, rpm_size_full(rpmst), SEEK_SET) == (off_t)-1)
         return DRPM_ERR_IO;
@@ -453,6 +429,7 @@ int readdelta_standard(int filedesc, struct deltarpm *delta)
     return DRPM_ERR_OK;
 }
 
+/* Reads DeltaRPM from file. */
 int read_deltarpm(struct deltarpm *delta, const char *filename)
 {
     int filedesc;
@@ -467,18 +444,18 @@ int read_deltarpm(struct deltarpm *delta, const char *filename)
 
     delta->filename = filename;
 
+    /* determining type of delta by magic bytes and calling relevant subroutine */
+
     if ((error = read_be32(filedesc, &magic)) != DRPM_ERR_OK)
         goto cleanup_fail;
 
     switch (magic) {
     case MAGIC_DRPM:
-        printf("deltarpm type: rpm-only\n");
         delta->type = DRPM_TYPE_RPMONLY;
         if ((error = readdelta_rpmonly(filedesc, delta)) != DRPM_ERR_OK)
             goto cleanup_fail;
         break;
     case MAGIC_RPM:
-        printf("deltarpm type: standard\n");
         delta->type = DRPM_TYPE_STANDARD;
         if ((error = readdelta_standard(filedesc, delta)) != DRPM_ERR_OK)
             goto cleanup_fail;
@@ -488,6 +465,7 @@ int read_deltarpm(struct deltarpm *delta, const char *filename)
         goto cleanup_fail;
     }
 
+    /* the rest of the delta is the same for both types */
     if ((error = readdelta_rest(filedesc, delta)) != DRPM_ERR_OK)
         goto cleanup_fail;
 
@@ -502,6 +480,7 @@ cleanup:
     return error;
 }
 
+/* Converts DeltaRPM data to more readable format. */
 int deltarpm_to_drpm(const struct deltarpm *src, struct drpm *dst)
 {
     const struct drpm init = {0};

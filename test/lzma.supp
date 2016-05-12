@@ -1,0 +1,7 @@
+{
+   <lzma>
+   Memcheck:Cond
+   ...
+   obj:/usr/*lib*/liblzma.so.*
+   ...
+}

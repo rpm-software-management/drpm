@@ -26,8 +26,6 @@
 #include <config.h>
 #endif
 
-#include <stdio.h> // DEBUG
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -127,10 +125,6 @@ struct hash;
 struct sfxsrt;
 //drpm_write.c
 struct compstrm_wrapper;
-
-// DEBUG
-const char *type2str(unsigned short type);
-const char *comp2str(unsigned short comp);
 
 //drpm_apply.c
 int expand_sequence(struct cpio_file **, size_t *, const unsigned char *, uint32_t,

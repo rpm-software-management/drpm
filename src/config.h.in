@@ -22,6 +22,7 @@
 #define _CONFIG_H_
 
 #cmakedefine ARCH_LESS_64BIT
+#cmakedefine HAVE_LZLIB_DEVEL
 
 #ifdef ARCH_LESS_64BIT
 #define _FILE_OFFSET_BITS 64

@@ -30,7 +30,9 @@
 #include <zlib.h>
 #include <bzlib.h>
 #include <lzma.h>
+#ifdef HAVE_LZLIB_DEVEL
 #include <lzlib.h>
+#endif
 
 struct compstrm {
     unsigned char *data;
@@ -41,7 +43,9 @@ struct compstrm {
         z_stream gzip;
         bz_stream bzip2;
         lzma_stream lzma;
+#ifdef HAVE_LZLIB_DEVEL
         struct LZ_Encoder *lzip;
+#endif
     } stream;
     int (*write_chunk)(struct compstrm *, size_t, const void *);
     int (*finish)(struct compstrm *);
@@ -50,18 +54,20 @@ struct compstrm {
 
 static int finish_bzip2(struct compstrm *);
 static int finish_gzip(struct compstrm *);
-static int finish_lzip(struct compstrm *);
 static int finish_lzma(struct compstrm *);
 static int init_bzip2(struct compstrm *, int);
 static int init_gzip(struct compstrm *, int);
-static int init_lzip(struct compstrm *, int);
 static int init_lzma(struct compstrm *, int);
 static int init_xz(struct compstrm *, int);
 static int writechunk(struct compstrm *, size_t, const void *);
 static int writechunk_bzip2(struct compstrm *, size_t, const void *);
 static int writechunk_gzip(struct compstrm *, size_t, const void *);
-static int writechunk_lzip(struct compstrm *, size_t, const void *);
 static int writechunk_lzma(struct compstrm *, size_t, const void *);
+
+#ifdef HAVE_LZLIB_DEVEL
+static int finish_lzip(struct compstrm *);
+static int init_lzip(struct compstrm *, int);
+static int writechunk_lzip(struct compstrm *, size_t, const void *);
 
 static int lzip_error(struct compstrm *strm)
 {
@@ -77,6 +83,9 @@ static int lzip_error(struct compstrm *strm)
         return DRPM_ERR_OTHER;
     }
 }
+#endif
+
+/* Functions for finishing compression for individual methods. */
 
 int finish_bzip2(struct compstrm *strm)
 {
@@ -186,6 +195,7 @@ cleanup:
     return error;
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 int finish_lzip(struct compstrm *strm)
 {
     int error = DRPM_ERR_OK;
@@ -220,6 +230,9 @@ cleanup:
 
     return error;
 }
+#endif
+
+/* Function for initializing compression for individual methods. */
 
 int init_bzip2(struct compstrm *strm, int level)
 {
@@ -305,6 +318,7 @@ int init_xz(struct compstrm *strm, int level)
     strm->write_chunk = writechunk_lzma;
     strm->finish = finish_lzma;
     strm->stream.lzma = stream;
+    memset(&strm->stream.lzma, 0, sizeof(lzma_stream));
 
     if (level == DRPM_COMP_LEVEL_DEFAULT)
         level = 3;
@@ -321,6 +335,7 @@ int init_xz(struct compstrm *strm, int level)
     return DRPM_ERR_OK;
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 int init_lzip(struct compstrm *strm, int level)
 {
     int error;
@@ -336,7 +351,9 @@ int init_lzip(struct compstrm *strm, int level)
 
     return error;
 }
+#endif
 
+/* Frees memory allocated by compression stream. */
 int compstrm_destroy(struct compstrm **strm)
 {
     if (strm == NULL || *strm == NULL)
@@ -349,6 +366,9 @@ int compstrm_destroy(struct compstrm **strm)
     return DRPM_ERR_OK;
 }
 
+/* Initializes compression stream.
+ * The compression method will be <comp> and the compression level will be <level>.
+ * If <filedesc> is valid, compressed data will be written to the file. */
 int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int level)
 {
     int error;
@@ -386,10 +406,12 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
         if ((error = init_xz(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
         break;
+#ifdef HAVE_LZLIB_DEVEL
     case DRPM_COMP_LZIP:
         if ((error = init_lzip(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
         break;
+#endif
     default:
         return DRPM_ERR_PROG;
     }
@@ -403,6 +425,9 @@ cleanup_fail:
     return error;
 }
 
+/* Finishes up compression.
+ * If neither <data> nor <data_len> are NULL, stores all data
+ * compressed by this stream in <*data> (and its size in <*data_len>). */
 int compstrm_finish(struct compstrm *strm, unsigned char **data, size_t *data_len)
 {
     int error;
@@ -463,6 +488,7 @@ int compstrm_write_be64(struct compstrm *strm, uint64_t number)
     return compstrm_write(strm, 8, bytes);
 }
 
+/* Compresses <write_len> bytes pointed to by <buffer>. */
 int compstrm_write(struct compstrm *strm, size_t write_len, const void *buffer)
 {
     int error;
@@ -493,6 +519,9 @@ int compstrm_write(struct compstrm *strm, size_t write_len, const void *buffer)
     return DRPM_ERR_OK;
 }
 
+/* Functions for compressing input data using individual methods. */
+
+// no compression
 int writechunk(struct compstrm *strm, size_t in_len, const void *in_buffer)
 {
     unsigned char *data_tmp;
@@ -592,6 +621,7 @@ int writechunk_lzma(struct compstrm *strm, size_t in_len, const void *in_buffer)
     return DRPM_ERR_OK;
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 int writechunk_lzip(struct compstrm *strm, size_t in_len, const void *in_buffer)
 {
     int error;
@@ -628,3 +658,4 @@ int writechunk_lzip(struct compstrm *strm, size_t in_len, const void *in_buffer)
 
     return DRPM_ERR_OK;
 }
+#endif

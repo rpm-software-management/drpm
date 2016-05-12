@@ -54,6 +54,10 @@ static uint16_t elf16(const unsigned char *, bool);
 static uint32_t elf32(const unsigned char *, bool);
 static uint64_t elf64(const unsigned char *, bool, bool);
 
+/* Expands the compressed sequence of the file order.
+ * May perform checks on the individual files.
+ * May create an index of CPIO entry lengths and offsets into
+ * <*seqfiles_ret> and <*seqfile_len_ret>. */
 int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
                     const unsigned char *sequence, uint32_t sequence_len,
                     const struct file_info *files, size_t file_count,
@@ -102,6 +106,7 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
     if ((positions = malloc(file_count * sizeof(size_t))) == NULL)
         return DRPM_ERR_MEMORY;
 
+    /* decompressing the file order */
     for (uint32_t i = MD5_DIGEST_LENGTH; i < sequence_len; ) {
         if (even) {
             num_buf = sequence[i] >> 4;
@@ -165,6 +170,9 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
         goto cleanup_fail;
     }
 
+    /* constructing an MD5 to match against the DeltaRPM sequence
+     * checking that files have not changed,
+     * and constructing an index of CPIO entries. */
     for (size_t i, pos = 0; pos < positions_len; pos++) {
         i = positions[pos];
 
@@ -222,8 +230,6 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
             }
             if (check != NULL && (error = check(files[i].name, digest_algo, digest, filesize)) != DRPM_ERR_OK)
                 goto cleanup;
-            if (check != NULL)
-                printf("checked file %s successfully\n", files[i].name);
         }
 
         if (want_seq) {
@@ -245,7 +251,6 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
     }
 
     if (memcmp(sequence, seq_md5_digest, MD5_DIGEST_LENGTH) != 0) {
-        printf("MD5s do not match\n");
         error = DRPM_ERR_MISMATCH;
         goto cleanup_fail;
     }

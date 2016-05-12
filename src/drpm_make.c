@@ -45,16 +45,18 @@
 
 #define CPIO_ALLOC_SIZE 65536
 
-#define SEQ_INIT {.data = NULL, .index = 0, .alloc_len = 0,\
-                  .last_seq_start = 0, .last_seq = -1}
-#define SEQ_ALLOC_SIZE 32
-#define SEQ_BYTE_LEN(index) (((index) + 1) / 2)
-
 #define MAGIC_RPML 0x52504D4C
 
 #ifndef RPMFILE_UNPATCHED
 #define RPMFILE_UNPATCHED (1 << 10)
 #endif
+
+/* sequence compressing RPM file order */
+
+#define SEQ_INIT {.data = NULL, .index = 0, .alloc_len = 0,\
+                  .last_seq_start = 0, .last_seq = -1}
+#define SEQ_ALLOC_SIZE 32
+#define SEQ_BYTE_LEN(index) (((index) + 1) / 2)
 
 struct files_seq {
     unsigned char *data;
@@ -63,6 +65,8 @@ struct files_seq {
     size_t last_seq_start;
     ssize_t last_seq;
 };
+
+/* RPM patches */
 
 struct patch_file {
     char *name;
@@ -119,6 +123,7 @@ bool seq_append(struct files_seq *seq, unsigned val)
     return true;
 }
 
+/* Encodes next file index. */
 int seq_add(struct files_seq *seq, unsigned index)
 {
     unsigned val;
@@ -147,6 +152,7 @@ int seq_add(struct files_seq *seq, unsigned index)
     return DRPM_ERR_OK;
 }
 
+/* Finalizes sequence and writes it to buffer. */
 int seq_final(struct files_seq *seq, unsigned char **buffer, size_t *size)
 {
     unsigned val = seq->last_seq - seq->last_seq_start + 1;
@@ -160,6 +166,7 @@ int seq_final(struct files_seq *seq, unsigned char **buffer, size_t *size)
     return DRPM_ERR_OK;
 }
 
+/* Extends old CPIO buffer. */
 int cpio_extend(unsigned char **cpio, size_t *cpio_len,
                 const void *seq, size_t len)
 {
@@ -185,6 +192,7 @@ int cpio_extend(unsigned char **cpio, size_t *cpio_len,
     return DRPM_ERR_OK;
 }
 
+/* Reads CPIO header entry. */
 int cpio_header_read(struct cpio_header *cpio_hdr,
                      const char buffer[CPIO_HEADER_SIZE + 1])
 {
@@ -232,6 +240,7 @@ int cpio_header_read(struct cpio_header *cpio_hdr,
     return DRPM_ERR_OK;
 }
 
+/* Writes CPIO header entry. */
 void cpio_header_write(const struct cpio_header *cpio_hdr,
                        char buffer[CPIO_HEADER_SIZE + 1])
 {
@@ -243,14 +252,14 @@ void cpio_header_write(const struct cpio_header *cpio_hdr,
             cpio_hdr->rdevminor, cpio_hdr->namesize, 0);
 }
 
-/* For standard deltarpms, the old RPM's CPIO archive is parsed based
- * on filesystem data found in the RPM header. An altered CPIO archive
+/* For standard DeltaRPMs, the old RPM's CPIO archive is parsed based
+ * on file metadata found in the RPM header. An altered CPIO archive
  * is created: e.g. some files may be skipped, a symlink's file content
  * is replaced with the name of its target, etc.
  * This is also where the deltarpm sequence is created, consisting of
  * the MD5 sum for the files followed by the encoded order of the files
  * in the RPM header.
- * Additionally (for V3 deltarpms), an array of offset adjustment
+ * Additionally (for V3 DeltaRPMs), an array of offset adjustment
  * elements is created, which stores offset differences between
  * entries in the original and altered CPIO archives. */
 int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
@@ -606,6 +615,8 @@ cleanup:
     return error;
 }
 
+/* RPM patches */
+
 int rpml_get_uint16(int filedesc, uint16_t *ret)
 {
     unsigned char buf[2];
@@ -844,6 +855,7 @@ cleanup:
     return error;
 }
 
+/* Reads RPM patches. */
 int patches_read(const char *oldrpmprint, const char *oldpatchrpm, struct rpm_patches **patches)
 {
     int error = DRPM_ERR_OK;
@@ -959,6 +971,7 @@ int patches_destroy(struct rpm_patches **patches)
     return DRPM_ERR_OK;
 }
 
+/* Checks that patches' NEVRs match the old RPMs. */
 int patches_check_nevr(const struct rpm_patches *patches, const char *nevr)
 {
     if (patches == NULL)
@@ -970,6 +983,7 @@ int patches_check_nevr(const struct rpm_patches *patches, const char *nevr)
            DRPM_ERR_ARGS;
 }
 
+/* Checks if the file is unpatched. */
 bool is_unpatched(const struct rpm_patches *patches, const char *name,
                   const char rpm_md5[MD5_DIGEST_LENGTH * 2 + 1])
 {
@@ -998,7 +1012,7 @@ bool is_unpatched(const struct rpm_patches *patches, const char *name,
 
 /* In the case of an rpm-only identity deltarpm, since identity deltarpms
  * only read one RPM file and rpm-only deltarpms take the RPMs' CPIO
- * archives "as is" (i.e. they are not altered based on filesystem data),
+ * archives "as is" (i.e. they are not altered based on file metadata),
  * there is nothing to diff. */
 int fill_nodiff_deltarpm(struct deltarpm *delta, const char *rpm_filename,
                          bool comp_not_set)

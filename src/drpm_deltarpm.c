@@ -39,6 +39,7 @@
 #define DELTARPM_COMPALGO(comp) ((comp) & 255)
 #define DELTARPM_COMPLEVEL(comp) (((comp) >> 8) & 255)
 
+/* Converts *from* deltarpm's on-disk encoding. */
 bool deltarpm_decode_comp(uint32_t deltarpm_comp, unsigned short *comp, unsigned short *level)
 {
     switch (DELTARPM_COMPALGO(deltarpm_comp)) {
@@ -69,6 +70,7 @@ bool deltarpm_decode_comp(uint32_t deltarpm_comp, unsigned short *comp, unsigned
     return true;
 }
 
+/* Converts *to* deltarpm's on-disk encoding. */
 bool deltarpm_encode_comp(uint32_t *deltarpm_comp, unsigned short comp, unsigned short level)
 {
     switch (comp) {

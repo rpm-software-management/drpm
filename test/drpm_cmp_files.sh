@@ -3,13 +3,14 @@
 script=$0
 
 function usage {
-    echo "usage: ${script} [ -d <prefix> ] [ -s ]"
+    echo "usage: ${script} [ -d <prefix> ] [ -s ] [ -l ]"
 }
 
 prefix=""
 skip=false
+lzip=false
 
-while getopts "hd:s" opt; do
+while getopts "hd:sl" opt; do
     case $opt in
         h)
             usage
@@ -20,6 +21,9 @@ while getopts "hd:s" opt; do
             ;;
         s)
             skip=true
+            ;;
+        l)
+            lzip=true
             ;;
         *)
             usage
@@ -54,8 +58,11 @@ declare -a deltas=("${prefix}nodiff.drpm" \
                    "${prefix}identity.drpm" \
                    "${prefix}rpmonly.drpm" \
                    "${prefix}standard.drpm" \
-                   "${prefix}rpmonly-noaddblk.drpm" \
-                   "${prefix}standard-lzip.drpm")
+                   "${prefix}rpmonly-noaddblk.drpm")
+
+if [ $lzip = true ]; then
+    deltas+=("${prefix}standard-lzip.drpm")
+fi
 
 rpmstandard="${prefix}standard.rpm"
 rpmrpmonly="${prefix}rpmonly-noaddblk.rpm"
@@ -83,8 +90,13 @@ if ! [ -f ${cmpseq} ]; then
     exit 1
 fi
 
-if ! [ -f ${rpmstandard} ] || ! [ -f ${rpmrpmonly} ] || ! [ -f ${rpmlzip} ]; then
+if ! [ -f ${rpmstandard} ] || ! [ -f ${rpmrpmonly} ]; then
     echo "previous error: missing RPM files"
+    exit 1
+fi
+
+if [ $lzip = true ] && ! [ -f ${rpmlzip} ]; then
+    echo "previous error: missing RPM files (lzip)"
     exit 1
 fi
 
@@ -119,11 +131,14 @@ done
 
 sha256sum ${newrpm1} | awk '{ print $1 }' >> ${refRPMsha256}
 sha256sum ${newrpm2} | awk '{ print $1 }' >> ${refRPMsha256}
-sha256sum ${newrpm2} | awk '{ print $1 }' >> ${refRPMsha256}
 
 sha256sum ${rpmstandard} | awk '{ print $1 }' >> ${cmpRPMsha256}
 sha256sum ${rpmrpmonly} | awk '{ print $1 }' >> ${cmpRPMsha256}
-sha256sum ${rpmlzip} | awk '{ print $1 }' >> ${cmpRPMsha256}
+
+if [ $lzip = true ]; then
+    sha256sum ${newrpm2} | awk '{ print $1 }' >> ${refRPMsha256}
+    sha256sum ${rpmlzip} | awk '{ print $1 }' >> ${cmpRPMsha256}
+fi
 
 ret=0
 

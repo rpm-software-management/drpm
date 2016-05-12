@@ -18,6 +18,10 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef HAVE_CONFIG_H
+#include <config.h>
+#endif
+
 #include "../src/drpm.h"
 
 #include <stdio.h>
@@ -53,6 +57,7 @@
 
 #define SEQFILE "seqfile.txt"
 
+// garbage collector for drpm_read tests
 struct read_deltas {
     unsigned short index;
     drpm *deltas[DELTARPM_COUNT];
@@ -100,6 +105,7 @@ static int make_teardown(void **state)
     return 0;
 }
 
+// equivalent to: makedeltarpm -u -r <OLDRPM_1> <DELTARPM_NODIFF>
 static void make_nodiff(void **state)
 {
     drpm_make_options *opts = *state;
@@ -110,6 +116,7 @@ static void make_nodiff(void **state)
     assert_int_equal(DRPM_ERR_OK, drpm_make(OLDRPM_1, NULL, DELTARPM_NODIFF, opts));
 }
 
+// equivalent to: makedeltarpm -u -V 2 -z uncompressed <NEWRPM_1> <DELTARPM_IDENTITY>
 static void make_identity(void **state)
 {
     drpm_make_options *opts = *state;
@@ -121,6 +128,7 @@ static void make_identity(void **state)
     assert_int_equal(DRPM_ERR_OK, drpm_make(NULL, NEWRPM_1, DELTARPM_IDENTITY, opts));
 }
 
+// equivalent to: makedeltarpm -r -z bzip2.7,lzma <OLDRPM_2> <NEWRPM_2> <DELTARPM_RPMONLY>
 static void make_rpmonly(void **state)
 {
     drpm_make_options *opts = *state;
@@ -133,6 +141,7 @@ static void make_rpmonly(void **state)
     assert_int_equal(DRPM_ERR_OK, drpm_make(OLDRPM_2, NEWRPM_2, DELTARPM_RPMONLY, opts));
 }
 
+// equivalent to: makedeltarpm -s <SEQFILE> <OLDRPM_1> <NEWRPM_1> <DELTARPM_STANDARD>
 static void make_standard(void **state)
 {
     drpm_make_options *opts = *state;
@@ -143,6 +152,7 @@ static void make_standard(void **state)
     assert_int_equal(DRPM_ERR_OK, drpm_make(OLDRPM_1, NEWRPM_1, DELTARPM_STANDARD, opts));
 }
 
+// equivalent to: makedeltarpm -r -z gzip,off <OLDRPM_2> <NEWRPM_2> <DELTARPM_RPMONLY_NOADDBLK>
 static void make_rpmonly_noaddblk(void **state)
 {
     drpm_make_options *opts = *state;
@@ -155,6 +165,8 @@ static void make_rpmonly_noaddblk(void **state)
     assert_int_equal(DRPM_ERR_OK, drpm_make(OLDRPM_2, NEWRPM_2, DELTARPM_RPMONLY_NOADDBLK, opts));
 }
 
+#ifdef HAVE_LZLIB_DEVEL
+// testing lzip support (not in makedeltarpm)
 static void make_standard_lzip(void **state)
 {
     drpm_make_options *opts = *state;
@@ -164,6 +176,7 @@ static void make_standard_lzip(void **state)
 
     assert_int_equal(DRPM_ERR_OK, drpm_make(OLDRPM_2, NEWRPM_2, DELTARPM_STANDARD_LZIP, opts));
 }
+#endif
 
 /***************************** drpm_read ******************************/
 
@@ -273,18 +286,23 @@ static void read_nodiff(void **state)
     assert_non_null(tgt_nevr);
     assert_non_null(tgt_md5);
     assert_non_null(tgt_lead);
+
+    // no internal/external copies for no-diff deltas
     assert_null(int_copies);
     assert_null(ext_copies);
 
     assert_string_equal(delta_name, filename);
-    assert_int_equal(DRPM_TYPE_RPMONLY, type);
+    assert_int_equal(DRPM_TYPE_RPMONLY, type); // rpm-only
     assert_int_equal(3, version);
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(sequence));
+    // NEVRs should equal for identity deltas
     assert_string_equal(src_nevr, tgt_nevr);
     assert_int_equal(filesize(OLDRPM_1), tgt_size);
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(tgt_md5));
-    assert_int_not_equal(0, tgt_header_len);
+    assert_int_not_equal(0, tgt_header_len); // header "in diff" (rpm-only)
     assert_not_in_range(strlen(tgt_lead), 0, (96 + 16) - 1);
+
+    // no diff data
     assert_int_equal(0, int_copies_size);
     assert_int_equal(0, ext_copies_size);
     assert_int_equal(0, int_data_len);
@@ -353,14 +371,15 @@ static void read_identity(void **state)
     assert_non_null(tgt_lead);
 
     assert_string_equal(delta_name, filename);
-    assert_int_equal(DRPM_TYPE_STANDARD, type);
-    assert_int_equal(2, version);
-    assert_int_equal(DRPM_COMP_NONE, comp);
+    assert_int_equal(DRPM_TYPE_STANDARD, type); // standard
+    assert_int_equal(2, version); // version 2
+    assert_int_equal(DRPM_COMP_NONE, comp); // uncompressed
     assert_not_in_range(strlen(sequence), 0, (MD5_DIGEST_LENGTH * 2) - 1);
+    // NEVRs should equal for identity deltas
     assert_string_equal(src_nevr, tgt_nevr);
     assert_int_equal(filesize(NEWRPM_1), tgt_size);
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(tgt_md5));
-    assert_int_equal(0, tgt_header_len);
+    assert_int_equal(0, tgt_header_len); // header not in diff
     assert_not_in_range(strlen(tgt_lead), 0, (96 + 16) - 1);
     assert_true(int_copies_size % 2 == 0);
     assert_true(ext_copies_size % 2 == 0);
@@ -451,13 +470,13 @@ static void read_rpmonly(void **state)
     assert_non_null(tgt_lead);
 
     assert_string_equal(delta_name, filename);
-    assert_int_equal(DRPM_TYPE_RPMONLY, type);
+    assert_int_equal(DRPM_TYPE_RPMONLY, type); // rpm-only
     assert_int_equal(3, version);
-    assert_int_equal(DRPM_COMP_BZIP2, comp);
+    assert_int_equal(DRPM_COMP_BZIP2, comp); // bzip2 compressed
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(sequence));
     assert_int_equal(filesize(NEWRPM_2), tgt_size);
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(tgt_md5));
-    assert_int_not_equal(0, tgt_header_len);
+    assert_int_not_equal(0, tgt_header_len); // header in diff
     assert_not_in_range(strlen(tgt_lead), 0, (96 + 16) - 1);
     assert_true(int_copies_size % 2 == 0);
     assert_true(ext_copies_size % 2 == 0);
@@ -548,13 +567,13 @@ static void read_standard(void **state)
     assert_non_null(tgt_lead);
 
     assert_string_equal(delta_name, filename);
-    assert_int_equal(DRPM_TYPE_STANDARD, type);
+    assert_int_equal(DRPM_TYPE_STANDARD, type); // standard
     assert_int_equal(3, version);
-    assert_int_equal(tgt_comp, comp);
+    assert_int_equal(tgt_comp, comp); // delta compression same as RPM
     assert_not_in_range(strlen(sequence), 0, (MD5_DIGEST_LENGTH * 2) - 1);
     assert_int_equal(filesize(NEWRPM_1), tgt_size);
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(tgt_md5));
-    assert_int_equal(0, tgt_header_len);
+    assert_int_equal(0, tgt_header_len); // header not in diff
     assert_not_in_range(strlen(tgt_lead), 0, (96 + 16) - 1);
     assert_true(int_copies_size % 2 == 0);
     assert_true(ext_copies_size % 2 == 0);
@@ -645,13 +664,13 @@ static void read_rpmonly_noaddblk(void **state)
     assert_non_null(tgt_lead);
 
     assert_string_equal(delta_name, filename);
-    assert_int_equal(DRPM_TYPE_RPMONLY, type);
+    assert_int_equal(DRPM_TYPE_RPMONLY, type); // rpm-only
     assert_int_equal(3, version);
-    assert_int_equal(DRPM_COMP_GZIP, comp);
+    assert_int_equal(DRPM_COMP_GZIP, comp); // gzip compression
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(sequence));
     assert_int_equal(filesize(NEWRPM_2), tgt_size);
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(tgt_md5));
-    assert_int_not_equal(0, tgt_header_len);
+    assert_int_not_equal(0, tgt_header_len); // header in diff
     assert_not_in_range(strlen(tgt_lead), 0, (96 + 16) - 1);
     assert_true(int_copies_size % 2 == 0);
     assert_true(ext_copies_size % 2 == 0);
@@ -680,6 +699,7 @@ static void read_rpmonly_noaddblk(void **state)
     }
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 static void read_standard_lzip(void **state)
 {
     struct read_deltas *drpms = *state;
@@ -742,13 +762,13 @@ static void read_standard_lzip(void **state)
     assert_non_null(tgt_lead);
 
     assert_string_equal(delta_name, filename);
-    assert_int_equal(DRPM_TYPE_STANDARD, type);
+    assert_int_equal(DRPM_TYPE_STANDARD, type); // standard
     assert_int_equal(3, version);
-    assert_int_equal(DRPM_COMP_LZIP, comp);
+    assert_int_equal(DRPM_COMP_LZIP, comp); // lzip compression
     assert_not_in_range(strlen(sequence), 0, (MD5_DIGEST_LENGTH * 2) - 1);
     assert_int_equal(filesize(NEWRPM_2), tgt_size);
     assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(tgt_md5));
-    assert_int_equal(0, tgt_header_len);
+    assert_int_equal(0, tgt_header_len); // header not in diff
     assert_not_in_range(strlen(tgt_lead), 0, (96 + 16) - 1);
     assert_true(int_copies_size % 2 == 0);
     assert_true(ext_copies_size % 2 == 0);
@@ -776,6 +796,7 @@ static void read_standard_lzip(void **state)
         assert_false(off > ext_data_len);
     }
 }
+#endif
 
 /************************ drpm_check_sequence *************************/
 
@@ -809,6 +830,7 @@ static int check_teardown(void **state)
     return 0;
 }
 
+// can only check uninstalled RPMs
 static void check_sequence(void **state)
 {
     assert_int_equal(DRPM_ERR_OK, drpm_check_sequence(OLDRPM_1, (const char *)*state, DRPM_CHECK_NONE));
@@ -828,11 +850,13 @@ static void apply_rpmonly_noaddblk(void **state)
     assert_int_equal(DRPM_ERR_OK, drpm_apply(OLDRPM_2, DELTARPM_RPMONLY_NOADDBLK, RPMOUT_RPMONLY_NOADDBLK));
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 static void apply_standard_lzip(void **state)
 {
     (void)state;
     assert_int_equal(DRPM_ERR_OK, drpm_apply(OLDRPM_2, DELTARPM_STANDARD_LZIP, RPMOUT_STANDARD_LZIP));
 }
+#endif
 
 /***************************** run tests ******************************/
 
@@ -845,15 +869,19 @@ int main()
         cmocka_unit_test(make_rpmonly),
         cmocka_unit_test(make_standard),
         cmocka_unit_test(make_rpmonly_noaddblk),
+#ifdef HAVE_LZLIB_DEVEL
         cmocka_unit_test(make_standard_lzip)
+#endif
     };
-    const struct CMUnitTest read_tests[DELTARPM_COUNT] = {
+    const struct CMUnitTest read_tests[] = {
         cmocka_unit_test(read_nodiff),
         cmocka_unit_test(read_identity),
         cmocka_unit_test(read_rpmonly),
         cmocka_unit_test(read_standard),
         cmocka_unit_test(read_rpmonly_noaddblk),
+#ifdef HAVE_LZLIB_DEVEL
         cmocka_unit_test(read_standard_lzip)
+#endif
     };
     const struct CMUnitTest check_tests[] = {
         cmocka_unit_test(check_sequence)
@@ -861,7 +889,9 @@ int main()
     const struct CMUnitTest apply_tests[] = {
         cmocka_unit_test(apply_standard),
         cmocka_unit_test(apply_rpmonly_noaddblk),
+#ifdef HAVE_LZLIB_DEVEL
         cmocka_unit_test(apply_standard_lzip)
+#endif
     };
 
     failed = cmocka_run_group_tests_name("drpm_make()", make_tests, make_setup, make_teardown);

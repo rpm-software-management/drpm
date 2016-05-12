@@ -31,40 +31,6 @@
 #include <fcntl.h>
 #include <stddef.h>
 
-// DEBUG
-const char *type2str(unsigned short type)
-{
-    switch (type) {
-    case DRPM_TYPE_RPMONLY:
-        return "rpm-only";
-    case DRPM_TYPE_STANDARD:
-        return "standard";
-    default:
-        return "!!!unknown type!!!";
-    }
-}
-
-// DEBUG
-const char *comp2str(unsigned short comp)
-{
-    switch (comp) {
-    case DRPM_COMP_NONE:
-        return "uncompressed";
-    case DRPM_COMP_GZIP:
-        return "gzip";
-    case DRPM_COMP_BZIP2:
-        return "bzip2";
-    case DRPM_COMP_LZMA:
-        return "lzma";
-    case DRPM_COMP_XZ:
-        return "xz";
-    case DRPM_COMP_LZIP:
-        return "lzip";
-    default:
-        return "!!!unknown compression!!!";
-    }
-}
-
 const char *drpm_strerror(int error)
 {
     switch (error) {
@@ -323,7 +289,6 @@ int drpm_get_ulong_array(struct drpm *delta, int tag, unsigned long **ret_array,
 
 /***************************** drpm make ******************************/
 
-// TODO: implement memlimit
 int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
               const char *deltarpm_name, const drpm_make_options *user_opts)
 {
@@ -408,8 +373,6 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             goto cleanup;
     }
 
-    printf("read RPM(s)\n");
-
     /* checking if archive is in CPIO format */
     if ((error = rpm_get_payload_format(alone ? solo_rpm : new_rpm, &payload_format)) != DRPM_ERR_OK)
         goto cleanup;
@@ -417,8 +380,6 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         error = DRPM_ERR_FORMAT;
         goto cleanup;
     }
-
-    printf("archive is in CPIO format\n");
 
     /* reading compression level of target RPM */
     if ((error = rpm_get_comp_level(alone ? solo_rpm : new_rpm, &delta.tgt_comp_level)) != DRPM_ERR_OK)
@@ -428,11 +389,7 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
     if (opts.comp_from_rpm) {
         delta.comp = delta.tgt_comp;
         delta.comp_level = delta.tgt_comp_level;
-        printf("determined delta compression type and level from RPM\n");
     }
-
-    printf("delta compression type and level: %s (%u)\n", comp2str(delta.comp), delta.comp_level);
-    printf("RPM compression type and level: %s (%u)\n", comp2str(delta.tgt_comp), delta.tgt_comp_level);
 
     if (!rpm_only)
         delta.head.tgt_rpm = alone ? solo_rpm : new_rpm;
@@ -442,20 +399,14 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
         (rpm_only && (error = rpm_get_nevr(new_rpm, &delta.head.tgt_nevr)) != DRPM_ERR_OK))
         goto cleanup;
 
-    printf("copied NEVRs\n");
-
     if (patches != NULL && (error = patches_check_nevr(patches, delta.src_nevr)) != DRPM_ERR_OK)
         goto cleanup;
 
     if ((error = rpm_fetch_lead_and_signature(alone ? solo_rpm : new_rpm, &delta.tgt_leadsig, &delta.tgt_leadsig_len)) != DRPM_ERR_OK)
         goto cleanup;
 
-    printf("copied RPM lead and signature\n");
-
     /* storing size of target RPM file */
     delta.tgt_size = rpm_size_full(alone ? solo_rpm : new_rpm);
-
-    printf("stored RPM size\n");
 
     /* creating old_cpio and new_cpio for binary diff */
     if (rpm_only) {
@@ -495,14 +446,10 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
             goto cleanup;
     }
 
-    printf("prepared byte sequences (old = %zu, new = %zu)\n", old_cpio_len, new_cpio_len);
-
     /* patching and storing offset of payload format tag in header for compatibility with deltarpm */
     if ((!rpm_only && (error = rpm_patch_payload_format(delta.head.tgt_rpm, "drpm")) != DRPM_ERR_OK) ||
         (error = rpm_find_payload_format_offset(alone ? solo_rpm : new_rpm, &delta.payload_fmt_off)) != DRPM_ERR_OK)
         goto cleanup;
-
-    printf("patched and stored offset of payload format\n");
 
     /* diff algorithm, creating deltarpm diff data */
     if ((error = make_diff(old_cpio, old_cpio_len, new_cpio, new_cpio_len,
@@ -513,13 +460,10 @@ int drpm_make(const char *old_rpm_name, const char *new_rpm_name,
                            opts.addblk_comp, opts.addblk_comp_level)) != DRPM_ERR_OK)
         goto cleanup;
 
-    printf("completed diff\n");
-
     delta.int_data_as_ptrs = true;
     delta.ext_data_len = old_cpio_len;
 
 write_files:
-    printf("writing files\n");
 
     if ((error = write_deltarpm(&delta)) != DRPM_ERR_OK)
         goto cleanup;
@@ -528,7 +472,6 @@ write_files:
         error = write_seqfile(&delta, opts.seqfile);
 
 cleanup:
-    printf("cleaning up\n");
 
     free_deltarpm(&delta);
 
@@ -602,21 +545,20 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
     if ((filedesc = creat(new_rpm_name, CREAT_MODE)) < 0)
         return DRPM_ERR_IO;
 
+    /* reading DeltaRPM */
     if ((error = read_deltarpm(&delta, deltarpm_name)) != DRPM_ERR_OK)
         goto cleanup;
     rpm_only = (delta.type == DRPM_TYPE_RPMONLY);
     no_full_md5 = (memcmp(empty_md5, delta.tgt_md5, MD5_DIGEST_LENGTH) == 0);
-    printf("read deltarpm, type is %s, full md5 %spresent\n",
-           type2str(delta.type), no_full_md5 ? "not " : "");
 
     if (from_rpm) {
+        /* reading old RPM */
         if ((error = rpm_read(&old_rpm, old_rpm_name, RPM_ARCHIVE_READ_DECOMP, NULL, NULL, NULL)) != DRPM_ERR_OK)
             goto cleanup;
-        printf("read old RPM\n");
         if (rpm_only) {
+            /* comparing signature MD5 with DeltaRPM sequence */
             if ((error = rpm_signature_get_md5(old_rpm, oldsig_md5, &has_md5)) != DRPM_ERR_OK)
                 goto cleanup;
-            printf("md5 %sfound in signature\n", has_md5 ? "" : "not ");
             if (!has_md5) {
                 error = DRPM_ERR_FORMAT;
                 goto cleanup;
@@ -625,18 +567,20 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
                 error = DRPM_ERR_MISMATCH;
                 goto cleanup;
             }
-            printf("md5s match\n");
         }
     } else {
-        if (rpm_only) // rpm-only deltarpms do not work from filesystem
+        // rpm-only deltarpms do not work from filesystem
+        if (rpm_only)
             return DRPM_ERR_ARGS;
-        if (rpm_is_sourcerpm(delta.head.tgt_rpm)) // cannot reconstruct source RPMs from filesystem
+        // cannot reconstruct source RPMs from filesystem
+        if (rpm_is_sourcerpm(delta.head.tgt_rpm))
             return DRPM_ERR_ARGS;
+        /* reading old RPM header from database */
         if ((error = rpm_read_header(&old_rpm, delta.src_nevr, NULL)) != DRPM_ERR_OK)
             goto cleanup;
-        printf("read RPM header from database\n");
     }
 
+    /* comparing source NEVRs */
     if ((error = rpm_get_nevr(old_rpm, &old_rpm_nevr)) != DRPM_ERR_OK)
         goto cleanup;
     if (strcmp(delta.src_nevr, old_rpm_nevr) != 0) {
@@ -644,9 +588,8 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
         goto cleanup;
     }
 
-    printf("NEVRs match\n");
-
     if (!rpm_only) {
+        /* expanding sequence */
         if ((error = rpm_get_file_info(old_rpm, &files, &file_count, NULL)) != DRPM_ERR_OK ||
             (error = rpm_get_digest_algo(old_rpm, &digest_algo)) != DRPM_ERR_OK ||
             (error = expand_sequence(&cpio_files, &cpio_files_len,
@@ -654,33 +597,30 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
                                      files, file_count, digest_algo,
                                      DRPM_CHECK_NONE)) != DRPM_ERR_OK)
             goto cleanup;
-        printf("sequence expansion successful\n");
     }
 
+    /* overwriting old RPM's lead and signature with new RPM's */
     patched_rpm = old_rpm;
     if ((error = rpm_replace_lead_and_signature(patched_rpm, delta.tgt_leadsig, delta.tgt_leadsig_len)) != DRPM_ERR_OK)
         goto cleanup;
 
-    printf("patched lead and signature\n");
-
     if (rpm_only && delta.tgt_comp == DRPM_COMP_NONE &&
         delta.int_copies_count == 0 && delta.ext_copies_count == 0) {
-        printf("no diff deltarpm\n");
+    /* no-diff DeltaRPM, no need for reconstruction */
         if ((error = rpm_write(patched_rpm, new_rpm_name, true, md5_digest, !no_full_md5)) != DRPM_ERR_OK)
             goto cleanup;
-        printf("RPM write successful\n");
 
         goto final_check;
     }
 
+    /* creating blocks for reading external data */
     if ((error = blocks_create(&blks, delta.ext_data_len, files,
                                cpio_files, cpio_files_len,
                                delta.ext_copies, delta.ext_copies_count,
                                from_rpm ? old_rpm : NULL, rpm_only)) != DRPM_ERR_OK)
         goto cleanup;
 
-    printf("created blocks\n");
-
+    /* setting up add block */
     if (delta.add_data_len > 0) {
         if ((error = decompstrm_init(&addblk_strm, -1, NULL, NULL, delta.add_data, delta.add_data_len)) != DRPM_ERR_OK)
             goto cleanup;
@@ -688,7 +628,6 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
             error = DRPM_ERR_MEMORY;
             goto cleanup;
         }
-        printf("prepared add block\n");
     }
 
     if ((buffer = malloc(block_size())) == NULL) {
@@ -701,6 +640,7 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
         goto cleanup;
     }
 
+    /* writing lead and signature of new RPM */
     if (write(filedesc, delta.tgt_leadsig, delta.tgt_leadsig_len) != (ssize_t)delta.tgt_leadsig_len) {
         error = DRPM_ERR_IO;
         goto cleanup;
@@ -709,9 +649,9 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
         error = DRPM_ERR_OTHER;
         goto cleanup;
     }
-    printf("wrote lead and signature%s\n", no_full_md5 ? "" : " and updated md5");
 
     if (!rpm_only) {
+        /* standard delta -> write out header (rpm-only includes it in diff) */
         if ((error = rpm_patch_payload_format(delta.head.tgt_rpm, "cpio")) != DRPM_ERR_OK ||
             (error = rpm_fetch_header(delta.head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
             goto cleanup;
@@ -723,20 +663,20 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
             error = DRPM_ERR_OTHER;
             goto cleanup;
         }
-        printf("wrote header and updated md5\n");
     }
 
+    /* compression stream wrapper, makes sure header is uncompressed if included */
     if ((error = compstrm_wrapper_init(&csw, delta.tgt_header_len,
                                        filedesc, delta.tgt_comp, delta.tgt_comp_level)) != DRPM_ERR_OK)
         goto cleanup;
+
+    /* reconstructing from diff data */
 
     int_copies = delta.int_copies;
     int_copies_count = delta.int_copies_count;
     ext_copies = delta.ext_copies;
     ext_copies_count = delta.ext_copies_count;
     int_data = delta.int_data.bytes;
-
-    printf("patching...\n");
 
     while (int_copies_count--) {
         ext_copies_todo = *int_copies++;
@@ -745,21 +685,21 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
             goto cleanup;
         }
 
-        //printf("performing %u external copies...\n", ext_copies_todo);
+        /* performing X external copies before next internal copy */
         while (ext_copies_todo--) {
-            ext_offset += (int32_t)*ext_copies++;
-            ext_copy_len = *ext_copies++;
+            ext_offset += (int32_t)*ext_copies++; // adjusting external offset
+            ext_copy_len = *ext_copies++; // length of external copy
             ext_copies_count--;
             blk_id = block_id(ext_offset);
 
-            //printf("performing external copy (%zu)...\n", ext_copy_len);
-
+            /* performing external copy */
             while (ext_copy_len > 0) {
                 if ((error = blocks_next(blks, buffer, &buffer_len,
                                          ext_offset, ext_copy_len,
                                          ext_copies_done, blk_id)) != DRPM_ERR_OK)
                     goto cleanup;
 
+                /* applying add block */
                 if (delta.add_data_len > 0) {
                     if ((error = decompstrm_read(addblk_strm, buffer_len, addblk_buf)) != DRPM_ERR_OK)
                         goto cleanup;
@@ -780,30 +720,26 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
 
         int_copy_len = *int_copies++;
 
-        //printf("performing internal copy (%zu)...\n", int_copy_len);
-
+        /* performing internal copy */
         if ((error = compstrm_wrapper_write(csw, int_data, int_copy_len)) != DRPM_ERR_OK)
             goto cleanup;
         int_data += int_copy_len;
     }
 
-    printf("finished patch\n");
-
     if ((error = compstrm_wrapper_finish(csw, &comp_data, &comp_data_len)) != DRPM_ERR_OK)
         goto cleanup;
 
+    /* finalizing MD5 of written data */
     if (MD5_Update(&md5, comp_data, comp_data_len) != 1 ||
         MD5_Final(md5_digest, &md5) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup;
     }
 
-    printf("updated md5\n");
-
 final_check:
-    printf("final check...\n");
 
     if (no_full_md5) {
+    /* no target MD5 -> only match checksums of header and archive */
         if ((error = rpm_signature_get_md5(patched_rpm, newsig_md5, &has_md5)) != DRPM_ERR_OK)
             goto cleanup;
         if (has_md5 && memcmp(md5_digest, newsig_md5, MD5_DIGEST_LENGTH) != 0) {
@@ -811,17 +747,14 @@ final_check:
             goto cleanup;
         }
     } else {
+    /* match full MD5 */
         if (memcmp(md5_digest, delta.tgt_md5, MD5_DIGEST_LENGTH) != 0) {
             error = DRPM_ERR_MISMATCH;
             goto cleanup;
         }
     }
 
-    printf("check successful\n");
-
 cleanup:
-
-    printf("cleaning up\n");
 
     close(filedesc);
 
@@ -861,16 +794,15 @@ int drpm_check(const char *deltarpm_name, int check_mode)
         (check_mode != DRPM_CHECK_FILESIZES && check_mode != DRPM_CHECK_FULL))
         return DRPM_ERR_ARGS;
 
+    /* reading DeltaRPM */
     if ((error = read_deltarpm(&delta, deltarpm_name)) != DRPM_ERR_OK)
         goto cleanup;
 
-    printf("read deltarpm\n");
-
+    /* reading old RPM header from database */
     if ((error = rpm_read_header(&old_rpm, delta.src_nevr, NULL)) != DRPM_ERR_OK)
         goto cleanup;
 
-    printf("read header from database\n");
-
+    /* checking NEVRs */
     if ((error = rpm_get_nevr(old_rpm, &old_rpm_nevr)) != DRPM_ERR_OK)
         goto cleanup;
     if (strcmp(delta.src_nevr, old_rpm_nevr) != 0) {
@@ -878,19 +810,16 @@ int drpm_check(const char *deltarpm_name, int check_mode)
         goto cleanup;
     }
 
-    printf("NEVRs match\n");
-
     if (delta.type == DRPM_TYPE_STANDARD) {
+        /* expanding sequence, checking files */
         if ((error = rpm_get_file_info(old_rpm, &files, &file_count, NULL)) != DRPM_ERR_OK ||
             (error = rpm_get_digest_algo(old_rpm, &digest_algo)) != DRPM_ERR_OK ||
             (error = expand_sequence(NULL, NULL, delta.sequence, delta.sequence_len,
                                      files, file_count, digest_algo, check_mode)) != DRPM_ERR_OK)
             goto cleanup;
-        printf("sequence expansion check succeeded\n");
     }
 
 cleanup:
-    printf("cleaning up\n");
 
     for (size_t i = 0; i < file_count; i++) {
         free(files[i].name);
@@ -929,6 +858,8 @@ int drpm_check_sequence(const char *old_rpm_name, const char *sequence, int chec
         (old_rpm_name != NULL && check_mode != DRPM_CHECK_NONE))
         return DRPM_ERR_ARGS;
 
+    /* parsing sequence ID into source NEVR and sequence */
+
     ptr = strrchr(sequence, '-');
     if (ptr == NULL || ptr == sequence)
         return DRPM_ERR_FORMAT;
@@ -950,21 +881,21 @@ int drpm_check_sequence(const char *old_rpm_name, const char *sequence, int chec
         goto cleanup;
     }
 
-    printf("parsed sequence (%zu): %.32s %s\n", seq_len, ptr, ptr + 32);
-
     if (old_rpm_name == NULL) {
+        /* reading header from database */
         if ((error = rpm_read_header(&old_rpm, nevr, NULL)) != DRPM_ERR_OK)
             goto cleanup;
         rpm_only = false;
-        printf("read RPM header from database\n");
     } else {
+        /* reading old RPM */
         if ((error = rpm_read(&old_rpm, old_rpm_name, RPM_ARCHIVE_DONT_READ, NULL, NULL, NULL)) != DRPM_ERR_OK ||
             (error = rpm_signature_get_md5(old_rpm, sigmd5, &has_md5)) != DRPM_ERR_OK)
             goto cleanup;
+        // determining type of delta
         rpm_only = (seq_len == MD5_DIGEST_LENGTH && has_md5 && memcmp(seq, sigmd5, MD5_DIGEST_LENGTH) == 0);
-        printf("read old RPM, identified %s delta\n", rpm_only ? "rpm-only" : "standard");
     }
 
+    /* checking NEVRs */
     if ((error = rpm_get_nevr(old_rpm, &old_rpm_nevr)) != DRPM_ERR_OK)
         goto cleanup;
     if (strcmp(nevr, old_rpm_nevr) != 0) {
@@ -972,18 +903,16 @@ int drpm_check_sequence(const char *old_rpm_name, const char *sequence, int chec
         goto cleanup;
     }
 
-    printf("NEVRs match\n");
-
     if (!rpm_only) {
+        /* expanding sequence, checking files */
         if ((error = rpm_get_file_info(old_rpm, &files, &file_count, NULL)) != DRPM_ERR_OK ||
             (error = rpm_get_digest_algo(old_rpm, &digest_algo)) != DRPM_ERR_OK ||
             (error = expand_sequence(NULL, NULL, seq, seq_len, files, file_count, digest_algo, check_mode)) != DRPM_ERR_OK)
             goto cleanup;
-        printf("sequence expansion check succeeded\n");
     }
 
 cleanup:
-    printf("cleaning up\n");
+
     for (size_t i = 0; i < file_count; i++) {
         free(files[i].name);
         free(files[i].md5);

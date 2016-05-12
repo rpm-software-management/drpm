@@ -267,6 +267,7 @@ int drpm_make_options_add_patches(struct drpm_make_options *opts, const char *ol
     return DRPM_ERR_OK;
 }
 
+// TODO: not yet used
 int drpm_make_options_set_memlimit(struct drpm_make_options *opts, unsigned mbytes)
 {
     if (opts == NULL)

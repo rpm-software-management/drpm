@@ -235,6 +235,13 @@ cleanup:
     return error;
 }
 
+/* Reads RPM (or RPM-like file) from file <filename> into <*rpmst>.
+ * The archive may be decompressed, read "as is", or not read at all.
+ * If read, the compression method used in the archive is stored in
+ * <*archive_comp>.
+ * Two MD5 checksums may be created. An MD5 digest of the header
+ * and archive will be written to <seq_md5_digest>, while
+ * <full_md5_digest> shall be made up of the while file. */
 int rpm_read(struct rpm **rpmst, const char *filename,
              int archive_mode, unsigned short *archive_comp,
              unsigned char seq_md5_digest[MD5_DIGEST_LENGTH],
@@ -345,6 +352,7 @@ cleanup:
     return error;
 }
 
+/* Frees RPM data. */
 int rpm_destroy(struct rpm **rpmst)
 {
     if (rpmst == NULL || *rpmst == NULL)
@@ -357,6 +365,7 @@ int rpm_destroy(struct rpm **rpmst)
     return DRPM_ERR_OK;
 }
 
+/* Reads <count> bytes to <buffer> from the current offset in the archive. */
 int rpm_archive_read_chunk(struct rpm *rpmst, void *buffer, size_t count)
 {
     if (rpmst == NULL)
@@ -373,6 +382,7 @@ int rpm_archive_read_chunk(struct rpm *rpmst, void *buffer, size_t count)
     return DRPM_ERR_OK;
 }
 
+/* Positions the archive offset at the beginning of the archive. */
 int rpm_archive_rewind(struct rpm *rpmst)
 {
     if (rpmst == NULL)
@@ -383,6 +393,8 @@ int rpm_archive_rewind(struct rpm *rpmst)
     return DRPM_ERR_OK;
 }
 
+/* Returns the on-disk size of the RPM file. This will be without
+ * the archive if it wasn't read. */
 uint32_t rpm_size_full(struct rpm *rpmst)
 {
     if (rpmst == NULL)
@@ -395,6 +407,7 @@ uint32_t rpm_size_full(struct rpm *rpmst)
            rpmst->archive_comp_size;
 }
 
+/* Returns the size of the RPM header. */
 uint32_t rpm_size_header(struct rpm *rpmst)
 {
     if (rpmst == NULL)
@@ -403,6 +416,7 @@ uint32_t rpm_size_header(struct rpm *rpmst)
     return headerSizeof(rpmst->header, HEADER_MAGIC_YES);
 }
 
+/* Fetches a concatenation of the on-disk RPM lead and signature. */
 int rpm_fetch_lead_and_signature(struct rpm *rpmst,
                                  unsigned char **lead_sig, uint32_t *len_ret)
 {
@@ -435,6 +449,7 @@ cleanup:
     return error;
 }
 
+/* Fetches the on-disk RPM header. */
 int rpm_fetch_header(struct rpm *rpmst, unsigned char **header_ret, uint32_t *len_ret)
 {
     int error;
@@ -448,6 +463,7 @@ int rpm_fetch_header(struct rpm *rpmst, unsigned char **header_ret, uint32_t *le
     return DRPM_ERR_OK;
 }
 
+/* Fetches the archive (in whatever format it was read). */
 int rpm_fetch_archive(struct rpm *rpmst, unsigned char **archive_ret, size_t *len)
 {
     if (rpmst == NULL || archive_ret == NULL || len == NULL)
@@ -462,6 +478,10 @@ int rpm_fetch_archive(struct rpm *rpmst, unsigned char **archive_ret, size_t *le
     return DRPM_ERR_OK;
 }
 
+/* Writes the RPM to <filename>. Will not write the archive unless
+ * <include_archive> is true. May also write an MD5 digest of written
+ * data to <digest>. If <full_md5> is false, then this will not include
+ * the lead and signature. */
 int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive, unsigned char digest[MD5_DIGEST_LENGTH], bool full_md5)
 {
     int error = DRPM_ERR_OK;
@@ -526,6 +546,7 @@ cleanup:
     return error;
 }
 
+/* Replaces the lead and signature with data import from <leadsig>. */
 int rpm_replace_lead_and_signature(struct rpm *rpmst, unsigned char *leadsig, size_t leadsig_len)
 {
     const size_t skip = RPMLEAD_SIZE + sizeof(rpm_header_magic);
@@ -546,11 +567,13 @@ int rpm_replace_lead_and_signature(struct rpm *rpmst, unsigned char *leadsig, si
     return DRPM_ERR_OK;
 }
 
+/* Checks if this is a source RPM. */
 bool rpm_is_sourcerpm(struct rpm *rpmst)
 {
     return (headerGetString(rpmst->header, RPMTAG_SOURCERPM) == NULL);
 }
 
+/* Fetches the NEVR string from the header. */
 int rpm_get_nevr(struct rpm *rpmst, char **nevr)
 {
     if (rpmst == NULL || nevr == NULL)
@@ -562,6 +585,7 @@ int rpm_get_nevr(struct rpm *rpmst, char **nevr)
     return DRPM_ERR_OK;
 }
 
+/* Determines the payload compression from information in the header. */
 int rpm_get_comp(struct rpm *rpmst, unsigned short *comp)
 {
     const char *payload_comp;
@@ -589,6 +613,7 @@ int rpm_get_comp(struct rpm *rpmst, unsigned short *comp)
     return DRPM_ERR_OK;
 }
 
+/* Determines the compression level from the header. */
 int rpm_get_comp_level(struct rpm *rpmst, unsigned short *level)
 {
     const char *payload_flags;
@@ -608,6 +633,7 @@ int rpm_get_comp_level(struct rpm *rpmst, unsigned short *level)
     return DRPM_ERR_OK;
 }
 
+/* Determines the digest algorithm used for file checksums in the header. */
 int rpm_get_digest_algo(struct rpm *rpmst, unsigned short *digestalgo)
 {
     int error = DRPM_ERR_OK;
@@ -648,6 +674,7 @@ cleanup:
     return error;
 }
 
+/* Determines the payload format from the header. */
 int rpm_get_payload_format(struct rpm *rpmst, unsigned short *payfmt)
 {
     const char *payload_format;
@@ -671,6 +698,7 @@ int rpm_get_payload_format(struct rpm *rpmst, unsigned short *payfmt)
     return DRPM_ERR_OK;
 }
 
+/* Replaces the payload format information in the header. */
 int rpm_patch_payload_format(struct rpm *rpmst, const char *new_payfmt)
 {
     if (rpmst == NULL || new_payfmt == NULL)
@@ -689,6 +717,7 @@ int rpm_patch_payload_format(struct rpm *rpmst, const char *new_payfmt)
     return DRPM_ERR_OK;
 }
 
+/* Fetches a list of file information from the header. */
 int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret,
                       size_t *count_ret, bool *colors_ret)
 {
@@ -840,6 +869,7 @@ cleanup:
     return error;
 }
 
+/* Calculates the offset of the payload format string in the header. */
 int rpm_find_payload_format_offset(struct rpm *rpmst, uint32_t *offset)
 {
     unsigned char *header;
@@ -872,6 +902,7 @@ cleanup:
     return error;
 }
 
+/* Empties the signature. */
 int rpm_signature_empty(struct rpm *rpmst)
 {
     if (rpmst == NULL)
@@ -883,6 +914,8 @@ int rpm_signature_empty(struct rpm *rpmst)
     return DRPM_ERR_OK;
 }
 
+/* Sets size tag in the signature.
+ * Should be equal to the size all data following the signature. */
 int rpm_signature_set_size(struct rpm *rpmst, uint32_t size)
 {
     rpmtd tag_data;
@@ -904,6 +937,8 @@ int rpm_signature_set_size(struct rpm *rpmst, uint32_t size)
     return DRPM_ERR_OK;
 }
 
+/* Sets MD5 tag in the signature.
+ * Should be equal to the MD5 sum of all data following the signature. */
 int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[MD5_DIGEST_LENGTH])
 {
     rpmtd tag_data;
@@ -925,6 +960,7 @@ int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[MD5_DIGEST_LENGTH
     return DRPM_ERR_OK;
 }
 
+/* Reloads the signature to accomodate for changes. */
 int rpm_signature_reload(struct rpm *rpmst)
 {
     rpmst->signature = headerReload(rpmst->signature, RPMTAG_HEADERSIGNATURES);
@@ -932,6 +968,7 @@ int rpm_signature_reload(struct rpm *rpmst)
     return DRPM_ERR_OK;
 }
 
+/* Fetches the MD5 sum from the signature. */
 int rpm_signature_get_md5(struct rpm *rpmst, unsigned char md5[MD5_DIGEST_LENGTH], bool *has_md5)
 {
     int error = DRPM_ERR_OK;
@@ -957,6 +994,8 @@ cleanup:
     return error;
 }
 
+/* Reads only the header of an installed RPM from the database.
+ * The RPM is identified by its <nevr> string. */
 int rpm_read_header(struct rpm **rpmst, const char *nevr, const char *arch)
 {
     int error = DRPM_ERR_OK;

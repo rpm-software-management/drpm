@@ -33,11 +33,13 @@
 
 static bool resize(void **, size_t, size_t, size_t);
 
+/* Reads 16-byte integer in network byte order buffer. */
 uint16_t parse_be16(const unsigned char buffer[2])
 {
     return (0xFF00 & (buffer[0] << 8)) | (0x00FF & buffer[1]);
 }
 
+/* Reads 32-byte integer in network byte order from buffer. */
 uint32_t parse_be32(const unsigned char buffer[4])
 {
     return (0xFF000000 & (buffer[0] << 24)) |
@@ -46,6 +48,7 @@ uint32_t parse_be32(const unsigned char buffer[4])
            (0x000000FF & buffer[3]);
 }
 
+/* Reads 64-byte integer in network byte order from buffer. */
 uint64_t parse_be64(const unsigned char buffer[8])
 {
     return (0xFF00000000000000 & ((uint64_t)buffer[0] << 56)) |
@@ -58,6 +61,7 @@ uint64_t parse_be64(const unsigned char buffer[8])
            (0x00000000000000FF & (uint64_t)buffer[7]);
 }
 
+/* Writes 32-byte integer in network byte order to buffer. */
 void create_be32(uint32_t in, unsigned char out[4])
 {
     out[0] = in >> 24;
@@ -66,6 +70,7 @@ void create_be32(uint32_t in, unsigned char out[4])
     out[3] = in;
 }
 
+/* Writes 64-byte integer in network byte order to buffer. */
 void create_be64(uint64_t in, unsigned char out[8])
 {
     out[0] = in >> 56;
@@ -87,6 +92,9 @@ int md5_update_be32(MD5_CTX *md5, uint32_t number)
     return MD5_Update(md5, be32, 4);
 }
 
+/* Represents array of bytes pointed to by <source> of size <count>
+ * as human-readable ASCII hexadecimals and stores this string in
+ * <dest> (should be at least of size <count> * 2 + 1). */
 void dump_hex(char *dest, const unsigned char *source, size_t count)
 {
     char digits[] = "0123456789abcdef";
@@ -99,6 +107,10 @@ void dump_hex(char *dest, const unsigned char *source, size_t count)
     }
 }
 
+/* Converts human-readable hexadecimal string (<source>)
+ * to array of bytes (<dest>), which should have enough space for
+ * strlen(<source>) / 2 bytes.
+ * Returns length of array, or -1 on error. */
 ssize_t parse_hex(unsigned char *dest, const char *source)
 {
     ssize_t byte;
@@ -142,6 +154,7 @@ bool parse_sha256(unsigned char *dest, const char *source)
     return parse_hex(dest, source) == SHA256_DIGEST_LENGTH;
 }
 
+/* Reallocates memory for <*buffer> <threshhold> bytes at a time>. */
 bool resize(void **buffer, size_t members_count, size_t member_size, size_t threshhold)
 {
     void *buf_tmp;

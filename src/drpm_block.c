@@ -45,6 +45,7 @@
 
 #define BLOCKS(size) (1 + ((size) - 1) / BLOCK_SIZE)
 
+/* a list of open files */
 struct open_file {
     struct open_file *prev;
     struct open_file *next;
@@ -53,10 +54,14 @@ struct open_file {
     off_t offset;
 };
 
+/* a block */
 struct block {
     struct block *next;
     int type;
     unsigned id;
+    /* core blocks store the buffer directly, while page blocks
+     * only store an offset within a temporary file from which to read
+     * the data */
     union {
         off_t offset;
         unsigned char *buffer;
@@ -117,16 +122,19 @@ static int push_block(struct blocks *, const struct block *, size_t);
 static int read_page_block(struct blocks *, struct block *, const struct block *);
 static int write_page_block(struct blocks *, const struct block *, size_t);
 
+/* returns size of block */
 size_t block_size()
 {
     return BLOCK_SIZE;
 }
 
+/* determines block ID from offset */
 size_t block_id(uint64_t offset)
 {
     return offset / BLOCK_SIZE;
 }
 
+/* creates blocks for reading external data */
 int blocks_create(struct blocks **blks_ret,
                   uint64_t ext_data_len, const struct file_info *files,
                   const struct cpio_file *cpio_files, size_t cpio_files_len,
@@ -221,6 +229,7 @@ cleanup:
     return error;
 }
 
+/* frees block data */
 int blocks_destroy(struct blocks **blks_ref)
 {
     struct blocks *blks;
@@ -271,6 +280,7 @@ int blocks_destroy(struct blocks **blks_ref)
     return DRPM_ERR_OK;
 }
 
+/* fetches external data */
 int blocks_next(struct blocks *blks, unsigned char buffer[BLOCK_SIZE], size_t *buffer_len,
                 uint64_t offset, size_t copy_len, size_t copy_cnt, size_t id)
 {

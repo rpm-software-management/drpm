@@ -7,7 +7,7 @@
 DOXYFILE_ENCODING      = UTF-8
 PROJECT_NAME           = "drpm"
 PROJECT_NUMBER         =
-PROJECT_BRIEF          = "A small library for fetching information from deltarpm packages"
+PROJECT_BRIEF          = "A library for making, reading and applying deltarpm packages"
 PROJECT_LOGO           =
 OUTPUT_DIRECTORY       = @CMAKE_CURRENT_BINARY_DIR@
 CREATE_SUBDIRS         = NO

@@ -31,9 +31,12 @@
 #include <zlib.h>
 #include <bzlib.h>
 #include <lzma.h>
+#ifdef HAVE_LZLIB_DEVEL
 #include <lzlib.h>
+#endif
 #include <openssl/md5.h>
 
+/* magic bytes for determining compression type */
 #define MAGIC_BZIP2(x) (((x) >> 40) == 0x425A68)
 #define MAGIC_GZIP(x) (((x) >> 48) == 0x1F8B)
 #define MAGIC_LZMA(x) (((x) >> 40) == 0x5D0000)
@@ -49,7 +52,9 @@ struct decompstrm {
         z_stream gzip;
         bz_stream bzip2;
         lzma_stream lzma;
+#ifdef HAVE_LZLIB_DEVEL
         struct LZ_Decoder *lzip;
+#endif
     } stream;
     bool lzip_eof;
     int (*read_chunk)(struct decompstrm *);
@@ -62,17 +67,19 @@ struct decompstrm {
 
 static void finish_bzip2(struct decompstrm *);
 static void finish_gzip(struct decompstrm *);
-static void finish_lzip(struct decompstrm *);
 static void finish_lzma(struct decompstrm *);
 static int init_bzip2(struct decompstrm *);
 static int init_gzip(struct decompstrm *);
-static int init_lzip(struct decompstrm *);
 static int init_lzma(struct decompstrm *);
 static int readchunk(struct decompstrm *);
 static int readchunk_bzip2(struct decompstrm *);
 static int readchunk_gzip(struct decompstrm *);
-static int readchunk_lzip(struct decompstrm *);
 static int readchunk_lzma(struct decompstrm *);
+
+#ifdef HAVE_LZLIB_DEVEL
+static void finish_lzip(struct decompstrm *);
+static int init_lzip(struct decompstrm *);
+static int readchunk_lzip(struct decompstrm *);
 
 static int lzip_error(struct decompstrm *strm)
 {
@@ -88,6 +95,9 @@ static int lzip_error(struct decompstrm *strm)
         return DRPM_ERR_OTHER;
     }
 }
+#endif
+
+/* Functions for finishing decompression for individual methods. */
 
 void finish_bzip2(struct decompstrm *strm)
 {
@@ -104,10 +114,14 @@ void finish_lzma(struct decompstrm *strm)
     lzma_end(&strm->stream.lzma);
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 void finish_lzip(struct decompstrm *strm)
 {
     LZ_decompress_close(strm->stream.lzip);
 }
+#endif
+
+/* Functions for initializing decompression for individual methods. */
 
 int init_bzip2(struct decompstrm *strm)
 {
@@ -173,6 +187,7 @@ int init_lzma(struct decompstrm *strm)
     return DRPM_ERR_OK;
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 int init_lzip(struct decompstrm *strm)
 {
     int error;
@@ -189,7 +204,9 @@ int init_lzip(struct decompstrm *strm)
 
     return error;
 }
+#endif
 
+/* Frees memory allocated by decompression stream. */
 int decompstrm_destroy(struct decompstrm **strm)
 {
     if (strm == NULL || *strm == NULL)
@@ -205,6 +222,11 @@ int decompstrm_destroy(struct decompstrm **strm)
     return DRPM_ERR_OK;
 }
 
+/* Initializes decompression stream.
+ * The detected compression method will be stored in <*comp> (if not NULL).
+ * If <md5> is not NULL, input data will be used to update the MD5 context.
+ * If <filedesc> is valid, compressed data will be read from the file.
+ * Otherwise, input data is read from <buffer> of size <buffer_len>. */
 int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp, MD5_CTX *md5,
                     const unsigned char *buffer, size_t buffer_len)
 {
@@ -255,11 +277,13 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp
             *comp = DRPM_COMP_LZMA;
         if ((error = init_lzma(*strm)) != DRPM_ERR_OK)
             goto cleanup_fail;
+#ifdef HAVE_LZLIB_DEVEL
     } else if (MAGIC_LZIP(magic)) {
         if (comp != NULL)
             *comp = DRPM_COMP_LZIP;
         if ((error = init_lzip(*strm)) != DRPM_ERR_OK)
             goto cleanup_fail;
+#endif
     } else {
         if (comp != NULL)
             *comp = DRPM_COMP_NONE;
@@ -276,6 +300,7 @@ cleanup_fail:
     return error;
 }
 
+/* Fetches size of *compressed* data. */
 int decompstrm_get_comp_size(struct decompstrm *strm, size_t *size)
 {
     if (strm == NULL || size == NULL)
@@ -318,6 +343,7 @@ int decompstrm_read_be64(struct decompstrm *strm, uint64_t *buffer_ret)
     return DRPM_ERR_OK;
 }
 
+/* Decompresses enough data to store <read_len> bytes at <buffer_ret>. */
 int decompstrm_read(struct decompstrm *strm, size_t read_len, void *buffer_ret)
 {
     int error;
@@ -340,6 +366,8 @@ int decompstrm_read(struct decompstrm *strm, size_t read_len, void *buffer_ret)
     return DRPM_ERR_OK;
 }
 
+/* Decompresses the entire file and stores the result <*buffer_ret>
+ * (and the size <*len_ret>). */
 int decompstrm_read_until_eof(struct decompstrm *strm,
                               size_t *len_ret, unsigned char **buffer_ret)
 {
@@ -378,6 +406,9 @@ int decompstrm_read_until_eof(struct decompstrm *strm,
     return DRPM_ERR_OK;
 }
 
+/* Functions for decompressing chunks of data. */
+
+// no compression
 int readchunk(struct decompstrm *strm)
 {
     ssize_t in_len;
@@ -579,6 +610,7 @@ int readchunk_lzma(struct decompstrm *strm)
     return DRPM_ERR_OK;
 }
 
+#ifdef HAVE_LZLIB_DEVEL
 int readchunk_lzip(struct decompstrm *strm)
 {
     int error;
@@ -654,3 +686,4 @@ int readchunk_lzip(struct decompstrm *strm)
 
     return DRPM_ERR_OK;
 }
+#endif

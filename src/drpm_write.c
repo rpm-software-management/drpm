@@ -27,14 +27,16 @@
 #include <openssl/md5.h>
 #include <rpm/rpmlib.h>
 
+/* Wrapper for struct compstrm. Used to prepend uncompressed header. */
 struct compstrm_wrapper {
-    struct compstrm *strm;
-    int filedesc;
-    size_t uncomp_len;
-    size_t uncomp_left;
-    unsigned char *uncomp_data;
+    struct compstrm *strm; // compression stream
+    int filedesc; // file descriptor
+    size_t uncomp_len; // length of uncompressed data
+    size_t uncomp_left; // how much uncompressed data left to write
+    unsigned char *uncomp_data; // uncompressed data
 };
 
+/* Writes 32-byte integer in network byte order to file. */
 int write_be32(int filedesc, uint32_t number)
 {
     unsigned char nbo[4];
@@ -47,6 +49,7 @@ int write_be32(int filedesc, uint32_t number)
     return DRPM_ERR_OK;
 }
 
+/* Writes 64-byte integer in network byte order to file. */
 int write_be64(int filedesc, uint64_t number)
 {
     unsigned char nbo[8];
@@ -59,6 +62,7 @@ int write_be64(int filedesc, uint64_t number)
     return DRPM_ERR_OK;
 }
 
+/* Writes out the DeltaRPM. */
 int write_deltarpm(struct deltarpm *delta)
 {
     int error = DRPM_ERR_OK;
@@ -284,6 +288,8 @@ cleanup:
 
     return error;
 }
+
+/* Wrapper functions for compstrm. Used to prepend uncompressed header. */
 
 int compstrm_wrapper_init(struct compstrm_wrapper **csw, size_t uncomp_len,
                           int filedesc, unsigned short comp, int level)
