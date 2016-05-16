@@ -305,6 +305,7 @@ int blocks_next(struct blocks *blks, unsigned char buffer[BLOCK_SIZE], size_t *b
     return DRPM_ERR_OK;
 }
 
+/* gets new block and fills it */
 int get_block(struct blocks *blks, struct block **blk_ret, size_t id, size_t copy_cnt)
 {
     static size_t cleanup_count = 0;
@@ -369,6 +370,7 @@ int get_block(struct blocks *blks, struct block **blk_ret, size_t id, size_t cop
     if (page_blk != NULL && page_blk->type == BLK_PAGE)
         return read_page_block(blks, blk, page_blk);
 
+    /* filling block */
     if ((error = blks->fill_block(blks, blk, id, copy_cnt)) != DRPM_ERR_OK)
         return error;
 
@@ -377,6 +379,7 @@ int get_block(struct blocks *blks, struct block **blk_ret, size_t id, size_t cop
     return DRPM_ERR_OK;
 }
 
+/* allocates a new block */
 int new_core_block(struct blocks *blks, struct block **new_ret)
 {
     struct block *new;
@@ -400,6 +403,7 @@ int new_core_block(struct blocks *blks, struct block **new_ret)
     return DRPM_ERR_OK;
 }
 
+/* pops a free core block and pushes it to core blocks for reuse */
 struct block *get_free_core_block(struct blocks *blks)
 {
     struct block *blk;
@@ -415,6 +419,7 @@ struct block *get_free_core_block(struct blocks *blks)
     return blk;
 }
 
+/* inserts a block in table */
 int push_block(struct blocks *blks, const struct block *blk, size_t copy_cnt)
 {
     int error;
@@ -444,6 +449,7 @@ int push_block(struct blocks *blks, const struct block *blk, size_t copy_cnt)
     return DRPM_ERR_OK;
 }
 
+/* insert a page block in table and writes its data to temporary file */
 int write_page_block(struct blocks *blks, const struct block *blk, size_t copy_cnt)
 {
     struct block *new;
@@ -492,6 +498,7 @@ int write_page_block(struct blocks *blks, const struct block *blk, size_t copy_c
     return DRPM_ERR_OK;
 }
 
+/* reads page block data from temporary file into destination block */
 int read_page_block(struct blocks *blks, struct block *dst, const struct block *src)
 {
     if (blks == NULL || dst == NULL || src == NULL ||
@@ -508,6 +515,7 @@ int read_page_block(struct blocks *blks, struct block *dst, const struct block *
     return DRPM_ERR_OK;
 }
 
+/* fills CPIO header and linkto buffers based on file info at <index> */
 void fill_cpio_header(struct blocks *blks, ssize_t index)
 {
     struct cpio_header header = {0};
@@ -553,6 +561,7 @@ void fill_cpio_header(struct blocks *blks, ssize_t index)
            "\0\0\0", CPIO_PADDING(CPIO_HEADER_SIZE + header.namesize));
 }
 
+/* opens new file and appends it to list, sets <prelinked> indicator */
 int open_new_file(struct blocks *blks, bool *prelinked, size_t index)
 {
     int error;
@@ -570,6 +579,8 @@ int open_new_file(struct blocks *blks, bool *prelinked, size_t index)
     file = blks->files[blks->cpio_files[index].index];
     files_head = blks->rpm_files.from_filesytem.files_head;
     files_tail = blks->rpm_files.from_filesytem.files_tail;
+
+    *prelinked = false;
 
     if ((filedesc = open(file.name, O_RDONLY)) < 0)
         return DRPM_ERR_IO;
@@ -623,6 +634,7 @@ int open_new_file(struct blocks *blks, bool *prelinked, size_t index)
     return DRPM_ERR_OK;
 }
 
+/* gets open file and moves it to end of list */
 struct open_file *get_open_file(struct blocks *blks, size_t index)
 {
     struct open_file *file = blks->rpm_files.from_filesytem.open_files[index];
@@ -656,6 +668,9 @@ struct open_file *get_open_file(struct blocks *blks, size_t index)
 
 /***************************** fill block *****************************/
 
+/* Fills a block from old RPM in the case of a standard delta.
+ * Uses stored file order to quickly locate files.
+ * CPIO entries are altered in the same way as when creating the delta. */
 int fillblock_rpm_standard(struct blocks *blks, struct block *blk, size_t id, size_t copy_cnt)
 {
     int error = DRPM_ERR_OK;
@@ -820,6 +835,8 @@ int fillblock_rpm_standard(struct blocks *blks, struct block *blk, size_t id, si
     return error;
 }
 
+/* Fills a block from old RPM in the case of an rpm-only delta.
+ * CPIO data is not altered, but old header is prepended. */
 int fillblock_rpm_rpmonly(struct blocks *blks, struct block *blk, size_t id, size_t copy_cnt)
 {
     int error;
@@ -892,6 +909,9 @@ int fillblock_rpm_rpmonly(struct blocks *blks, struct block *blk, size_t id, siz
     return error;
 }
 
+/* Fills block from filesystem data (only works for standard deltas).
+ * CPIO entries are created from installed files to match the pattern used
+ * in altering the old RPM's archive when creating the delta. */
 int fillblock_filesystem(struct blocks *blks, struct block *blk, size_t id, size_t copy_cnt)
 {
     int error = DRPM_ERR_OK;
@@ -995,6 +1015,7 @@ int fillblock_filesystem(struct blocks *blks, struct block *blk, size_t id, size
     return error;
 }
 
+/* if an installed file is modified by prelink, this will use the original */
 int fillblock_prelink(struct blocks *blks, struct block *blk, size_t id, size_t copy_cnt, const struct cpio_file *cpio)
 {
     int error = DRPM_ERR_OK;

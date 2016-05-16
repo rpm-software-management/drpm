@@ -46,7 +46,7 @@ mkdir build
 %build
 pushd build
 %if 0%{?suse_version}
-%cmake -DHAVE_LZLIB_DEVEL ..
+%cmake -DHAVE_LZLIB_DEVEL:BOOL=ON ..
 %else
 %cmake ..
 %endif
