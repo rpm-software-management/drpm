@@ -60,7 +60,7 @@ popd
 
 %check
 pushd build
-  ctest -VV
+ctest -VV
 popd
 
 %post -p /sbin/ldconfig
