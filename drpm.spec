@@ -1,8 +1,6 @@
-%global _hardened_build 1
-
 Name:           drpm
 Version:        0.3.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        A library for making, reading and applying deltarpm packages
 # the entire source code is LGPLv3+, except src/drpm_diff.c and src/drpm_search.c which are BSD
 License:        LGPLv3+ and BSD
@@ -22,6 +20,7 @@ BuildRequires:  lzlib-devel
 %endif
 
 BuildRequires:  pkgconfig
+BuildRequires:  doxygen
 
 BuildRequires:  libcmocka-devel >= 1.0
 %ifarch %{ix86} x86_64 ppc ppc64 ppc64le s390x armv7hl aarch64
@@ -51,6 +50,7 @@ pushd build
 %cmake ..
 %endif
 %make_build
+make doc
 popd
 
 %install
@@ -72,15 +72,21 @@ popd
 %license COPYING COPYING.LESSER LICENSE.BSD
 
 %files devel
+%doc build/doc/html/
 %{_libdir}/lib%{name}.so
 %{_includedir}/%{name}.h
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
-* Tue May 3 2016 Matej Chalk <mchalk@redhat.com> 0.3.0-2
+* Tue May 3 2016 Matej Chalk <mchalk@redhat.com> 0.3.0-3
 - Now contains makedeltarpm and applydeltarpm functionality
-- Cleaned up spec
 - Added lzlib-devel dependency for OpenSUSE
+
+* Tue Apr 12 2016 Igor Gnatenko <ignatenko@redhat.com> - 0.3.0-2
+- Cleanup spec
+- Make build out-of-tree
+- Sync with valgrind arches
+- Build documentation
 
 * Thu Sep 3 2015 Matej Chalk <mchalk@redhat.com> 0.3.0-1
 - Bumped minor version (deltarpm creation added)
