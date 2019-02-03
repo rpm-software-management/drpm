@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8)
 
 project(drpm)
 
+option(ENABLE_TESTS "Build and run tests?" ON)
+
 find_package(ZLIB REQUIRED)
 find_package(BZip2 REQUIRED)
 find_package(LibLZMA REQUIRED)
@@ -9,7 +11,6 @@ find_package(LibLZMA REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(RPM rpm REQUIRED)
 pkg_check_modules(LIBCRYPTO libcrypto REQUIRED)
-pkg_check_modules(CMOCKA cmocka REQUIRED)
 
 add_custom_target(dist COMMAND ${CMAKE_MAKE_PROGRAM} package_source)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure)
@@ -26,8 +27,6 @@ set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSIO
 
 include(CPack)
 
-enable_testing()
-
 set(DRPM_SOURCES drpm.c drpm_apply.c drpm_block.c drpm_compstrm.c drpm_decompstrm.c drpm_deltarpm.c drpm_diff.c drpm_make.c drpm_options.c drpm_read.c drpm_rpm.c drpm_search.c drpm_utils.c drpm_write.c)
 set(DRPM_LINK_LIBRARIES ${ZLIB_LIBRARIES} ${BZIP2_LIBRARIES} ${LIBLZMA_LIBRARIES} ${RPM_LIBRARIES} ${LIBCRYPTO_LIBRARIES})
 
@@ -36,7 +35,12 @@ if (HAVE_LZLIB_DEVEL)
 endif()
 
 add_subdirectory(src)
-add_subdirectory(test)
 add_subdirectory(doc)
+
+if (ENABLE_TESTS)
+   pkg_check_modules(CMOCKA cmocka REQUIRED)
+   enable_testing()
+   add_subdirectory(test)
+endif()
 
 install(FILES drpm.pc DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
