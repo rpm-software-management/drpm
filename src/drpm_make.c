@@ -33,7 +33,6 @@
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <rpm/rpmfi.h>
-#include <rpm/rpmvf.h>
 #include <rpm/rpmfc.h>
 #include <linux/kdev_t.h>
 
@@ -406,8 +405,8 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             } else if (S_ISREG(file.mode)) {
                 skip = (c_filesize != file.size) ||
                        ((file.flags & (RPMFILE_CONFIG | RPMFILE_MISSINGOK | RPMFILE_GHOST)) != 0) ||
-                       ((file.verify & VERIFY_MD5) == 0 ||
-                        (file.verify & VERIFY_SIZE) == 0) ||
+                       ((file.verify & RPMVERIFY_MD5) == 0 ||
+                        (file.verify & RPMVERIFY_FILESIZE) == 0) ||
                        (file_colors &&
                         (file.color & (RPMFC_ELF32 | RPMFC_ELF64)) != 0 &&
                         !IN_MULTILIB_DIR(name));
