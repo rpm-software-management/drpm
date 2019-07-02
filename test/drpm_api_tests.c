@@ -45,6 +45,7 @@
 #define DELTARPM_STANDARD "standard.drpm"
 #define DELTARPM_RPMONLY_NOADDBLK "rpmonly-noaddblk.drpm"
 #define DELTARPM_STANDARD_LZIP "standard-lzip.drpm"
+#define DELTARPM_STANDARD_ZSTD "standard-zstd.drpm"
 
 #define OLDRPM_1 "drpm-old.rpm"
 #define NEWRPM_1 "drpm-new.rpm"
@@ -54,6 +55,7 @@
 #define RPMOUT_STANDARD "standard.rpm"
 #define RPMOUT_RPMONLY_NOADDBLK "rpmonly-noaddblk.rpm"
 #define RPMOUT_STANDARD_LZIP "standard-lzip.rpm"
+#define RPMOUT_STANDARD_ZSTD "standard-zstd.rpm"
 
 #define SEQFILE "seqfile.txt"
 
@@ -175,6 +177,19 @@ static void make_standard_lzip(void **state)
     assert_int_equal(DRPM_ERR_OK, drpm_make_options_set_delta_comp(opts, DRPM_COMP_LZIP, DRPM_COMP_LEVEL_DEFAULT));;
 
     assert_int_equal(DRPM_ERR_OK, drpm_make(OLDRPM_2, NEWRPM_2, DELTARPM_STANDARD_LZIP, opts));
+}
+#endif
+
+#ifdef WITH_ZSTD
+// testing zstd support
+static void make_standard_zstd(void **state)
+{
+    drpm_make_options *opts = *state;
+    assert_int_equal(DRPM_ERR_OK, drpm_make_options_defaults(opts));
+
+    assert_int_equal(DRPM_ERR_OK, drpm_make_options_set_delta_comp(opts, DRPM_COMP_ZSTD, DRPM_COMP_LEVEL_DEFAULT));;
+
+    assert_int_equal(DRPM_ERR_OK, drpm_make(OLDRPM_2, NEWRPM_2, DELTARPM_STANDARD_ZSTD, opts));
 }
 #endif
 
@@ -798,6 +813,105 @@ static void read_standard_lzip(void **state)
 }
 #endif
 
+#ifdef WITH_ZSTD
+static void read_standard_zstd(void **state)
+{
+    struct read_deltas *drpms = *state;
+    unsigned index = drpms->index++;
+    drpm *delta = NULL;
+    const char *delta_name = DELTARPM_STANDARD_ZSTD;
+
+    char *filename;
+    unsigned version;
+    unsigned type;
+    unsigned comp;
+    char *sequence;
+    char *src_nevr;
+    char *tgt_nevr;
+    unsigned long tgt_size;
+    char *tgt_md5;
+    unsigned tgt_comp;
+    unsigned long tgt_header_len;
+    char *tgt_lead;
+    unsigned long *int_copies;
+    unsigned long int_copies_size;
+    unsigned long *ext_copies;
+    unsigned long ext_copies_size;
+    unsigned long long ext_data_len;
+    unsigned long long int_data_len;
+
+    assert_int_equal(DRPM_ERR_OK, drpm_read(&drpms->deltas[index], delta_name));
+    delta = drpms->deltas[index];
+
+    assert_int_equal(DRPM_ERR_OK, drpm_get_uint(delta, DRPM_TAG_VERSION, &version));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_uint(delta, DRPM_TAG_TYPE, &type));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_uint(delta, DRPM_TAG_COMP, &comp));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_uint(delta, DRPM_TAG_TGTCOMP, &tgt_comp));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(delta, DRPM_TAG_TGTSIZE, &tgt_size));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_ulong(delta, DRPM_TAG_TGTHEADERLEN, &tgt_header_len));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_ullong(delta, DRPM_TAG_EXTDATALEN, &ext_data_len));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_ullong(delta, DRPM_TAG_INTDATALEN, &int_data_len));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_string(delta, DRPM_TAG_FILENAME, &drpms->filenames[index]));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_string(delta, DRPM_TAG_SEQUENCE, &drpms->sequences[index]));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_string(delta, DRPM_TAG_SRCNEVR, &drpms->src_nevrs[index]));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_string(delta, DRPM_TAG_TGTNEVR, &drpms->tgt_nevrs[index]));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_string(delta, DRPM_TAG_TGTMD5, &drpms->tgt_md5s[index]));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_string(delta, DRPM_TAG_TGTLEAD, &drpms->tgt_leads[index]));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_ulong_array(delta, DRPM_TAG_INTCOPIES, &drpms->int_copies_arrays[index], &int_copies_size));
+    assert_int_equal(DRPM_ERR_OK, drpm_get_ulong_array(delta, DRPM_TAG_EXTCOPIES, &drpms->ext_copies_arrays[index], &ext_copies_size));
+    filename = drpms->filenames[index];
+    sequence = drpms->sequences[index];
+    src_nevr = drpms->src_nevrs[index];
+    tgt_nevr = drpms->tgt_nevrs[index];
+    tgt_md5 = drpms->tgt_md5s[index];
+    tgt_lead = drpms->tgt_leads[index];
+    int_copies = drpms->int_copies_arrays[index];
+    ext_copies = drpms->ext_copies_arrays[index];
+
+    assert_non_null(filename);
+    assert_non_null(sequence);
+    assert_non_null(src_nevr);
+    assert_non_null(tgt_nevr);
+    assert_non_null(tgt_md5);
+    assert_non_null(tgt_lead);
+
+    assert_string_equal(delta_name, filename);
+    assert_int_equal(DRPM_TYPE_STANDARD, type); // standard
+    assert_int_equal(3, version);
+    assert_int_equal(DRPM_COMP_ZSTD, comp); // zstd compression
+    assert_not_in_range(strlen(sequence), 0, (MD5_DIGEST_LENGTH * 2) - 1);
+    assert_int_equal(filesize(NEWRPM_2), tgt_size);
+    assert_int_equal(MD5_DIGEST_LENGTH * 2, strlen(tgt_md5));
+    assert_int_equal(0, tgt_header_len); // header not in diff
+    assert_not_in_range(strlen(tgt_lead), 0, (96 + 16) - 1);
+    assert_true(int_copies_size % 2 == 0);
+    assert_true(ext_copies_size % 2 == 0);
+
+    unsigned long int_copies_count = int_copies_size / 2;
+    unsigned long ext_copies_count = ext_copies_size / 2;
+    unsigned long count;
+    unsigned long long off;
+
+    count = 0;
+    off = 0;
+    for (unsigned long i = 0; i < int_copies_count; i++) {
+        count += int_copies[2 * i];
+        assert_false(count > ext_copies_count);
+        off += int_copies[2 * i + 1];
+        assert_false(off > int_data_len);
+    }
+
+    off = 0;
+    for (unsigned long i = 0; i < ext_copies_count; i++) {
+        off += (int32_t)ext_copies[2 * i];
+        assert_false(off > ext_data_len);
+        off += ext_copies[2 * i + 1];
+        assert_int_not_equal(0, off);
+        assert_false(off > ext_data_len);
+    }
+}
+#endif
+
 /************************ drpm_check_sequence *************************/
 
 static int check_setup(void **state)
@@ -858,6 +972,14 @@ static void apply_standard_lzip(void **state)
 }
 #endif
 
+#ifdef WITH_ZSTD
+static void apply_standard_zstd(void **state)
+{
+    (void)state;
+    assert_int_equal(DRPM_ERR_OK, drpm_apply(OLDRPM_2, DELTARPM_STANDARD_ZSTD, RPMOUT_STANDARD_ZSTD));
+}
+#endif
+
 /***************************** run tests ******************************/
 
 int main()
@@ -872,6 +994,9 @@ int main()
 #ifdef HAVE_LZLIB_DEVEL
         cmocka_unit_test(make_standard_lzip)
 #endif
+#ifdef WITH_ZSTD
+        cmocka_unit_test(make_standard_zstd)
+#endif
     };
     const struct CMUnitTest read_tests[] = {
         cmocka_unit_test(read_nodiff),
@@ -882,6 +1007,9 @@ int main()
 #ifdef HAVE_LZLIB_DEVEL
         cmocka_unit_test(read_standard_lzip)
 #endif
+#ifdef WITH_ZSTD
+        cmocka_unit_test(read_standard_zstd)
+#endif
     };
     const struct CMUnitTest check_tests[] = {
         cmocka_unit_test(check_sequence)
@@ -891,6 +1019,9 @@ int main()
         cmocka_unit_test(apply_rpmonly_noaddblk),
 #ifdef HAVE_LZLIB_DEVEL
         cmocka_unit_test(apply_standard_lzip)
+#endif
+#ifdef WITH_ZSTD
+        cmocka_unit_test(apply_standard_zstd)
 #endif
     };
 
