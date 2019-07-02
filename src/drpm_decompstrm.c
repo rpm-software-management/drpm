@@ -34,6 +34,9 @@
 #ifdef HAVE_LZLIB_DEVEL
 #include <lzlib.h>
 #endif
+#ifdef WITH_ZSTD
+#include <zstd.h>
+#endif
 #include <openssl/md5.h>
 
 /* magic bytes for determining compression type */
@@ -42,6 +45,7 @@
 #define MAGIC_LZMA(x) (((x) >> 40) == 0x5D0000)
 #define MAGIC_XZ(x) (((x) >> 16) == 0xFD377A585A00)
 #define MAGIC_LZIP(x) (((x) >> 32) == 0x4C5A4950)
+#define MAGIC_ZSTD(x) (((x) >> 32) == 0x28B52FFD)
 
 struct decompstrm {
     unsigned char *data;
@@ -54,6 +58,9 @@ struct decompstrm {
         lzma_stream lzma;
 #ifdef HAVE_LZLIB_DEVEL
         struct LZ_Decoder *lzip;
+#endif
+#ifdef WITH_ZSTD
+        ZSTD_DCtx *zstd_context;
 #endif
     } stream;
     bool lzip_eof;
@@ -97,6 +104,12 @@ static int lzip_error(struct decompstrm *strm)
 }
 #endif
 
+#ifdef WITH_ZSTD
+static void finish_zstd(struct decompstrm *);
+static int init_zstd(struct decompstrm *);
+static int readchunk_zstd(struct decompstrm *);
+#endif
+
 /* Functions for finishing decompression for individual methods. */
 
 void finish_bzip2(struct decompstrm *strm)
@@ -119,6 +132,14 @@ void finish_lzip(struct decompstrm *strm)
 {
     LZ_decompress_close(strm->stream.lzip);
 }
+#endif
+
+#ifdef WITH_ZSTD
+void finish_zstd(struct decompstrm *strm)
+{
+    ZSTD_freeDCtx(strm->stream.zstd_context);
+}
+
 #endif
 
 /* Functions for initializing decompression for individual methods. */
@@ -206,6 +227,19 @@ int init_lzip(struct decompstrm *strm)
 }
 #endif
 
+#ifdef WITH_ZSTD
+int init_zstd(struct decompstrm *strm)
+{
+    if ((strm->stream.zstd_context = ZSTD_createDCtx()) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    strm->read_chunk = readchunk_zstd;
+    strm->finish = finish_zstd;
+
+    return DRPM_ERR_OK;
+}
+#endif
+
 /* Frees memory allocated by decompression stream. */
 int decompstrm_destroy(struct decompstrm **strm)
 {
@@ -282,6 +316,13 @@ int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp
         if (comp != NULL)
             *comp = DRPM_COMP_LZIP;
         if ((error = init_lzip(*strm)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+#endif
+#ifdef WITH_ZSTD
+    } else if (MAGIC_ZSTD(magic)) {
+        if (comp != NULL)
+            *comp = DRPM_COMP_ZSTD;
+        if ((error = init_zstd(*strm)) != DRPM_ERR_OK)
             goto cleanup_fail;
 #endif
     } else {
@@ -684,6 +725,54 @@ int readchunk_lzip(struct decompstrm *strm)
     if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
 
+    return DRPM_ERR_OK;
+}
+#endif
+
+#ifdef WITH_ZSTD
+int readchunk_zstd(struct decompstrm *strm)
+{
+    ssize_t in_len;
+    unsigned char *data_tmp;
+    unsigned char in_buffer[CHUNK_SIZE];
+
+    if (strm->filedesc < 0) {
+        in_len = MIN(CHUNK_SIZE, strm->buffer_len);
+        memcpy(in_buffer, strm->buffer, in_len);
+        strm->buffer += in_len;
+        strm->buffer_len -= in_len;
+    } else {
+        if ((in_len = read(strm->filedesc, in_buffer, CHUNK_SIZE)) < 0)
+            return DRPM_ERR_IO;
+    }
+
+    size_t const buffOutSize = ZSTD_DStreamOutSize();
+    void* const buffOut = malloc(buffOutSize);
+    if (buffOut == NULL)
+        return DRPM_ERR_MEMORY;
+
+    ZSTD_inBuffer input = { in_buffer, in_len, 0 };
+
+    while (input.pos < input.size) {
+        ZSTD_outBuffer output = { buffOut, buffOutSize, 0 };
+        size_t const ret = ZSTD_decompressStream(strm->stream.zstd_context, &output , &input);
+        if (ZSTD_isError(ret))
+            return DRPM_ERR_OTHER;
+        if (output.pos == 0)
+            continue;
+        if ((data_tmp = realloc(strm->data, strm->data_len + output.pos)) == NULL)
+            return DRPM_ERR_MEMORY;
+        strm->data = data_tmp;
+        memcpy(strm->data + strm->data_len, buffOut, output.pos);
+        strm->data_len += output.pos;
+    }
+
+    strm->comp_size += in_len;
+
+    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+        return DRPM_ERR_OTHER;
+
+    free(buffOut);
     return DRPM_ERR_OK;
 }
 #endif

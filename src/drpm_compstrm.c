@@ -33,6 +33,9 @@
 #ifdef HAVE_LZLIB_DEVEL
 #include <lzlib.h>
 #endif
+#ifdef WITH_ZSTD
+#include <zstd.h>
+#endif
 
 struct compstrm {
     unsigned char *data;
@@ -45,6 +48,9 @@ struct compstrm {
         lzma_stream lzma;
 #ifdef HAVE_LZLIB_DEVEL
         struct LZ_Encoder *lzip;
+#endif
+#ifdef WITH_ZSTD
+        ZSTD_CCtx *zstd_context;
 #endif
     } stream;
     int (*write_chunk)(struct compstrm *, size_t, const void *);
@@ -83,6 +89,12 @@ static int lzip_error(struct compstrm *strm)
         return DRPM_ERR_OTHER;
     }
 }
+#endif
+
+#ifdef WITH_ZSTD
+static int finish_zstd(struct compstrm *);
+static int init_zstd(struct compstrm *, int);
+static int writechunk_zstd(struct compstrm *, size_t, const void *);
 #endif
 
 /* Functions for finishing compression for individual methods. */
@@ -232,6 +244,40 @@ cleanup:
 }
 #endif
 
+#ifdef WITH_ZSTD
+int finish_zstd(struct compstrm *strm)
+{
+    size_t const buffOutSize = ZSTD_CStreamOutSize();
+    void* const buffOut = malloc(buffOutSize);
+    if (buffOut == NULL)
+        return DRPM_ERR_MEMORY;
+    unsigned char *data_tmp;
+
+    size_t remaining;
+    // No more new input just finish flushing compression data
+    ZSTD_inBuffer input = { NULL, 0, 0 };
+    do{
+        ZSTD_outBuffer output = { buffOut, buffOutSize, 0 };
+        remaining = ZSTD_compressStream2(strm->stream.zstd_context, &output , &input, ZSTD_e_end);
+        if (ZSTD_isError(remaining))
+            return DRPM_ERR_OTHER;
+
+        if (output.pos == 0)
+            continue;
+        if ((data_tmp = realloc(strm->data, strm->data_len + output.pos)) == NULL)
+            return DRPM_ERR_MEMORY;
+        strm->data = data_tmp;
+        memcpy(strm->data + strm->data_len, buffOut, output.pos);
+        strm->data_len += output.pos;
+    } while(remaining != 0);
+
+    free(buffOut);
+    ZSTD_freeCCtx(strm->stream.zstd_context);
+    return DRPM_ERR_OK;
+}
+
+#endif
+
 /* Function for initializing compression for individual methods. */
 
 int init_bzip2(struct compstrm *strm, int level)
@@ -353,6 +399,25 @@ int init_lzip(struct compstrm *strm, int level)
 }
 #endif
 
+#ifdef WITH_ZSTD
+int init_zstd(struct compstrm *strm, int level)
+{
+    if ((strm->stream.zstd_context = ZSTD_createCCtx()) == NULL)
+        return DRPM_ERR_MEMORY;
+
+    if (level == DRPM_COMP_LEVEL_DEFAULT)
+        level = 19;
+
+    if (ZSTD_isError(ZSTD_CCtx_setParameter(strm->stream.zstd_context, ZSTD_c_compressionLevel, level)))
+        return DRPM_ERR_OTHER;
+
+    strm->write_chunk = writechunk_zstd;
+    strm->finish = finish_zstd;
+
+    return DRPM_ERR_OK;
+}
+#endif
+
 /* Frees memory allocated by compression stream. */
 int compstrm_destroy(struct compstrm **strm)
 {
@@ -409,6 +474,12 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
 #ifdef HAVE_LZLIB_DEVEL
     case DRPM_COMP_LZIP:
         if ((error = init_lzip(*strm, level)) != DRPM_ERR_OK)
+            goto cleanup_fail;
+        break;
+#endif
+#ifdef WITH_ZSTD
+    case DRPM_COMP_ZSTD:
+        if ((error = init_zstd(*strm, level)) != DRPM_ERR_OK)
             goto cleanup_fail;
         break;
 #endif
@@ -655,6 +726,37 @@ int writechunk_lzip(struct compstrm *strm, size_t in_len, const void *in_buffer)
         memcpy(strm->data + strm->data_len, out_buffer, out_len);
         strm->data_len += out_len;
     };
+
+    return DRPM_ERR_OK;
+}
+#endif
+
+#ifdef WITH_ZSTD
+int writechunk_zstd(struct compstrm *strm, size_t in_len, const void *in_buffer)
+{
+    size_t const buffOutSize = ZSTD_CStreamOutSize();
+    void* const buffOut = malloc(buffOutSize);
+    if (buffOut == NULL)
+        return DRPM_ERR_MEMORY;
+    unsigned char *data_tmp;
+
+    ZSTD_inBuffer input = { in_buffer, in_len, 0 };
+    do{
+        ZSTD_outBuffer output = { buffOut, buffOutSize, 0 };
+        size_t const remaining = ZSTD_compressStream2(strm->stream.zstd_context, &output , &input, ZSTD_e_continue);
+        if (ZSTD_isError(remaining))
+            return DRPM_ERR_OTHER;
+
+        if (output.pos == 0)
+            continue;
+        if ((data_tmp = realloc(strm->data, strm->data_len + output.pos)) == NULL)
+            return DRPM_ERR_MEMORY;
+        strm->data = data_tmp;
+        memcpy(strm->data + strm->data_len, buffOut, output.pos);
+        strm->data_len += output.pos;
+    } while(input.pos != input.size);
+
+    free(buffOut);
 
     return DRPM_ERR_OK;
 }

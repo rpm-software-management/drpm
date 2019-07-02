@@ -32,6 +32,7 @@
 #define DELTARPM_COMP_BZ_17 4
 #define DELTARPM_COMP_LZMA 5
 #define DELTARPM_COMP_XZ 6
+#define DELTARPM_COMP_ZSTD 7
 
 #define DELTARPM_COMP_BZ DELTARPM_COMP_BZ_20
 
@@ -60,6 +61,11 @@ bool deltarpm_decode_comp(uint32_t deltarpm_comp, unsigned short *comp, unsigned
     case DELTARPM_COMP_XZ:
         *comp = DRPM_COMP_XZ;
         break;
+#ifdef WITH_ZSTD
+    case DELTARPM_COMP_ZSTD:
+        *comp = DRPM_COMP_ZSTD;
+        break;
+#endif
     default:
         return false;
     }
@@ -89,6 +95,11 @@ bool deltarpm_encode_comp(uint32_t *deltarpm_comp, unsigned short comp, unsigned
     case DRPM_COMP_XZ:
         *deltarpm_comp = DELTARPM_MKCOMP(DELTARPM_COMP_XZ, level);
         break;
+#ifdef WITH_ZSTD
+    case DRPM_COMP_ZSTD:
+        *deltarpm_comp = DELTARPM_MKCOMP(DELTARPM_COMP_ZSTD, level);
+        break;
+#endif
     default:
         return false;
     }

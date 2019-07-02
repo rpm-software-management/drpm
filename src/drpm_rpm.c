@@ -606,6 +606,8 @@ int rpm_get_comp(struct rpm *rpmst, unsigned short *comp)
         *comp = DRPM_COMP_LZMA;
     } else if (strcmp(payload_comp, "xz") == 0) {
         *comp = DRPM_COMP_XZ;
+    } else if (strcmp(payload_comp, "zstd") == 0) {
+        *comp = DRPM_COMP_ZSTD;
     } else {
         return DRPM_ERR_FORMAT;
     }

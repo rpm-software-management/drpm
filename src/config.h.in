@@ -23,6 +23,7 @@
 
 #cmakedefine ARCH_LESS_64BIT
 #cmakedefine HAVE_LZLIB_DEVEL
+#cmakedefine WITH_ZSTD
 
 #ifdef ARCH_LESS_64BIT
 #define _FILE_OFFSET_BITS 64

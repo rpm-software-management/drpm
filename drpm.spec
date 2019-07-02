@@ -1,3 +1,10 @@
+# Do not build with zstd for RHEL
+%if 0%{?rhel}
+%bcond_with zstd
+%else
+%bcond_without zstd
+%endif
+
 Name:           drpm
 Version:        0.3.0
 Release:        3%{?dist}
@@ -17,6 +24,9 @@ BuildRequires:  bzip2-devel
 BuildRequires:  xz-devel
 %if 0%{?suse_version}
 BuildRequires:  lzlib-devel
+%endif
+%if %{with zstd}
+BuildRequires:  pkgconfig(libzstd)
 %endif
 
 BuildRequires:  pkgconfig
@@ -44,11 +54,7 @@ mkdir build
 
 %build
 pushd build
-%if 0%{?suse_version}
-%cmake -DHAVE_LZLIB_DEVEL:BOOL=ON ..
-%else
-%cmake ..
-%endif
+%cmake .. -DWITH_ZSTD:BOOL=%{?with_zstd:ON}%{!?with_zstd:OFF} -DHAVE_LZLIB_DEVEL:BOOL=%{?suse_version:ON}%{!?suse_version:OFF} 
 %make_build
 make doc
 popd
