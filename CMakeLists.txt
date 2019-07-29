@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-project(drpm)
+project(drpm C)
 
 option(ENABLE_TESTS "Build and run tests?" ON)
 option(WITH_ZSTD "Build with zstd support" ON)
