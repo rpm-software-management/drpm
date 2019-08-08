@@ -117,11 +117,17 @@ int write_deltarpm(struct deltarpm *delta)
             if ((error = compstrm_write_be32(stream, delta->tgt_header_len)) != DRPM_ERR_OK ||
                 (error = compstrm_write_be32(stream, delta->offadj_elems_count)) != DRPM_ERR_OK)
                 goto cleanup;
-            for (uint32_t i = 0; i < delta->offadj_elems_count; i += 2) {
+
+            /* offadj_elems and later int_copies and ext_copies are all pairs of numbers,
+             * so in order to get the actual size we mupliply their count by 2.
+             * We start with only even elements to store just the first numbers from pairs together
+             * and then come all the second numbers together.*/
+            uint32_t offadj_elems_size = delta->offadj_elems_count * 2;
+            for (uint32_t i = 0; i < offadj_elems_size; i += 2) {
                 if ((error = compstrm_write_be32(stream, delta->offadj_elems[i])) != DRPM_ERR_OK)
                     goto cleanup;
             }
-            for (uint32_t j = 1; j < delta->offadj_elems_count; j += 2) {
+            for (uint32_t j = 1; j < offadj_elems_size; j += 2) {
                 if ((error = compstrm_write_be32(stream, (int32_t)delta->offadj_elems[j] < 0 ?
                                                          TWOS_COMPLEMENT(delta->offadj_elems[j]) | INT32_MIN :
                                                          delta->offadj_elems[j])) != DRPM_ERR_OK)
