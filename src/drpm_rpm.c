@@ -626,11 +626,12 @@ int rpm_get_comp_level(struct rpm *rpmst, unsigned short *level)
     if ((payload_flags = headerGetString(rpmst->header, RPMTAG_PAYLOADFLAGS)) == NULL)
         return DRPM_ERR_FORMAT;
 
-    if (strlen(payload_flags) != 1 ||
-        payload_flags[0] < '1' || payload_flags[0] > '9')
+    /* payload_flags first contains compression level as a string (zero terminated),
+     * here we check that its max length is 2 (max compression level is 99) */
+    if (strlen(payload_flags) > 2)
         return DRPM_ERR_FORMAT;
 
-    *level = payload_flags[0] - '0';
+    *level = atoi(payload_flags);
 
     return DRPM_ERR_OK;
 }
