@@ -367,6 +367,7 @@ int get_block(struct blocks *blks, struct block **blk_ret, size_t id, size_t cop
     }
 
     page_blk = blks->blocks_table[id];
+    *blk_ret = blks->blocks_table[id] = blk;
     if (page_blk != NULL && page_blk->type == BLK_PAGE)
         return read_page_block(blks, blk, page_blk);
 
@@ -374,7 +375,6 @@ int get_block(struct blocks *blks, struct block **blk_ret, size_t id, size_t cop
     if ((error = blks->fill_block(blks, blk, id, copy_cnt)) != DRPM_ERR_OK)
         return error;
 
-    *blk_ret = blks->blocks_table[id] = blk;
 
     return DRPM_ERR_OK;
 }
