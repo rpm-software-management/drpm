@@ -438,7 +438,7 @@ int compstrm_init(struct compstrm **strm, int filedesc, unsigned short comp, int
 {
     int error;
 
-    if (strm == NULL || (level != DRPM_COMP_LEVEL_DEFAULT && (level < 1 || level > 9)))
+    if (strm == NULL || (level != DRPM_COMP_LEVEL_DEFAULT && (level < 1 || level > 99)))
         return DRPM_ERR_PROG;
 
     if ((*strm = malloc(sizeof(struct compstrm))) == NULL)
