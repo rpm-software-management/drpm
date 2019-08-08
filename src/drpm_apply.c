@@ -86,7 +86,7 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
     size_t off = 0;
     int (*check)(const char *, unsigned short, const unsigned char *, size_t);
 
-    if (sequence == NULL || sequence_len < MD5_DIGEST_LENGTH || files == NULL)
+    if (sequence == NULL || sequence_len < MD5_DIGEST_LENGTH)
         return DRPM_ERR_PROG;
 
     switch (check_mode) {
