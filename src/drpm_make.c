@@ -535,7 +535,8 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             if ((error = rpm_archive_read_chunk(rpm_file, buffer, read_len)) != DRPM_ERR_OK)
                 goto cleanup_fail;
             cpio_pos += read_len;
-            if (!S_ISLNK(file.mode) &&
+            /* Do not add file data of skipped files or symlinks to cpio  */
+            if (!S_ISLNK(file.mode) && !skip &&
                 (error = cpio_extend(&cpio, &cpio_len, buffer, read_len)) != DRPM_ERR_OK)
                 goto cleanup_fail;
             data_len -= read_len;
@@ -545,7 +546,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             if ((error = rpm_archive_read_chunk(rpm_file, NULL, padding_bytes)) != DRPM_ERR_OK)
                 goto cleanup_fail;
             cpio_pos += padding_bytes;
-            if (!S_ISLNK(file.mode) &&
+            if (!S_ISLNK(file.mode) && !skip &&
                 (error = cpio_extend(&cpio, &cpio_len, "\0\0\0", padding_bytes)) != DRPM_ERR_OK)
                 goto cleanup_fail;
         }
