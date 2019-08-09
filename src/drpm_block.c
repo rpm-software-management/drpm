@@ -331,7 +331,7 @@ int get_block(struct blocks *blks, struct block **blk_ret, size_t id, size_t cop
         } else {
             for (struct block **blk_ptr = &blks->core_blocks; (blk = *blk_ptr) != NULL; blk_ptr = &blk->next) {
                 if (blks->blocks_max[blk->id] < copy_cnt ||
-                    (blk->id == id && blks->blocks_max[blk->id] == copy_cnt)) {
+                    (blk->id < id && blks->blocks_max[blk->id] == copy_cnt)) {
                     *blk_ptr = blk->next;
                     blks->blocks_table[blk->id] = NULL;
                     blk->type = BLK_FREE;
@@ -354,7 +354,7 @@ int get_block(struct blocks *blks, struct block **blk_ret, size_t id, size_t cop
                     }
                     blk->next = blks->core_blocks;
                     blks->core_blocks = blk;
-                    if (blk->type == BLK_PAGE) {
+                    if (blk->type == BLK_CORE) {
                         if ((error = write_page_block(blks, blk, copy_cnt)) != DRPM_ERR_OK)
                             return error;
                     } else {
