@@ -751,6 +751,9 @@ int readchunk_zstd(struct decompstrm *strm)
     if (buffOut == NULL)
         return DRPM_ERR_MEMORY;
 
+    if (in_len == 0)
+        return DRPM_ERR_FORMAT;
+
     ZSTD_inBuffer input = { in_buffer, in_len, 0 };
 
     while (input.pos < input.size) {
