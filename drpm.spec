@@ -1,5 +1,5 @@
 # Do not build with zstd for RHEL
-%if 0%{?rhel}
+%if 0%{?rhel} || (0%{?suse_version} && 0%{?suse_version} < 1500)
 %bcond_with zstd
 %else
 %bcond_without zstd
@@ -69,9 +69,11 @@ pushd build
 ctest -VV
 popd
 
+%if (0%{?rhel} && 0%{?rhel} < 8) || 0%{?suse_version}
 %post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
+%endif
 
 %files
 %{_libdir}/lib%{name}.so.*
