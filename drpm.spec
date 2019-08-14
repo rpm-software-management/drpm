@@ -11,10 +11,10 @@ Release:        3%{?dist}
 Summary:        A library for making, reading and applying deltarpm packages
 # the entire source code is LGPLv3+, except src/drpm_diff.c and src/drpm_search.c which are BSD
 License:        LGPLv3+ and BSD
-URL:            https://fedorahosted.org/%{name}
-Source:         https://fedorahosted.org/released/%{name}/%{name}-%{version}.tar.bz2
+URL:            https://github.com/rpm-software-management/%{name}
+Source:         %{url}/releases/download/%{version}/%{name}-%{version}.tar.bz2
 
-BuildRequires:  cmake >= 2.8
+BuildRequires:  cmake >= 2.8.5
 BuildRequires:  gcc
 
 BuildRequires:  rpm-devel
