@@ -6,8 +6,8 @@
 %endif
 
 Name:           drpm
-Version:        0.3.0
-Release:        3%{?dist}
+Version:        0.4.0
+Release:        1%{?dist}
 Summary:        A library for making, reading and applying deltarpm packages
 # the entire source code is LGPLv3+, except src/drpm_diff.c and src/drpm_search.c which are BSD
 License:        LGPLv3+ and BSD
@@ -86,6 +86,12 @@ popd
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Wed Aug 14 2019 Neal Gompa <ngompa13@gmail.com> 0.4.0-1
+- Add support for zstd drpms
+- CMake cleanups
+- Make running tests optional
+- Small spec improvements
+
 * Tue May 3 2016 Matej Chalk <mchalk@redhat.com> 0.3.0-3
 - Now contains makedeltarpm and applydeltarpm functionality
 - Added lzlib-devel dependency for OpenSUSE
