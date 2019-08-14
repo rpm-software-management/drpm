@@ -1,0 +1,10 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/include
+
+Name: drpm
+Description: A library for making, reading and applying deltarpm packages
+URL: https://github.com/rpm-software-management/drpm
+Version: @DRPM_VERSION@
+Libs: -L${libdir} -ldrpm
+Cflags: -I${includedir}
