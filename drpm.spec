@@ -9,8 +9,8 @@ Name:           drpm
 Version:        0.4.0
 Release:        1%{?dist}
 Summary:        A library for making, reading and applying deltarpm packages
-# the entire source code is LGPLv3+, except src/drpm_diff.c and src/drpm_search.c which are BSD
-License:        LGPLv3+ and BSD
+# the entire source code is LGPLv2+, except src/drpm_diff.c and src/drpm_search.c which are BSD
+License:        LGPLv2+ and BSD
 URL:            https://github.com/rpm-software-management/%{name}
 Source:         %{url}/releases/download/%{version}/%{name}-%{version}.tar.bz2
 
