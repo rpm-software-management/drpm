@@ -77,7 +77,7 @@ popd
 
 %files
 %{_libdir}/lib%{name}.so.*
-%license COPYING COPYING.LESSER LICENSE.BSD
+%license COPYING LICENSE.BSD
 
 %files devel
 %doc build/doc/html/
