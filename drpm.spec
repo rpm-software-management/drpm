@@ -6,7 +6,7 @@
 %endif
 
 Name:           drpm
-Version:        0.4.0
+Version:        0.4.1
 Release:        1%{?dist}
 Summary:        A library for making, reading and applying deltarpm packages
 # the entire source code is LGPLv2+, except src/drpm_diff.c and src/drpm_search.c which are BSD
@@ -86,6 +86,9 @@ popd
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Wed Sep 11 2019 Neal Gompa <ngompa13@gmail.com> 0.4.1-1
+- Relicense to LGPLv2+
+
 * Wed Aug 14 2019 Neal Gompa <ngompa13@gmail.com> 0.4.0-1
 - Add support for zstd drpms
 - CMake cleanups
