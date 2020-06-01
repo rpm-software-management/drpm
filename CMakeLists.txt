@@ -24,6 +24,15 @@ if(WITH_ZSTD)
    pkg_check_modules(ZSTD REQUIRED libzstd)
 endif()
 
+if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_C_COMPILER_ID MATCHES "Clang") OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang"))
+   include (CheckCCompilerFlag)
+   CHECK_C_COMPILER_FLAG(-fvisibility=hidden DRPM_HAVE_VISIBILITY)
+   if (DRPM_HAVE_VISIBILITY)
+      set(VISIBILITY_FLAG -fvisibility=hidden)
+   endif()
+   set(CMAKE_C_FLAGS "${VISIBILITY_FLAG} ${CMAKE_C_FLAGS}" )
+endif ()
+
 add_custom_target(dist COMMAND ${CMAKE_MAKE_PROGRAM} package_source)
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure)
 

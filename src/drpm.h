@@ -35,6 +35,12 @@
 #include <config.h>
 #endif
 
+#if __GNUC__ >= 4
+#define DRPM_VISIBLE __attribute__((visibility("default")))
+#else
+#define DRPM_VISIBLE
+#endif
+
 /**
  * @defgroup drpmMake DRPM Make
  * Tools for creating a DeltaRPM file from two RPM files,
@@ -171,6 +177,7 @@ typedef struct drpm_make_options drpm_make_options;
  * @param [in]  newrpm      Name of new RPM file to be (re-)created.
  * @return Error code.
  */
+DRPM_VISIBLE
 int drpm_apply(const char *oldrpm, const char *deltarpm, const char *newrpm);
 
 /**
@@ -181,6 +188,7 @@ int drpm_apply(const char *oldrpm, const char *deltarpm, const char *newrpm);
  * @return Error code.
  * @see DRPM_CHECK_FULL, DRPM_CHECK_FILESIZES
  */
+DRPM_VISIBLE
 int drpm_check(const char *deltarpm, int checkmode);
 
 /**
@@ -192,6 +200,7 @@ int drpm_check(const char *deltarpm, int checkmode);
  * @return Error code.
  * @see DRPM_CHECK_FULL, DRPM_CHECK_FILESIZES
  */
+DRPM_VISIBLE
 int drpm_check_sequence(const char *oldrpm, const char *sequence, int checkmode);
 
 /**
@@ -266,6 +275,7 @@ int drpm_check_sequence(const char *oldrpm, const char *sequence, int checkmode)
  * @warning If not @c NULL, @p opts should have been initialized with
  * drpm_make_options_init(), otherwise behaviour is undefined.
  */
+DRPM_VISIBLE
 int drpm_make(const char *oldrpm, const char *newrpm, const char *deltarpm, const drpm_make_options *opts);
 
 /**
@@ -281,6 +291,7 @@ int drpm_make(const char *oldrpm, const char *newrpm, const char *deltarpm, cons
  * @return Error code.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_init(drpm_make_options **opts);
 
 /**
@@ -289,6 +300,7 @@ int drpm_make_options_init(drpm_make_options **opts);
  * @return Error code.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_destroy(drpm_make_options **opts);
 
 /**
@@ -299,6 +311,7 @@ int drpm_make_options_destroy(drpm_make_options **opts);
  * @return Error code.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_defaults(drpm_make_options *opts);
 
 /**
@@ -311,6 +324,7 @@ int drpm_make_options_defaults(drpm_make_options *opts);
  * drpm_make_options_init() previously, otherwise behaviour is undefined.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_copy(drpm_make_options *dst, const drpm_make_options *src);
 
 /**
@@ -325,6 +339,7 @@ int drpm_make_options_copy(drpm_make_options *dst, const drpm_make_options *src)
  * @see drpm_make()
  * @see DRPM_TYPE_STANDARD, DRPM_TYPE_RPMONLY
  */
+DRPM_VISIBLE
 int drpm_make_options_set_type(drpm_make_options *opts, unsigned short type);
 
 /**
@@ -336,6 +351,7 @@ int drpm_make_options_set_type(drpm_make_options *opts, unsigned short type);
  * @return Error code.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_set_version(drpm_make_options *opts, unsigned short version);
 
 /**
@@ -350,6 +366,7 @@ int drpm_make_options_set_version(drpm_make_options *opts, unsigned short versio
  * DRPM_COMP_LZMA, DRPM_COMP_XZ
  * @see DRPM_COMP_LEVEL_DEFAULT
  */
+DRPM_VISIBLE
 int drpm_make_options_set_delta_comp(drpm_make_options *opts, unsigned short comp, unsigned short level);
 
 /**
@@ -360,6 +377,7 @@ int drpm_make_options_set_delta_comp(drpm_make_options *opts, unsigned short com
  * @return Error code.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_get_delta_comp_from_rpm(drpm_make_options *opts);
 
 /**
@@ -373,6 +391,7 @@ int drpm_make_options_get_delta_comp_from_rpm(drpm_make_options *opts);
  * @return Error code.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_forbid_addblk(drpm_make_options *opts);
 
 /**
@@ -388,6 +407,7 @@ int drpm_make_options_forbid_addblk(drpm_make_options *opts);
  * DRPM_COMP_LZMA, DRPM_COMP_XZ
  * @see DRPM_COMP_LEVEL_DEFAULT
  */
+DRPM_VISIBLE
 int drpm_make_options_set_addblk_comp(drpm_make_options *opts, unsigned short comp, unsigned short level);
 
 /**
@@ -400,6 +420,7 @@ int drpm_make_options_set_addblk_comp(drpm_make_options *opts, unsigned short co
  * @note If @p seqfile is @c NULL, sequence ID shall not be written.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_set_seqfile(drpm_make_options *opts, const char *seqfile);
 
 /**
@@ -413,6 +434,7 @@ int drpm_make_options_set_seqfile(drpm_make_options *opts, const char *seqfile);
  * @return Error code.
  * @see drpm_make()
  */
+DRPM_VISIBLE
 int drpm_make_options_add_patches(drpm_make_options *opts, const char *oldrpmprint, const char *oldpatchrpm);
 
 /**
@@ -455,6 +477,7 @@ int drpm_make_options_add_patches(drpm_make_options *opts, const char *oldrpmpri
  * @note Memory allocated by calling drpm_read() should later be freed
  * by calling drpm_destroy().
  */
+DRPM_VISIBLE
 int drpm_read(drpm **delta, const char *filename);
 
 /**
@@ -486,6 +509,7 @@ int drpm_read(drpm **delta, const char *filename);
  * @see DRPM_TAG_COMP
  * @see DRPM_TAG_TGTCOMP
  */
+DRPM_VISIBLE
 int drpm_get_uint(drpm *delta, int tag, unsigned *target);
 
 /**
@@ -516,6 +540,7 @@ int drpm_get_uint(drpm *delta, int tag, unsigned *target);
  * @see DRPM_TAG_TGTHEADERLEN
  * @see DRPM_TAG_PAYLOADFMTOFF
  */
+DRPM_VISIBLE
 int drpm_get_ulong(drpm *delta, int tag, unsigned long *target);
 
 /**
@@ -545,6 +570,7 @@ int drpm_get_ulong(drpm *delta, int tag, unsigned long *target);
  * @see DRPM_TAG_EXTDATALEN
  * @see DRPM_TAG_INTDATALEN
  */
+DRPM_VISIBLE
 int drpm_get_ullong(drpm *delta, int tag, unsigned long long *target);
 
 /**
@@ -583,6 +609,7 @@ int drpm_get_ullong(drpm *delta, int tag, unsigned long long *target);
  * @see DRPM_TAG_TGTCOMPPARAM
  * @see DRPM_TAG_TGTLEAD
  */
+DRPM_VISIBLE
 int drpm_get_string(drpm *delta, int tag, char **target);
 
 /**
@@ -620,6 +647,7 @@ int drpm_get_string(drpm *delta, int tag, char **target);
  * @see DRPM_TAG_INTCOPIES
  * @see DRPM_TAG_EXTCOPIES
  */
+DRPM_VISIBLE
 int drpm_get_ulong_array(drpm *delta, int tag, unsigned long **target, unsigned long *size);
 
 /**
@@ -640,6 +668,7 @@ int drpm_get_ulong_array(drpm *delta, int tag, unsigned long **target, unsigned 
  * @warning @p delta should have been previously initialized with
  * drpm_read(), otherwise behaviour is undefined.
  */
+DRPM_VISIBLE
 int drpm_destroy(drpm **delta);
 
 /** @} */
@@ -651,6 +680,7 @@ int drpm_destroy(drpm **delta);
  * @param [in]  error   error code
  * @return error description
  */
+DRPM_VISIBLE
 const char *drpm_strerror(int error);
 
 #endif
