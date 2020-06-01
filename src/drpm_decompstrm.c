@@ -746,13 +746,13 @@ int readchunk_zstd(struct decompstrm *strm)
             return DRPM_ERR_IO;
     }
 
+    if (in_len == 0)
+        return DRPM_ERR_FORMAT;
+
     size_t const buffOutSize = ZSTD_DStreamOutSize();
     void* const buffOut = malloc(buffOutSize);
     if (buffOut == NULL)
         return DRPM_ERR_MEMORY;
-
-    if (in_len == 0)
-        return DRPM_ERR_FORMAT;
 
     ZSTD_inBuffer input = { in_buffer, in_len, 0 };
 
