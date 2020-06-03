@@ -6,7 +6,7 @@
 %endif
 
 Name:           drpm
-Version:        0.4.1
+Version:        0.5.0
 Release:        1%{?dist}
 Summary:        A library for making, reading and applying deltarpm packages
 # the entire source code is LGPLv2+, except src/drpm_diff.c and src/drpm_search.c which are BSD
@@ -86,6 +86,12 @@ popd
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Tue Jun 02 2020 Neal Gompa <ngompa13@gmail.com> 0.5.0-1
+- Enable zstd support for RHEL 8
+- Fix license file entry in files list in spec
+- Fix a memory leak on invalid input
+- Hide the internal library symbols
+
 * Wed Sep 11 2019 Neal Gompa <ngompa13@gmail.com> 0.4.1-1
 - Relicense to LGPLv2+
 
