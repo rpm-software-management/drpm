@@ -22,6 +22,8 @@
 #include "drpm.h"
 #include "drpm_private.h"
 
+#include <sys/sysmacros.h>
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -34,7 +36,6 @@
 #include <openssl/sha.h>
 #include <rpm/rpmfi.h>
 #include <rpm/rpmfc.h>
-#include <linux/kdev_t.h>
 
 #define BUFFER_SIZE 4096
 
@@ -414,8 +415,8 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             } else if (S_ISLNK(file.mode)) {
                 cpio_hdr.filesize = strlen(file.linkto);
             } else if (S_ISBLK(file.mode) || S_ISCHR(file.mode)) {
-                cpio_hdr.rdevmajor = MAJOR(file.rdev);
-                cpio_hdr.rdevminor = MINOR(file.rdev);
+                cpio_hdr.rdevmajor = major(file.rdev);
+                cpio_hdr.rdevminor = minor(file.rdev);
             }
         }
 
@@ -483,8 +484,8 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
             if (MD5_Update(&seq_md5, name, name_len) != 1 ||
                 md5_update_be32(&seq_md5, cpio_hdr.mode) != 1 ||
                 md5_update_be32(&seq_md5, cpio_hdr.filesize) != 1 ||
-                md5_update_be32(&seq_md5, MKDEV(cpio_hdr.rdevmajor,
-                                                cpio_hdr.rdevminor)) != 1) {
+                md5_update_be32(&seq_md5, makedev(cpio_hdr.rdevmajor,
+                                                  cpio_hdr.rdevminor)) != 1) {
                 error = DRPM_ERR_OTHER;
                 goto cleanup_fail;
             }
