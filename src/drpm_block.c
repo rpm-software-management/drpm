@@ -22,6 +22,8 @@
 #include "drpm.h"
 #include "drpm_private.h"
 
+#include <sys/sysmacros.h>
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -31,7 +33,6 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
-#include <linux/kdev_t.h>
 
 #define MAX_OPEN_FILES 50
 #define MAX_CORE_BLOCKS 5000
@@ -546,8 +547,8 @@ void fill_cpio_header(struct blocks *blks, ssize_t index)
     }
 
     if (S_ISBLK(file.mode) || S_ISCHR(file.mode)) {
-        header.rdevmajor = MAJOR(file.rdev);
-        header.rdevminor = MINOR(file.rdev);
+        header.rdevmajor = major(file.rdev);
+        header.rdevminor = minor(file.rdev);
     }
 
     header.nlink = 1;
