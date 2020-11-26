@@ -1,3 +1,5 @@
+%define __cmake_in_source_build 1
+
 # Do not build with zstd for RHEL < 8
 %if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?suse_version} && 0%{?suse_version} < 1500)
 %bcond_with zstd
