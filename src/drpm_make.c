@@ -332,8 +332,10 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
     if (MD5_Init(&seq_md5) != 1)
         return DRPM_ERR_OTHER;
 
-    if ((error = rpm_get_file_info(rpm_file, &files, &file_count, &file_colors)) != DRPM_ERR_OK ||
-        (error = rpm_get_digest_algo(rpm_file, &digest_algo)) != DRPM_ERR_OK)
+    if ((error = rpm_get_file_info(rpm_file, &files, &file_count, &file_colors)) != DRPM_ERR_OK)
+        return error;
+
+    if ((error = rpm_get_digest_algo(rpm_file, &digest_algo)) != DRPM_ERR_OK)
         goto cleanup_fail;
 
     rpm_archive_rewind(rpm_file);
