@@ -769,7 +769,7 @@ int rpm_get_file_info(struct rpm *rpmst, struct file_info **files_ret,
         headerGet(rpmst->header, RPMTAG_FILEMODES, filemodes, HEADERGET_MINMEM) != 1 ||
         headerGet(rpmst->header, RPMTAG_FILEVERIFYFLAGS, fileverify, HEADERGET_MINMEM) != 1 ||
         headerGet(rpmst->header, RPMTAG_FILELINKTOS, filelinktos, HEADERGET_MINMEM) != 1) {
-        count_ret = 0;
+        *count_ret = 0;
         goto cleanup;
     }
 
