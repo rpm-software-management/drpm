@@ -145,7 +145,7 @@ uint32_t buzhash(const unsigned char *buf)
     uint32_t x = 0x83D31DF4;
 
     for (unsigned i = 0; i < HSIZE; i++)
-        x = (x << 1) ^ (x & (1 << 31) ? 1 : 0) ^ noise[*buf++];
+        x = (x << 1) ^ (x & (1u << 31) ? 1 : 0) ^ noise[*buf++];
 
     return x;
 }
@@ -257,7 +257,7 @@ size_t hash_search(struct hash *hsh,
 scannext:
             if (last_len >= 32 && scan - last_scan >= HSIZE)
                 goto gotit;
-            prekey = (prekey << 1) ^ (prekey & (1 << 31) ? 1 : 0) ^ noise[new[scan + HSIZE]];
+            prekey = (prekey << 1) ^ (prekey & (1u << 31) ? 1 : 0) ^ noise[new[scan + HSIZE]];
             xprekey = noise[new[scan]] ^ (0x83D31DF4 ^ 0x07A63BE9);
 #if HSIZE % 32 != 0
             prekey ^= (xprekey << (HSIZE % 32)) ^ (xprekey >> (32 - (HSIZE % 32)));
