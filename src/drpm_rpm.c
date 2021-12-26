@@ -963,7 +963,7 @@ int rpm_signature_set_md5(struct rpm *rpmst, unsigned char md5[MD5_DIGEST_LENGTH
     return DRPM_ERR_OK;
 }
 
-/* Reloads the signature to accomodate for changes. */
+/* Reloads the signature to accommodate for changes. */
 int rpm_signature_reload(struct rpm *rpmst)
 {
     rpmst->signature = headerReload(rpmst->signature, RPMTAG_HEADERSIGNATURES);
