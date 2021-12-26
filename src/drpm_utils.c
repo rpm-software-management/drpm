@@ -154,14 +154,14 @@ bool parse_sha256(unsigned char *dest, const char *source)
     return parse_hex(dest, source) == SHA256_DIGEST_LENGTH;
 }
 
-/* Reallocates memory for <*buffer> <threshhold> bytes at a time>. */
-bool resize(void **buffer, size_t members_count, size_t member_size, size_t threshhold)
+/* Reallocates memory for <*buffer> <threshold> bytes at a time>. */
+bool resize(void **buffer, size_t members_count, size_t member_size, size_t threshold)
 {
     void *buf_tmp;
 
-    if (members_count % threshhold == 0) {
+    if (members_count % threshold == 0) {
         if ((buf_tmp = realloc(*buffer,
-             member_size * (members_count + threshhold))) == NULL)
+             member_size * (members_count + threshold))) == NULL)
             return false;
         *buffer = buf_tmp;
     }
