@@ -8,7 +8,7 @@
 %endif
 
 Name:           drpm
-Version:        0.5.0
+Version:        0.5.1
 Release:        1%{?dist}
 Summary:        A library for making, reading and applying deltarpm packages
 # the entire source code is LGPLv2+, except src/drpm_diff.c and src/drpm_search.c which are BSD
@@ -88,6 +88,10 @@ popd
 %{_libdir}/pkgconfig/%{name}.pc
 
 %changelog
+* Tue Mar 08 2022 Pavla Kratochvilova <pkratoch@redhat.com> - 0.5.1-1
+- Fix SIGSEGV when an errors occurs in `rpm_get_file_info` (RhBug:1968594)
+- For rpms without any files return file count 0 (RhBug:1968594)
+
 * Tue Jun 02 2020 Neal Gompa <ngompa13@gmail.com> 0.5.0-1
 - Enable zstd support for RHEL 8
 - Fix license file entry in files list in spec
