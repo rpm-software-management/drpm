@@ -1,5 +1,3 @@
-%define __cmake_in_source_build 1
-
 # Do not build with zstd for RHEL < 8
 %if (0%{?rhel} && 0%{?rhel} < 8) || (0%{?suse_version} && 0%{?suse_version} < 1500)
 %bcond_with zstd
@@ -51,25 +49,18 @@ Requires:       %{name}%{?_isa} = %{version}-%{release}
 The drpm-devel package provides a C interface (drpm.h) for the drpm library.
 
 %prep
-%autosetup
-mkdir build
+%autosetup -p1
 
 %build
-pushd build
-%cmake .. -DWITH_ZSTD:BOOL=%{?with_zstd:ON}%{!?with_zstd:OFF} -DHAVE_LZLIB_DEVEL:BOOL=%{?suse_version:ON}%{!?suse_version:OFF} 
-%make_build
-make doc
-popd
+%cmake -DWITH_ZSTD:BOOL=%{?with_zstd:ON}%{!?with_zstd:OFF} -DHAVE_LZLIB_DEVEL:BOOL=%{?suse_version:ON}%{!?suse_version:OFF}
+%cmake_build
+%cmake_build --target doc
 
 %install
-pushd build
-%make_install
-popd
+%cmake_install
 
 %check
-pushd build
-ctest -VV
-popd
+%ctest
 
 %if (0%{?rhel} && 0%{?rhel} < 8) || 0%{?suse_version}
 %post -p /sbin/ldconfig
@@ -82,7 +73,7 @@ popd
 %license COPYING LICENSE.BSD
 
 %files devel
-%doc build/doc/html/
+%doc %{_vpath_builddir}/doc/html/
 %{_libdir}/lib%{name}.so
 %{_includedir}/%{name}.h
 %{_libdir}/pkgconfig/%{name}.pc
