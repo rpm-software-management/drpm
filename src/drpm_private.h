@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <openssl/evp.h>
 #include <openssl/md5.h>
 
 #define CHUNK_SIZE 1024
@@ -153,7 +154,7 @@ int compstrm_write_be64(struct compstrm *, uint64_t);
 //drpm_decompstrm.c
 int decompstrm_destroy(struct decompstrm **);
 int decompstrm_get_comp_size(struct decompstrm *, size_t *);
-int decompstrm_init(struct decompstrm **, int, unsigned short *, MD5_CTX *, const unsigned char *, size_t);
+int decompstrm_init(struct decompstrm **, int, unsigned short *, EVP_MD_CTX *, const unsigned char *, size_t);
 int decompstrm_read(struct decompstrm *, size_t, void *);
 int decompstrm_read_be32(struct decompstrm *, uint32_t *);
 int decompstrm_read_be64(struct decompstrm *, uint64_t *);
@@ -232,7 +233,7 @@ size_t sfxsrt_search(struct sfxsrt *, const unsigned char *, size_t,
 void create_be32(uint32_t, unsigned char *);
 void create_be64(uint64_t, unsigned char *);
 void dump_hex(char *, const unsigned char *, size_t);
-int md5_update_be32(MD5_CTX *, uint32_t);
+int md5_update_be32(EVP_MD_CTX *, uint32_t);
 uint16_t parse_be16(const unsigned char *);
 uint32_t parse_be32(const unsigned char *);
 uint64_t parse_be64(const unsigned char *);
