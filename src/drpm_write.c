@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <fcntl.h>
 #include <openssl/md5.h>
 #include <rpm/rpmlib.h>
