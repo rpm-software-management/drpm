@@ -156,7 +156,7 @@ void rpm_header_unload_region(struct rpm *rpmst, rpmTagVal rpmtag)
         rpmst->header = headerNew();
         copy_td = rpmtdNew();
 
-        hdr = headerCopyLoad(td->data);
+        hdr = headerImport(td->data, 0, HEADERIMPORT_COPY);
         hdr_iter = headerInitIterator(hdr);
 
         while (headerNext(hdr_iter, copy_td)) {
