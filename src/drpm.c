@@ -536,7 +536,7 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
     uint32_t ext_copies_todo;
     size_t ext_copies_done = 0;
     size_t blk_id;
-    unsigned char *comp_data;
+    unsigned char *comp_data = NULL;
     size_t comp_data_len;
 
     if (deltarpm_name == NULL || new_rpm_name == NULL)
