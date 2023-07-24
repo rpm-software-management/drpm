@@ -32,6 +32,7 @@
 #include <unistd.h>
 #define __USE_XOPEN 1
 #include <sys/stat.h>
+#include <openssl/evp.h>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #include <rpm/rpmfi.h>
@@ -302,7 +303,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
 
     unsigned char *sequence = NULL;
     uint32_t sequence_len;
-    MD5_CTX seq_md5;
+    EVP_MD_CTX *seq_md5 = NULL;
     unsigned char seq_md5_digest[MD5_DIGEST_LENGTH];
     struct files_seq seq = SEQ_INIT;
     unsigned char *seq_files = NULL;
@@ -329,11 +330,15 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
         *offadjn_ret = 0;
     }
 
-    if (MD5_Init(&seq_md5) != 1)
+    if (seq_md5 = EVP_MD_CTX_new(), seq_md5 == NULL)
         return DRPM_ERR_OTHER;
+    if (EVP_DigestInit_ex(seq_md5, EVP_md5(), NULL) != 1) {
+        EVP_MD_CTX_free(seq_md5);
+        return DRPM_ERR_OTHER;
+    }
 
     if ((error = rpm_get_file_info(rpm_file, &files, &file_count, &file_colors)) != DRPM_ERR_OK)
-        return error;
+        goto cleanup_fail;
 
     if ((error = rpm_get_digest_algo(rpm_file, &digest_algo)) != DRPM_ERR_OK)
         goto cleanup_fail;
@@ -483,10 +488,10 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                                      CPIO_PADDING(CPIO_HEADER_SIZE + cpio_hdr.namesize))) != DRPM_ERR_OK)
                 goto cleanup_fail;
 
-            if (MD5_Update(&seq_md5, name, name_len) != 1 ||
-                md5_update_be32(&seq_md5, cpio_hdr.mode) != 1 ||
-                md5_update_be32(&seq_md5, cpio_hdr.filesize) != 1 ||
-                md5_update_be32(&seq_md5, makedev(cpio_hdr.rdevmajor,
+            if (EVP_DigestUpdate(seq_md5, name, name_len) != 1 ||
+                md5_update_be32(seq_md5, cpio_hdr.mode) != 1 ||
+                md5_update_be32(seq_md5, cpio_hdr.filesize) != 1 ||
+                md5_update_be32(seq_md5, makedev(cpio_hdr.rdevmajor,
                                                   cpio_hdr.rdevminor)) != 1) {
                 error = DRPM_ERR_OTHER;
                 goto cleanup_fail;
@@ -496,7 +501,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                 if ((error = cpio_extend(&cpio, &cpio_len, file.linkto, cpio_hdr.filesize)) != DRPM_ERR_OK ||
                     (error = cpio_extend(&cpio, &cpio_len, "\0\0\0", CPIO_PADDING(cpio_hdr.filesize))) != DRPM_ERR_OK)
                     goto cleanup_fail;
-                if (MD5_Update(&seq_md5, file.linkto, cpio_hdr.filesize + 1) != 1) {
+                if (EVP_DigestUpdate(seq_md5, file.linkto, cpio_hdr.filesize + 1) != 1) {
                     error = DRPM_ERR_OTHER;
                     goto cleanup_fail;
                 }
@@ -507,7 +512,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                         error = DRPM_ERR_FORMAT;
                         goto cleanup_fail;
                     }
-                    if (MD5_Update(&seq_md5, digest, MD5_DIGEST_LENGTH) != 1) {
+                    if (EVP_DigestUpdate(seq_md5, digest, MD5_DIGEST_LENGTH) != 1) {
                         error = DRPM_ERR_OTHER;
                         goto cleanup_fail;
                     }
@@ -517,7 +522,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
                         error = DRPM_ERR_FORMAT;
                         goto cleanup_fail;
                     }
-                    if (MD5_Update(&seq_md5, digest, SHA256_DIGEST_LENGTH) != 1) {
+                    if (EVP_DigestUpdate(seq_md5, digest, SHA256_DIGEST_LENGTH) != 1) {
                         error = DRPM_ERR_OTHER;
                         goto cleanup_fail;
                     }
@@ -574,7 +579,7 @@ int parse_cpio_from_rpm_filedata(struct rpm *rpm_file,
     if ((error = seq_final(&seq, &seq_files, &seq_files_len)) != DRPM_ERR_OK)
         goto cleanup_fail;
 
-    if (MD5_Final(seq_md5_digest, &seq_md5) != 1) {
+    if (EVP_DigestFinal_ex(seq_md5, seq_md5_digest, NULL) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup_fail;
     }
@@ -614,6 +619,8 @@ cleanup:
     free(files);
     free(name_buffer);
     free(seq_files);
+    if (seq_md5 != NULL)
+        EVP_MD_CTX_free(seq_md5);
 
     return error;
 }
