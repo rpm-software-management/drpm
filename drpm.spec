@@ -14,7 +14,7 @@ License:        LGPLv2+ and BSD
 URL:            https://github.com/rpm-software-management/%{name}
 Source:         %{url}/releases/download/%{version}/%{name}-%{version}.tar.bz2
 
-BuildRequires:  cmake >= 2.8.5
+BuildRequires:  cmake >= 3.5.0
 BuildRequires:  gcc
 
 BuildRequires:  rpm-devel
