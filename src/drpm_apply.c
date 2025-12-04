@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <openssl/evp.h>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 
@@ -37,10 +38,7 @@
 
 struct checksum {
     unsigned short digest_algo;
-    union {
-        MD5_CTX md5;
-        SHA256_CTX sha256;
-    } ctx;
+    EVP_MD_CTX *ctx;
 };
 
 static int check_filesize(const char *, unsigned short, const unsigned char *, size_t);
@@ -68,7 +66,7 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
     struct cpio_file *seqfiles = NULL;
     size_t *positions;
     size_t positions_len = 0;
-    MD5_CTX seq_md5;
+    EVP_MD_CTX *seq_md5 = NULL;
     unsigned char seq_md5_digest[MD5_DIGEST_LENGTH];
     unsigned char digest[MAX(MD5_DIGEST_LENGTH, SHA256_DIGEST_LENGTH)];
     bool even = true;
@@ -165,7 +163,8 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
         goto cleanup_fail;
     }
 
-    if (MD5_Init(&seq_md5) != 1) {
+    if ((seq_md5 = EVP_MD_CTX_new(), seq_md5 == NULL) ||
+        EVP_DigestInit_ex(seq_md5, EVP_md5(), NULL) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup_fail;
     }
@@ -192,16 +191,16 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
         if (filename[0] == '/')
             filename++;
 
-        if (MD5_Update(&seq_md5, filename, strlen(filename) + 1) != 1 ||
-            md5_update_be32(&seq_md5, files[i].mode) != 1 ||
-            md5_update_be32(&seq_md5, filesize) != 1 ||
-            md5_update_be32(&seq_md5, rdev) != 1) {
+        if (EVP_DigestUpdate(seq_md5, filename, strlen(filename) + 1) != 1 ||
+            md5_update_be32(seq_md5, files[i].mode) != 1 ||
+            md5_update_be32(seq_md5, filesize) != 1 ||
+            md5_update_be32(seq_md5, rdev) != 1) {
             error = DRPM_ERR_OTHER;
             goto cleanup_fail;
         }
 
         if (S_ISLNK(files[i].mode)) {
-            if (MD5_Update(&seq_md5, files[i].linkto, strlen(files[i].linkto) + 1) != 1) {
+            if (EVP_DigestUpdate(seq_md5, files[i].linkto, strlen(files[i].linkto) + 1) != 1) {
                 error = DRPM_ERR_OTHER;
                 goto cleanup_fail;
             }
@@ -212,7 +211,7 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
                     error = DRPM_ERR_FORMAT;
                     goto cleanup_fail;
                 }
-                if (MD5_Update(&seq_md5, digest, MD5_DIGEST_LENGTH) != 1) {
+                if (EVP_DigestUpdate(seq_md5, digest, MD5_DIGEST_LENGTH) != 1) {
                     error = DRPM_ERR_OTHER;
                     goto cleanup_fail;
                 }
@@ -222,7 +221,7 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
                     error = DRPM_ERR_FORMAT;
                     goto cleanup_fail;
                 }
-                if (MD5_Update(&seq_md5, digest, SHA256_DIGEST_LENGTH) != 1) {
+                if (EVP_DigestUpdate(seq_md5, digest, SHA256_DIGEST_LENGTH) != 1) {
                     error = DRPM_ERR_OTHER;
                     goto cleanup_fail;
                 }
@@ -245,7 +244,7 @@ int expand_sequence(struct cpio_file **seqfiles_ret, size_t *seqfiles_len_ret,
         }
     }
 
-    if (MD5_Final(seq_md5_digest, &seq_md5) != 1) {
+    if (EVP_DigestFinal_ex(seq_md5, seq_md5_digest, NULL) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup_fail;
     }
@@ -276,6 +275,8 @@ cleanup_fail:
 
 cleanup:
     free(positions);
+    if (seq_md5 != NULL)
+        EVP_MD_CTX_free(seq_md5);
 
     return error;
 }
@@ -432,11 +433,13 @@ int checksum_init(struct checksum *chsm, unsigned short digest_algo)
 
     switch (digest_algo) {
     case DIGESTALGO_MD5:
-        if (MD5_Init(&chsm->ctx.md5) != 1)
+        if ((chsm->ctx = EVP_MD_CTX_new(), chsm->ctx == NULL) ||
+            EVP_DigestInit_ex(chsm->ctx, EVP_md5(), NULL) != 1)
             return DRPM_ERR_OTHER;
         break;
     case DIGESTALGO_SHA256:
-        if (SHA256_Init(&chsm->ctx.sha256) != 1)
+        if ((chsm->ctx = EVP_MD_CTX_new(), chsm->ctx == NULL) ||
+            EVP_DigestInit_ex(chsm->ctx, EVP_sha256(), NULL) != 1)
             return DRPM_ERR_OTHER;
         break;
     default:
@@ -455,9 +458,9 @@ int checksum_update(struct checksum *chsm, const void *buf, size_t len)
 
     switch (chsm->digest_algo) {
     case DIGESTALGO_MD5:
-        return MD5_Update(&chsm->ctx.md5, buf, len) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
+        return EVP_DigestUpdate(chsm->ctx, buf, len) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
     case DIGESTALGO_SHA256:
-        return SHA256_Update(&chsm->ctx.sha256, buf, len) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
+        return EVP_DigestUpdate(chsm->ctx, buf, len) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
     default:
         return DRPM_ERR_PROG;
     }
@@ -468,11 +471,16 @@ int checksum_final(struct checksum *chsm, unsigned char *digest)
     if (chsm == NULL || digest == NULL)
         return DRPM_ERR_PROG;
 
+    int res;
     switch (chsm->digest_algo) {
     case DIGESTALGO_MD5:
-        return MD5_Final(digest, &chsm->ctx.md5) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
+        res = EVP_DigestFinal_ex(chsm->ctx, digest, NULL) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
+        EVP_MD_CTX_free(chsm->ctx);
+        return res;
     case DIGESTALGO_SHA256:
-        return SHA256_Final(digest, &chsm->ctx.sha256) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
+        res = EVP_DigestFinal_ex(chsm->ctx, digest, NULL) != 1 ? DRPM_ERR_OTHER : DRPM_ERR_OK;
+        EVP_MD_CTX_free(chsm->ctx);
+        return res;
     default:
         return DRPM_ERR_PROG;
     }

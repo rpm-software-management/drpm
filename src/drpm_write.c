@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <fcntl.h>
+#include <openssl/evp.h>
 #include <openssl/md5.h>
 #include <rpm/rpmlib.h>
 
@@ -77,7 +78,7 @@ int write_deltarpm(struct deltarpm *delta)
     uint32_t ext_copies_size;
     unsigned char *header = NULL;
     uint32_t header_size;
-    MD5_CTX md5;
+    EVP_MD_CTX *md5 = NULL;
     unsigned char md5_digest[MD5_DIGEST_LENGTH] = {0};
     unsigned char *strm_data = NULL;
     size_t strm_data_len;
@@ -211,11 +212,16 @@ int write_deltarpm(struct deltarpm *delta)
         if ((error = rpm_fetch_header(delta->head.tgt_rpm, &header, &header_size)) != DRPM_ERR_OK)
             return error;
 
-        if (MD5_Init(&md5) != 1 ||
-            MD5_Update(&md5, header, header_size) != 1 ||
-            MD5_Update(&md5, strm_data, strm_data_len) != 1 ||
-            MD5_Final(md5_digest, &md5) != 1)
+        if ((md5 = EVP_MD_CTX_new(), md5 == NULL) ||
+            EVP_DigestInit_ex(md5, EVP_md5(), NULL) != 1 ||
+            EVP_DigestUpdate(md5, header, header_size) != 1 ||
+            EVP_DigestUpdate(md5, strm_data, strm_data_len) != 1 ||
+            EVP_DigestFinal_ex(md5, md5_digest, NULL) != 1) {
+            if (md5 != NULL)
+                EVP_MD_CTX_free(md5);
             return DRPM_ERR_OTHER;
+        }
+        EVP_MD_CTX_free(md5);
 
         if ((error = rpm_signature_empty(delta->head.tgt_rpm)) != DRPM_ERR_OK ||
             (error = rpm_signature_set_size(delta->head.tgt_rpm, header_size + strm_data_len)) != DRPM_ERR_OK ||
