@@ -81,6 +81,7 @@ The drpm-devel package provides a C interface (drpm.h) for the drpm library.
 %changelog
 * Fri Nov 21 2025 Petr Pisar <ppisar@redhat.com> - 0.5.3-1
 - Postrelease version bump
+- Update `cmake_minimum_required` to support modern CMake
 
 * Mon May 15 2023 Jan Kolarik <jkolarik@redhat.com> - 0.5.2-1
 - Avoid using obsolete RPM API
