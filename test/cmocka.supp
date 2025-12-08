@@ -1,0 +1,17 @@
+{
+   <libcmocka2>
+   Memcheck:Cond
+   obj:/usr/lib/libcmocka.so.*
+   obj:/usr/lib/libcmocka.so.*
+   fun:_cmocka_run_group_tests
+   fun:main
+}
+{
+   <libcmocka3>
+   Memcheck:Cond
+   obj:/usr/lib/libcmocka.so.*
+   obj:/usr/lib/libcmocka.so.*
+   obj:/usr/lib/libcmocka.so.*
+   fun:_cmocka_run_group_tests
+   fun:main
+}

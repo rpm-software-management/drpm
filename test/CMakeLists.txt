@@ -10,7 +10,7 @@ foreach(name ${DRPM_TEST_RPM_PACKAGE_NAMES})
 endforeach()
 
 set(DRPM_TEST_ARGS_CMP_FILES -d ${CMAKE_CURRENT_BINARY_DIR})
-set(DRPM_TEST_ARGS_VALGRIND --error-exitcode=1 --read-var-info=yes --leak-check=full --show-leak-kinds=all --track-origins=yes --suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lzma.supp)
+set(DRPM_TEST_ARGS_VALGRIND --error-exitcode=1 --read-var-info=yes --leak-check=full --show-leak-kinds=all --track-origins=yes --suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lzma.supp --suppressions=${CMAKE_CURRENT_SOURCE_DIR}/cmocka.supp)
 
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 
