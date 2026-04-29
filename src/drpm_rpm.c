@@ -28,6 +28,7 @@
 #include <rpm/rpmlib.h>
 #include <rpm/rpmts.h>
 #include <rpm/rpmdb.h>
+#include <openssl/evp.h>
 #include <openssl/md5.h>
 
 #define BUFFER_SIZE 4096
@@ -56,7 +57,7 @@ static int rpm_export_header(struct rpm *, unsigned char **, size_t *);
 static int rpm_export_signature(struct rpm *, unsigned char **, size_t *);
 static void rpm_header_unload_region(struct rpm *, rpmTagVal);
 static int rpm_read_archive(struct rpm *, const char *, off_t, bool,
-                            unsigned short *, MD5_CTX *, MD5_CTX *);
+                            unsigned short *, EVP_MD_CTX *, EVP_MD_CTX *);
 
 void rpm_init(struct rpm *rpmst)
 {
@@ -176,14 +177,14 @@ void rpm_header_unload_region(struct rpm *rpmst, rpmTagVal rpmtag)
 
 int rpm_read_archive(struct rpm *rpmst, const char *filename,
                      off_t offset, bool decompress, unsigned short *comp_ret,
-                     MD5_CTX *seq_md5, MD5_CTX *full_md5)
+                     EVP_MD_CTX *seq_md5, EVP_MD_CTX *full_md5)
 {
     struct decompstrm *stream = NULL;
     int filedesc;
     unsigned char *archive_tmp;
     unsigned char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
-    MD5_CTX *md5;
+    EVP_MD_CTX *md5;
     int error = DRPM_ERR_OK;
 
     if ((filedesc = open(filename, O_RDONLY)) < 0)
@@ -210,8 +211,8 @@ int rpm_read_archive(struct rpm *rpmst, const char *filename,
                 error = DRPM_ERR_MEMORY;
                 goto cleanup;
             }
-            if ((seq_md5 != NULL && MD5_Update(seq_md5, buffer, bytes_read) != 1) ||
-                (full_md5 != NULL && MD5_Update(full_md5, buffer, bytes_read) != 1)) {
+            if ((seq_md5 != NULL && EVP_DigestUpdate(seq_md5, buffer, bytes_read) != 1) ||
+                (full_md5 != NULL && EVP_DigestUpdate(full_md5, buffer, bytes_read) != 1)) {
                 error = DRPM_ERR_OTHER;
                 goto cleanup;
             }
@@ -252,8 +253,8 @@ int rpm_read(struct rpm **rpmst, const char *filename,
     off_t file_pos;
     bool include_archive;
     bool decomp_archive = false;
-    MD5_CTX seq_md5;
-    MD5_CTX full_md5;
+    EVP_MD_CTX *seq_md5 = NULL;
+    EVP_MD_CTX *full_md5 = NULL;
     unsigned char *signature = NULL;
     size_t signature_len;
     unsigned char *header = NULL;
@@ -301,8 +302,9 @@ int rpm_read(struct rpm **rpmst, const char *filename,
     if (seq_md5_digest != NULL) {
         if ((error = rpm_export_header(*rpmst, &header, &header_len)) != DRPM_ERR_OK)
             goto cleanup_fail;
-        if (MD5_Init(&seq_md5) != 1 ||
-            MD5_Update(&seq_md5, header, header_len) != 1) {
+        if ((seq_md5 = EVP_MD_CTX_new(), seq_md5 == NULL) ||
+            EVP_DigestInit_ex(seq_md5, EVP_md5(), NULL) != 1 ||
+            EVP_DigestUpdate(seq_md5, header, header_len) != 1) {
             error = DRPM_ERR_OTHER;
             goto cleanup_fail;
         }
@@ -312,10 +314,11 @@ int rpm_read(struct rpm **rpmst, const char *filename,
         if ((error = rpm_export_signature(*rpmst, &signature, &signature_len)) != DRPM_ERR_OK ||
             (header == NULL && (error = rpm_export_header(*rpmst, &header, &header_len)) != DRPM_ERR_OK))
             goto cleanup_fail;
-        if (MD5_Init(&full_md5) != 1 ||
-            MD5_Update(&full_md5, (*rpmst)->lead, RPMLEAD_SIZE) != 1 ||
-            MD5_Update(&full_md5, signature, signature_len) != 1 ||
-            MD5_Update(&full_md5, header, header_len) != 1) {
+        if ((full_md5 = EVP_MD_CTX_new(), full_md5 == NULL) ||
+            EVP_DigestInit_ex(full_md5, EVP_md5(), NULL) != 1 ||
+            EVP_DigestUpdate(full_md5, (*rpmst)->lead, RPMLEAD_SIZE) != 1 ||
+            EVP_DigestUpdate(full_md5, signature, signature_len) != 1 ||
+            EVP_DigestUpdate(full_md5, header, header_len) != 1) {
             error = DRPM_ERR_OTHER;
             goto cleanup_fail;
         }
@@ -328,13 +331,13 @@ int rpm_read(struct rpm **rpmst, const char *filename,
         }
         if ((error = rpm_read_archive(*rpmst, filename, file_pos,
                                       decomp_archive, archive_comp,
-                                      (seq_md5_digest != NULL) ? &seq_md5 : NULL,
-                                      (full_md5_digest != NULL) ? &full_md5 : NULL)) != DRPM_ERR_OK)
+                                      (seq_md5_digest != NULL) ? seq_md5 : NULL,
+                                      (full_md5_digest != NULL) ? full_md5 : NULL)) != DRPM_ERR_OK)
             goto cleanup_fail;
     }
 
-    if ((seq_md5_digest != NULL && MD5_Final(seq_md5_digest, &seq_md5) != 1) ||
-        (full_md5_digest != NULL && MD5_Final(full_md5_digest, &full_md5) != 1)) {
+    if ((seq_md5_digest != NULL && EVP_DigestFinal_ex(seq_md5, seq_md5_digest, NULL) != 1) ||
+        (full_md5_digest != NULL && EVP_DigestFinal_ex(full_md5, full_md5_digest, NULL) != 1)) {
         error = DRPM_ERR_OTHER;
         goto cleanup_fail;
     }
@@ -348,6 +351,10 @@ cleanup:
     free(signature);
     free(header);
     Fclose(file);
+    if (full_md5 != NULL)
+        EVP_MD_CTX_free(full_md5);
+    if (seq_md5 != NULL)
+        EVP_MD_CTX_free(seq_md5);
 
     return error;
 }
@@ -490,7 +497,7 @@ int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive, uns
     size_t signature_len;
     unsigned char *header = NULL;
     size_t header_len;
-    MD5_CTX md5;
+    EVP_MD_CTX *md5 = NULL;
 
     if (rpmst == NULL)
         return DRPM_ERR_PROG;
@@ -511,11 +518,12 @@ int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive, uns
     }
 
     if (digest != NULL) {
-        if (MD5_Init(&md5) != 1 ||
+        if ((md5 = EVP_MD_CTX_new(), md5 == NULL) ||
+            EVP_DigestInit_ex(md5, EVP_md5(), NULL) != 1 ||
             (full_md5 &&
-             (MD5_Update(&md5, rpmst->lead, RPMLEAD_SIZE) != 1 ||
-              MD5_Update(&md5, signature, signature_len) != 1)) ||
-            MD5_Update(&md5, header, header_len) != 1) {
+             (EVP_DigestUpdate(md5, rpmst->lead, RPMLEAD_SIZE) != 1 ||
+              EVP_DigestUpdate(md5, signature, signature_len) != 1)) ||
+            EVP_DigestUpdate(md5, header, header_len) != 1) {
             error = DRPM_ERR_OTHER;
             goto cleanup;
         }
@@ -527,13 +535,13 @@ int rpm_write(struct rpm *rpmst, const char *filename, bool include_archive, uns
             error = DRPM_ERR_IO;
             goto cleanup;
         }
-        if (digest != NULL && MD5_Update(&md5, rpmst->archive, rpmst->archive_size) != 1) {
+        if (digest != NULL && EVP_DigestUpdate(md5, rpmst->archive, rpmst->archive_size) != 1) {
             error = DRPM_ERR_OTHER;
             goto cleanup;
         }
     }
 
-    if (digest != NULL && MD5_Final(digest, &md5) != 1) {
+    if (digest != NULL && EVP_DigestFinal_ex(md5, digest, NULL) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup;
     }
@@ -542,6 +550,8 @@ cleanup:
     Fclose(file);
     free(signature);
     free(header);
+    if (md5 != NULL)
+        EVP_MD_CTX_free(md5);
 
     return error;
 }

@@ -37,7 +37,7 @@
 #ifdef WITH_ZSTD
 #include <zstd.h>
 #endif
-#include <openssl/md5.h>
+#include <openssl/evp.h>
 
 /* magic bytes for determining compression type */
 #define MAGIC_BZIP2(x) (((x) >> 40) == 0x425A68)
@@ -67,7 +67,7 @@ struct decompstrm {
     int (*read_chunk)(struct decompstrm *);
     void (*finish)(struct decompstrm *);
     size_t comp_size;
-    MD5_CTX *md5;
+    EVP_MD_CTX *md5;
     const unsigned char *buffer;
     size_t buffer_len;
 };
@@ -261,7 +261,7 @@ int decompstrm_destroy(struct decompstrm **strm)
  * If <md5> is not NULL, input data will be used to update the MD5 context.
  * If <filedesc> is valid, compressed data will be read from the file.
  * Otherwise, input data is read from <buffer> of size <buffer_len>. */
-int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp, MD5_CTX *md5,
+int decompstrm_init(struct decompstrm **strm, int filedesc, unsigned short *comp, EVP_MD_CTX *md5,
                     const unsigned char *buffer, size_t buffer_len)
 {
     uint64_t magic;
@@ -478,7 +478,7 @@ int readchunk(struct decompstrm *strm)
 
     strm->comp_size = strm->data_len;
 
-    if (strm->md5 != NULL && MD5_Update(strm->md5, buffer, in_len) != 1)
+    if (strm->md5 != NULL && EVP_DigestUpdate(strm->md5, buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
@@ -531,7 +531,7 @@ int readchunk_bzip2(struct decompstrm *strm)
 
     strm->comp_size += in_len;
 
-    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+    if (strm->md5 != NULL && EVP_DigestUpdate(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
@@ -585,7 +585,7 @@ int readchunk_gzip(struct decompstrm *strm)
 
     strm->comp_size += in_len;
 
-    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+    if (strm->md5 != NULL && EVP_DigestUpdate(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
@@ -645,7 +645,7 @@ int readchunk_lzma(struct decompstrm *strm)
 
     strm->comp_size += in_len;
 
-    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+    if (strm->md5 != NULL && EVP_DigestUpdate(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
@@ -722,7 +722,7 @@ int readchunk_lzip(struct decompstrm *strm)
 
     strm->comp_size += in_len;
 
-    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+    if (strm->md5 != NULL && EVP_DigestUpdate(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
 
     return DRPM_ERR_OK;
@@ -772,7 +772,7 @@ int readchunk_zstd(struct decompstrm *strm)
 
     strm->comp_size += in_len;
 
-    if (strm->md5 != NULL && MD5_Update(strm->md5, in_buffer, in_len) != 1)
+    if (strm->md5 != NULL && EVP_DigestUpdate(strm->md5, in_buffer, in_len) != 1)
         return DRPM_ERR_OTHER;
 
     free(buffOut);

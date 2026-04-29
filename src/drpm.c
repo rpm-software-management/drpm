@@ -513,7 +513,7 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
     size_t cpio_files_len = 0;
     struct blocks *blks = NULL;
     int filedesc;
-    MD5_CTX md5;
+    EVP_MD_CTX *md5 = NULL;
     unsigned char md5_digest[MD5_DIGEST_LENGTH];
     bool no_full_md5;
     bool has_md5;
@@ -635,7 +635,8 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
         goto cleanup;
     }
 
-    if (MD5_Init(&md5) != 1) {
+    if (md5 = EVP_MD_CTX_new(), md5 == NULL ||
+        EVP_DigestInit_ex(md5, EVP_md5(), NULL) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup;
     }
@@ -645,7 +646,7 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
         error = DRPM_ERR_IO;
         goto cleanup;
     }
-    if (!no_full_md5 && MD5_Update(&md5, delta.tgt_leadsig, delta.tgt_leadsig_len) != 1) {
+    if (!no_full_md5 && EVP_DigestUpdate(md5, delta.tgt_leadsig, delta.tgt_leadsig_len) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup;
     }
@@ -659,7 +660,7 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
             error = DRPM_ERR_IO;
             goto cleanup;
         }
-        if (MD5_Update(&md5, header, header_size) != 1) {
+        if (EVP_DigestUpdate(md5, header, header_size) != 1) {
             error = DRPM_ERR_OTHER;
             goto cleanup;
         }
@@ -730,8 +731,8 @@ int drpm_apply(const char *old_rpm_name, const char *deltarpm_name, const char *
         goto cleanup;
 
     /* finalizing MD5 of written data */
-    if (MD5_Update(&md5, comp_data, comp_data_len) != 1 ||
-        MD5_Final(md5_digest, &md5) != 1) {
+    if (EVP_DigestUpdate(md5, comp_data, comp_data_len) != 1 ||
+        EVP_DigestFinal_ex(md5, md5_digest, NULL) != 1) {
         error = DRPM_ERR_OTHER;
         goto cleanup;
     }
@@ -755,6 +756,9 @@ final_check:
     }
 
 cleanup:
+
+    if (md5 != NULL)
+        EVP_MD_CTX_free(md5);
 
     close(filedesc);
 

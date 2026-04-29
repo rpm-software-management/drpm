@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <sys/types.h>
+#include <openssl/evp.h>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 
@@ -83,13 +84,13 @@ void create_be64(uint64_t in, unsigned char out[8])
     out[7] = in;
 }
 
-int md5_update_be32(MD5_CTX *md5, uint32_t number)
+int md5_update_be32(EVP_MD_CTX *md5, uint32_t number)
 {
     unsigned char be32[4];
 
     create_be32(number, be32);
 
-    return MD5_Update(md5, be32, 4);
+    return EVP_DigestUpdate(md5, be32, 4);
 }
 
 /* Represents array of bytes pointed to by <source> of size <count>
